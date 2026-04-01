@@ -1,0 +1,1347 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useParams, useNavigate } from "react-router-dom"
+import { Download, AlertCircle, Target, History, Zap, Award, BookOpen, MessageSquare, ChevronRight, Check, X, ArrowLeft, ArrowRight, Clock, CheckCircle2, Brain, Quote, Lightbulb, Activity, Mic, TrendingUp } from "lucide-react"
+import { motion, Variants } from "framer-motion"
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from "recharts"
+
+import Navigation from "../components/landing/Navigation"
+import { getApiUrl } from "@/lib/api"
+import { supabase } from "@/lib/supabase"
+import { Button } from "@/components/ui/button"
+
+// --- TYPES & INTERFACES (UPDATED TO MATCH BACKEND) ---
+
+interface BaseMeta {
+    scenario_id: string
+    outcome_status: string
+    overall_grade: string
+    summary: string
+    scenario_type?: string
+    session_mode?: string
+    emotional_trajectory?: string
+    session_quality?: string
+    key_themes?: string[]
+    scenario?: string
+}
+
+interface BehaviourItem {
+    behavior: string
+    quote: string
+    insight: string
+    impact: string
+    improved_approach: string
+}
+
+interface DetailedAnalysisItem {
+    topic: string
+    analysis: string
+}
+
+interface ScorecardItem {
+    dimension: string
+    score: string
+    description?: string // Keeping for backward compatibility
+    reasoning?: string // New field for Proof of Marks
+    quote?: string
+    suggestion?: string
+    alternative_questions?: { question: string; rationale: string }[]
+}
+
+interface GenericReportData {
+    meta: BaseMeta
+    type?: string
+    transcript?: { role: "user" | "assistant", content: string }[]
+    behaviour_analysis?: BehaviourItem[]
+    detailed_analysis?: DetailedAnalysisItem[] | string
+    question_analysis?: QuestionAnalysis // NEW: Enhanced question analysis
+    mentorship_observations?: MentorshipObservation[]
+    learning_takeaways?: string[]
+    reflection_prompts?: string[]
+    comparison?: ComparisonData | null
+    [key: string]: any
+}
+
+interface ComparisonDelta {
+    dimension: string
+    previous: number
+    current: number
+    change: number
+}
+
+interface ComparisonData {
+    has_previous: boolean
+    previous_score: number | null
+    current_score: number | null
+    score_change: number | null
+    previous_date: string | null
+    dimension_deltas: ComparisonDelta[]
+}
+
+
+
+// --- NEW DEFINITIONS FOR COACHING SIMULATION ---
+interface ExecutiveSummary {
+    snapshot: string;
+    final_score: string;
+    strengths_summary: string;
+    improvements_summary: string;
+    outcome_summary: string;
+}
+
+interface GoalAttainment {
+    score: string;
+    expectation_vs_reality: string;
+    primary_gaps: string[];
+    observation_focus: string[];
+}
+
+interface DeepDiveItem {
+    topic: string;
+    tone?: string;
+    language_impact?: string;
+    comfort_level?: string;
+    impact?: string;
+    questions_asked?: string;
+    exploration?: string;
+    understanding_depth?: string;
+    analysis?: string; // fallback
+}
+
+interface ActionPlan {
+    specific_actions: string[];
+    timeline: string;
+    success_indicators: string[];
+}
+
+interface FollowUpStrategy {
+    review_cadence: string;
+    metrics_to_track: string[];
+    accountability_method: string;
+}
+
+interface FinalEvaluation {
+    readiness_level: string;
+    maturity_rating: string;
+    immediate_focus: string[];
+    long_term_suggestion: string;
+}
+
+interface SimulationReportData extends GenericReportData {
+    executive_summary?: ExecutiveSummary;
+    goal_attainment?: GoalAttainment;
+    deep_dive_analysis?: DeepDiveItem[]; // Override generic
+    scorecard?: ScorecardItem[]; // using existing
+    missed_opportunities?: string[];
+    action_plan?: ActionPlan;
+    follow_up_strategy?: FollowUpStrategy;
+    strengths_and_improvements?: { strengths: string[]; missed_opportunities: string[] };
+    final_evaluation?: FinalEvaluation;
+    pattern_summary?: string;
+    turning_points?: { point: string; timestamp: string }[];
+    coaching_style?: { primary_style: string; description: string };
+    deal_coaching_questions?: { question: string; definition: string; scoring: string; impact: string }[];
+    ideal_questions?: { question: string; definition: string; scoring: string; impact: string }[];
+    learning_takeaways?: string[];
+    reflection_prompts?: string[];
+    speech_analysis?: {
+        total_words?: number;
+        filler_count?: number;
+        filler_ratio?: number;
+        filler_breakdown?: Record<string, number>;
+        wpm?: number;
+        wpm_label?: string;
+    };
+}
+
+// Mentorship-specific types
+interface MentorshipObservation {
+    observation: string
+    evidence_quote: string
+    significance: string
+    suggestion: string
+}
+
+// Mentorship Reflection Report types (new format)
+interface MentorshipConversationSnapshot {
+    simulation_context?: {
+        your_role: string
+        ai_role: string
+        scenario_type: string
+        primary_skill_focus: string
+    }
+    conversation_flow_overview?: string
+}
+
+interface MentorshipTurningPoint {
+    point_number?: number
+    title?: string
+    description: string
+    ai_technique_used?: string
+    impact?: string
+    // Legacy fields
+    point?: string
+    timestamp?: string
+}
+
+interface MentorshipExamplePhrase {
+    phrase: string
+    context: string
+    technique: string
+}
+
+interface MentorshipReflectionData extends Omit<GenericReportData, 'learning_takeaways'> {
+    type?: string
+    conversation_snapshot?: MentorshipConversationSnapshot
+    interaction_highlights?: {
+        note?: string
+        ai_response_strategy_observed?: string[]
+        questioning_techniques_used_by_ai?: string[]
+        emotional_handling_patterns?: string[]
+    }
+    turning_points?: MentorshipTurningPoint[]
+    learning_takeaways?: { what_you_can_observe_and_practice?: string[] } | string[]
+    example_phrases_demonstrated?: MentorshipExamplePhrase[]
+    alternative_pathways?: {
+        note?: string
+        alternatives?: string[]
+    }
+    closing_reflection_prompts?: string[]
+    // Legacy fields
+    mentorship_observations?: MentorshipObservation[]
+    reflection_prompts?: string[]
+    executive_summary?: ExecutiveSummary
+    coaching_style?: { primary_style: string; description: string }
+}
+
+// Question Analysis (Backend Enhanced)
+interface QuestionMissed {
+    question: string
+    category?: string // Discovery, Probing, Clarifying, Vision, Closing
+    timing?: string // Early, Mid, Late
+    why_important: string
+    when_to_ask: string
+    impact_if_asked: string
+}
+
+interface QuestionAnalysis {
+    questions_asked_count: number
+    questions_missed: QuestionMissed[]
+    question_quality_score?: string
+    question_quality_feedback?: string
+    questioning_improvement_tip?: string
+}
+
+const containerVars: Variants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: { staggerChildren: 0.1 }
+    }
+}
+
+const itemVars: Variants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 50 } }
+}
+
+export default function Report() {
+    const params = useParams()
+    const navigate = useNavigate()
+    const sessionId = params.sessionId as string
+    const [data, setData] = useState<GenericReportData | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [showTranscript, setShowTranscript] = useState(false)
+
+    useEffect(() => {
+        let isMounted = true;
+        let retryCount = 0;
+        const maxRetries = 30; // Wait up to 90 seconds (3s * 30)
+
+        const fetchReport = async () => {
+            try {
+                if (!sessionId) return;
+
+                const { data: { session } } = await supabase.auth.getSession();
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json'
+                };
+                if (session?.access_token) {
+                    headers['Authorization'] = `Bearer ${session.access_token}`;
+                }
+
+                const response = await fetch(getApiUrl(`/api/session/${sessionId}/report_data`), { headers });
+                
+                // If the report is still generating, wait and retry!
+                if (response.status === 400 || response.status === 404) {
+                    if (retryCount < maxRetries && isMounted) {
+                        retryCount++;
+                        console.log(`Report not ready. Retrying in 3s... (Attempt ${retryCount}/${maxRetries})`);
+                        setTimeout(fetchReport, 3000);
+                        return;
+                    }
+                }
+
+                if (!response.ok) throw new Error("Failed to fetch report data");
+                const data: GenericReportData = await response.json();
+                
+                if (isMounted) {
+                    setData(data);
+                    setLoading(false);
+                }
+            } catch (err) {
+                console.error("Error generating report:", err);
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchReport();
+
+        return () => { isMounted = false; };
+    }, [sessionId]);
+
+    const handleDownload = async () => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: Record<string, string> = {};
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
+            const response = await fetch(getApiUrl(`/api/report/${sessionId}`), { headers })
+            if (!response.ok) throw new Error("Failed to generate PDF")
+
+            const contentType = response.headers.get('content-type') || ''
+
+            // If backend returns a redirect URL (Blob Storage), open it directly
+            if (contentType.includes('application/json')) {
+                const jsonData = await response.json()
+                if (jsonData.url) {
+                    window.open(jsonData.url, '_blank')
+                    return
+                }
+                throw new Error("No report URL found")
+            }
+
+            // Otherwise, handle as binary PDF
+            const blob = await response.blob()
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `CoActAI_Report_${sessionId}.pdf`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            window.URL.revokeObjectURL(url)
+        } catch (error) {
+            console.error("Error downloading PDF:", error)
+            alert("PDF export failed. Please ensure the backend is running.")
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6 font-sans">
+                <div className="relative">
+                    <div className="w-16 h-16 rounded-full border-4 border-primary/30 border-t-primary animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Zap className="w-6 h-6 text-primary animate-pulse" />
+                    </div>
+                </div>
+                <p className="text-muted-foreground animate-pulse font-medium tracking-wide">GENERATING ANALYSIS...</p>
+            </div>
+        )
+    }
+
+    if (!data || !data.meta) {
+        return (
+            <div className="min-h-screen bg-background p-12 flex flex-col items-center justify-center font-sans">
+                <AlertCircle className="h-16 w-16 text-amber-500 mb-6" />
+                <h2 className="text-3xl font-bold text-foreground mb-3">Report Unavailable</h2>
+                <Button onClick={() => navigate("/")} variant="secondary">Return Home</Button>
+            </div>
+        )
+    }
+
+    const renderContent = () => {
+        // Mentorship sessions use dedicated observation-based view (no scores)
+        const isMentorshipRoute = data.meta?.session_mode === 'mentorship'
+            || data.type === 'mentorship_reflection'
+            || data.meta?.scenario_type?.toLowerCase().includes('mentorship')
+        if (isMentorshipRoute) {
+            return <MentorshipReflectionView data={data as MentorshipReflectionData} />
+        }
+        // ALL assessment scenarios use the rich SimulationView template
+        return <SimulationView data={data as SimulationReportData} />
+    }
+
+    return (
+        <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30">
+            <Navigation />
+            <div className="fixed inset-0 pointer-events-none -z-10">
+                <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-purple-600/5 rounded-full blur-[120px]" />
+            </div>
+
+            <main className="relative container mx-auto px-4 sm:px-6 py-24 sm:py-32 space-y-12">
+                {/* HEADER & BANNER */}
+                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                    <div className="flex flex-col md:flex-row gap-8 justify-between items-start">
+                        <div>
+                            <button onClick={() => navigate('/history')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6 group">
+                                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                                Back to History
+                            </button>
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                                <div>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                                            {data.meta.scenario_type || 'Custom Scenario'}
+                                        </span>
+                                        {data.meta.session_mode && (
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${data.meta.session_mode === 'skill_assessment'
+                                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                                                : data.meta.session_mode === 'practice'
+                                                    ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                                                    : 'bg-purple-500/10 text-purple-600 border-purple-500/20'
+                                                }`}>
+                                                {data.meta.session_mode.replace('_', ' ')}
+                                            </span>
+                                        )}
+                                        <span className="text-muted-foreground text-sm font-medium flex items-center gap-1">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            {new Date().toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    <h1 className="text-4xl md:text-5xl font-black text-foreground mb-2">
+                                        {(data.meta.session_mode === 'mentorship' || data.meta?.scenario_type?.toLowerCase().includes('mentorship')) ? 'Mentorship Reflection Report' : 'Session Analysis'}
+                                    </h1>
+                                    {(data.meta.session_mode === 'mentorship' || data.meta?.scenario_type?.toLowerCase().includes('mentorship')) ? (
+                                        <p className="text-lg text-muted-foreground italic">This report summarizes key interaction patterns and learning insights from your practice simulation.</p>
+                                    ) : (
+                                        <p className="text-xl text-muted-foreground">{data.meta.summary}</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-4 min-w-[200px]">
+                            {data.meta.session_mode !== 'mentorship' && !data.meta?.scenario_type?.toLowerCase().includes('mentorship') && (
+                                <div className="text-right">
+                                    <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-1">
+                                        Overall Grade
+                                    </div>
+                                    <div className="text-7xl font-black text-transparent bg-clip-text leading-none bg-gradient-to-br from-blue-400 to-indigo-500">
+                                        {data.meta.overall_grade}
+                                    </div>
+                                </div>
+                            )}
+                            <Button onClick={handleDownload} variant="outline" className="gap-2 border-border hover:bg-accent w-full">
+                                <Download className="w-4 h-4" /> Export PDF Report
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* METRICS BANNER (Matches PDF Banner) - hidden for mentorship */}
+                    {data.meta.session_mode !== 'mentorship' && !data.meta?.scenario_type?.toLowerCase().includes('mentorship') && <div className="grid md:grid-cols-3 gap-6">
+                        {data.meta.emotional_trajectory && (
+                            <GlassCard className="p-4 flex flex-col bg-indigo-500/5 border-indigo-500/10">
+                                <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-2">Emotional Arc</span>
+                                <span className="text-sm font-medium text-foreground">{data.meta.emotional_trajectory}</span>
+                            </GlassCard>
+                        )}
+                        {data.meta.session_quality && (
+                            <GlassCard className="p-4 flex flex-col bg-emerald-500/5 border-emerald-500/10">
+                                <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2">Session Quality</span>
+                                <span className="text-sm font-medium text-foreground">{data.meta.session_quality}</span>
+                            </GlassCard>
+                        )}
+                        {data.meta.key_themes && (
+                            <GlassCard className="p-4 flex flex-col bg-pink-500/5 border-pink-500/10">
+                                <span className="text-xs font-bold text-pink-500 uppercase tracking-wider mb-2">Key Themes</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {data.meta.key_themes.slice(0, 3).map((t, i) => (
+                                        <span key={i} className="text-xs bg-background/50 px-2 py-1 rounded border border-border/50">{t}</span>
+                                    ))}
+                                </div>
+                            </GlassCard>
+                        )}
+                    </div>}
+                </motion.div>
+
+                {/* COMPARISON BANNER */}
+                {data.comparison && data.comparison.has_previous && (
+                    <ComparisonBanner comparison={data.comparison} />
+                )}
+
+                <motion.div variants={containerVars} initial="hidden" animate="show">
+                    {renderContent()}
+                </motion.div>
+
+                {/* TRANSCRIPT */}
+                {data.transcript && (
+                    <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} className="rounded-3xl bg-card border border-border overflow-hidden backdrop-blur-sm">
+                        <div className="px-8 py-6 flex items-center justify-between cursor-pointer hover:bg-accent transition-colors group" onClick={() => setShowTranscript(!showTranscript)}>
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/20 text-primary"><History className="w-5 h-5" /></div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-foreground">Session Transcript</h3>
+                                    <p className="text-sm text-muted-foreground">Review the full conversation log</p>
+                                </div>
+                            </div>
+                            <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform ${showTranscript ? 'rotate-90' : ''}`} />
+                        </div>
+                        {showTranscript && (
+                            <div className="p-8 max-h-[600px] overflow-y-auto space-y-6 border-t border-border bg-muted/20">
+                                {data.transcript?.map((msg, idx) => (
+                                    <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`p-4 rounded-2xl max-w-[80%] text-sm leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-card text-foreground border border-border rounded-bl-none'}`}>
+                                            {msg.content}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </main>
+        </div>
+    )
+}
+
+// --- COMPARISON BANNER ---
+const ComparisonBanner = ({ comparison }: { comparison: ComparisonData }) => {
+    const change = comparison.score_change
+    const isImproved = change !== null && change > 0
+    const isDeclined = change !== null && change < 0
+    const prevDate = comparison.previous_date
+        ? new Date(comparison.previous_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        : null
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className={`rounded-2xl border p-6 md:p-8 ${
+                isImproved
+                    ? 'bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20'
+                    : isDeclined
+                        ? 'bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent border-rose-500/20'
+                        : 'bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-blue-500/20'
+            }`}
+        >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                {/* Left: Title + Score Change */}
+                <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-xl ${isImproved ? 'bg-emerald-500/20' : isDeclined ? 'bg-rose-500/20' : 'bg-blue-500/20'}`}>
+                        <TrendingUp className={`w-6 h-6 ${isImproved ? 'text-emerald-500' : isDeclined ? 'text-rose-500 rotate-180' : 'text-blue-500'}`} />
+                    </div>
+                    <div>
+                        <h3 className={`font-bold text-lg ${isImproved ? 'text-emerald-600 dark:text-emerald-400' : isDeclined ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                            {isImproved ? 'You Improved! 🎉' : isDeclined ? 'Room to Grow' : 'Same Level'}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                            Compared to your previous attempt{prevDate ? ` on ${prevDate}` : ''}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Right: Score Delta */}
+                {comparison.previous_score !== null && comparison.current_score !== null && (
+                    <div className="flex items-center gap-3 bg-background/50 backdrop-blur-sm rounded-xl px-5 py-3 border border-border/50">
+                        <span className="text-2xl font-black text-muted-foreground">{comparison.previous_score}</span>
+                        <ArrowRight className="w-5 h-5 text-muted-foreground" />
+                        <span className={`text-2xl font-black ${isImproved ? 'text-emerald-500' : isDeclined ? 'text-rose-500' : 'text-blue-500'}`}>
+                            {comparison.current_score}
+                        </span>
+                        {change !== null && change !== 0 && (
+                            <span className={`text-sm font-bold px-2 py-1 rounded-full ${isImproved ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                                {change > 0 ? '+' : ''}{change}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Per-Dimension Deltas */}
+            {comparison.dimension_deltas && comparison.dimension_deltas.length > 0 && (
+                <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {comparison.dimension_deltas.map((d, i) => {
+                        const improved = d.change > 0
+                        const declined = d.change < 0
+                        return (
+                            <div key={i} className="bg-background/60 backdrop-blur-sm rounded-xl border border-border/50 p-3 text-center">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 line-clamp-1" title={d.dimension}>
+                                    {d.dimension}
+                                </div>
+                                <div className="flex items-center justify-center gap-1">
+                                    <span className="text-xs text-muted-foreground">{d.previous}</span>
+                                    <span className="text-muted-foreground text-xs">→</span>
+                                    <span className={`text-sm font-black ${improved ? 'text-emerald-500' : declined ? 'text-rose-500' : 'text-foreground'}`}>
+                                        {d.current}
+                                    </span>
+                                </div>
+                                {d.change !== 0 && (
+                                    <span className={`text-xs font-bold ${improved ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                        {d.change > 0 ? '+' : ''}{d.change}
+                                    </span>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+        </motion.div>
+    )
+}
+
+// --- SHARED COMPONENTS ---
+
+const GlassCard = ({ children, className = "" }: any) => (
+    <motion.div variants={itemVars} className={`bg-card rounded-2xl border border-border p-6 shadow-sm ${className}`}>{children}</motion.div>
+)
+
+const SectionHeader = ({ icon: Icon, title, colorClass = "text-primary", bgClass = "bg-primary/10" }: any) => (
+    <div className="flex items-center gap-4 mb-6">
+        <div className={`p-3 rounded-xl ${bgClass} ring-1 ring-border/50`}><Icon className={`w-6 h-6 ${colorClass}`} /></div>
+        <h2 className="text-xl font-bold text-foreground tracking-wide uppercase">{title}</h2>
+    </div>
+)
+
+const ProgressBar = ({ value, colorClass = "bg-primary" }: { value: number, colorClass?: string }) => (
+    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+        <motion.div initial={{ width: 0 }} whileInView={{ width: `${value}%` }} transition={{ duration: 1 }} className={`h-full ${colorClass}`} />
+    </div>
+)
+
+
+
+// --- CONVERSATION SNAPSHOT SECTION (shared by Assessment + Mentorship) ---
+const ConversationSnapshotSection = ({ data }: { data: any }) => {
+    const snap = data.conversation_snapshot as MentorshipConversationSnapshot | undefined
+    if (!snap) return null
+    return (
+        <div className="space-y-6">
+            {snap.simulation_context && (
+                <GlassCard className="border-l-4 border-l-violet-500">
+                    <SectionHeader icon={Mic} title="Conversation Snapshot" colorClass="text-violet-500" bgClass="bg-violet-500/10" />
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="p-4 rounded-xl bg-violet-500/5 border border-violet-500/10">
+                            <span className="text-xs font-bold text-violet-600 uppercase tracking-widest block mb-1">Your Role</span>
+                            <p className="text-sm font-medium text-foreground">{snap.simulation_context.your_role}</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-violet-500/5 border border-violet-500/10">
+                            <span className="text-xs font-bold text-violet-600 uppercase tracking-widest block mb-1">AI Role</span>
+                            <p className="text-sm font-medium text-foreground">{snap.simulation_context.ai_role}</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                            <span className="text-xs font-bold text-blue-600 uppercase tracking-widest block mb-1">Scenario Type</span>
+                            <p className="text-sm font-medium text-foreground">{snap.simulation_context.scenario_type}</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
+                            <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest block mb-1">Primary Skill Focus</span>
+                            <p className="text-sm font-bold text-indigo-600">{snap.simulation_context.primary_skill_focus}</p>
+                        </div>
+                    </div>
+                    {snap.conversation_flow_overview && (
+                        <div className="mt-4 p-4 rounded-xl bg-muted/30 border border-border/50">
+                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest block mb-2">Conversation Flow Overview</span>
+                            <p className="text-sm text-foreground/90 leading-relaxed">{snap.conversation_flow_overview}</p>
+                        </div>
+                    )}
+                </GlassCard>
+            )}
+            {!snap.simulation_context && snap.conversation_flow_overview && (
+                <GlassCard className="border-l-4 border-l-violet-500">
+                    <SectionHeader icon={Mic} title="Conversation Snapshot" colorClass="text-violet-500" bgClass="bg-violet-500/10" />
+                    <p className="text-base text-foreground/90 leading-relaxed">{snap.conversation_flow_overview}</p>
+                </GlassCard>
+            )}
+        </div>
+    )
+}
+
+// --- IDEAL COACHING QUESTIONS SECTION (with definition + scoring + impact) ---
+const IdealCoachingQuestionsSection = ({ questions }: { questions?: { question: string; definition: string; scoring: string; impact: string }[] }) => {
+    if (!questions || questions.length === 0) return null
+    return (
+        <GlassCard className="border-l-4 border-l-indigo-500">
+            <SectionHeader icon={MessageSquare} title="IDEAL COACHING QUESTIONS" colorClass="text-indigo-500" bgClass="bg-indigo-500/10" />
+            <div className="mb-5 p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
+                <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest block mb-2">What Are Ideal Coaching Questions?</span>
+                <p className="text-sm text-foreground/80 leading-relaxed">
+                    Ideal coaching questions are purposefully crafted, open-ended prompts that guide the coachee to deeper self-reflection, unlock new perspectives, and drive meaningful action. They are non-judgmental, curiosity-driven, and timed to match the conversation's emotional and logical flow.
+                </p>
+            </div>
+            <div className="mb-4 flex items-center gap-3 text-xs font-bold uppercase tracking-widest">
+                <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">High Impact</span>
+                <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">Strategic</span>
+                <span className="px-2 py-1 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20">Coachee-Centered</span>
+            </div>
+            <ul className="space-y-4">
+                {questions.map((q, i) => (
+                    <li key={i} className="flex gap-4 p-4 rounded-xl bg-background border border-border hover:border-indigo-500/30 transition-colors">
+                        <div className="w-7 h-7 rounded-full bg-indigo-500/10 text-indigo-600 flex items-center justify-center text-xs font-black shrink-0 mt-0.5 border border-indigo-500/20">{i + 1}</div>
+                        <div className="flex-1">
+                            <p className="text-sm font-semibold text-foreground italic mb-3">"{q.question}"</p>
+                            <div className="grid sm:grid-cols-2 gap-4 mb-3">
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Definition</span>
+                                    <p className="text-xs text-foreground/90">{q.definition}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Impact</span>
+                                    <p className="text-xs text-foreground/90">{q.impact}</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 font-bold uppercase tracking-wide border border-amber-500/20">
+                                    Score: {q.scoring}
+                                </span>
+                            </div>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </GlassCard>
+    )
+}
+
+
+
+
+const SkillRadarChart = ({ items }: { items: { dimension: string; score: number | string }[] }) => {
+    const data = items.map(item => ({
+        subject: item.dimension,
+        A: typeof item.score === 'number' ? item.score : parseFloat(item.score.split('/')[0]) || 0,
+        fullMark: 10
+    }))
+
+    return (
+        <div className="w-full h-[300px] flex items-center justify-center">
+            <ResponsiveContainer width="99%" height="99%" minWidth={10} minHeight={10}>
+                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
+                    <PolarGrid stroke="currentColor" className="text-muted-foreground/20" />
+                    <PolarAngleAxis
+                        dataKey="subject"
+                        tick={{ fill: 'currentColor', fontSize: 10, fontWeight: 600 }}
+                        className="text-muted-foreground"
+                    />
+                    <Radar
+                        name="Score"
+                        dataKey="A"
+                        stroke="#a855f7"
+                        fill="#a855f7"
+                        fillOpacity={0.3}
+                    />
+                </RadarChart>
+            </ResponsiveContainer>
+        </div>
+    )
+}
+
+const CompetencyHeatMap = ({ items }: { items: { dimension: string; score: number }[] }) => {
+    const getScoreColor = (score: number) => {
+        if (score >= 8) return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 ring-emerald-500/30'
+        if (score >= 5) return 'bg-amber-500/10 text-amber-600 border-amber-500/20 ring-amber-500/30'
+        return 'bg-rose-500/10 text-rose-600 border-rose-500/20 ring-rose-500/30'
+    }
+
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {items.map((item, i) => (
+                <motion.div
+                    key={i}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.05 }}
+                    className={`p-5 rounded-2xl border flex flex-col items-center justify-center gap-2 group hover:shadow-lg transition-all duration-300 ring-1 ${getScoreColor(item.score)}`}
+                >
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 text-center leading-tight">
+                        {item.dimension}
+                    </div>
+                    <div className="text-4xl font-black tracking-tighter group-hover:scale-110 transition-transform">
+                        {item.score}
+                    </div>
+                    <div className="w-full h-1 bg-current/10 rounded-full mt-2 overflow-hidden">
+                        <motion.div
+                            initial={{ width: 0 }}
+                            whileInView={{ width: `${(item.score / 10) * 100}%` }}
+                            transition={{ duration: 1, delay: 0.5 }}
+                            className="h-full bg-current"
+                        />
+                    </div>
+                </motion.div>
+            ))}
+        </div>
+    )
+}
+
+
+const ScorecardSection = ({ items }: { items: ScorecardItem[] }) => (
+    <GlassCard>
+        <SectionHeader icon={Target} title="Performance Scorecard" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
+
+        {/* Radar Chart Visualization */}
+        <SkillRadarChart items={items} />
+
+        <div className="space-y-8">
+            {items?.map((item, i) => {
+                const numScore = parseFloat(item.score.split('/')[0] || "0")
+                const color = numScore >= 8 ? 'bg-emerald-500' : numScore >= 5 ? 'bg-amber-500' : 'bg-rose-500'
+
+                return (
+                    <div key={i} className="group border-b border-border/50 last:border-0 pb-8 last:pb-0">
+                        {/* Header: Dimension + Score */}
+                        <div className="flex justify-between items-end mb-3">
+                            <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">{item.dimension}</h3>
+                            <span className={`font-mono font-black text-2xl ${numScore >= 8 ? 'text-emerald-500' : numScore >= 5 ? 'text-amber-500' : 'text-rose-500'}`}>{item.score}</span>
+                        </div>
+
+                        <ProgressBar value={numScore * 10} colorClass={color} />
+
+                        <div className="mt-5 space-y-4">
+                            {/* PROOF / REASONING */}
+                            <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 block">Proof of Marks</span>
+                                <p className="text-sm text-foreground leading-relaxed">
+                                    {item.reasoning || item.description}
+                                </p>
+                                {item.quote && (
+                                    <div className="mt-3 flex gap-2 text-sm text-muted-foreground/80 italic">
+                                        <Quote className="w-4 h-4 shrink-0 opacity-50" />
+                                        <span>"{item.quote}"</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* SUGGESTION */}
+                            {item.suggestion && (
+                                <div className="bg-emerald-500/5 rounded-xl p-4 border border-emerald-500/10 relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/30" />
+                                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-2 block flex items-center gap-2">
+                                        <Lightbulb className="w-3.5 h-3.5" /> Suggestion
+                                    </span>
+                                    <p className="text-sm font-medium text-foreground/90 leading-relaxed">
+                                        {item.suggestion}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* ALTERNATIVE QUESTIONS */}
+                            {item.alternative_questions && item.alternative_questions.length > 0 && (
+                                <div className="mt-2">
+                                    <p className="text-xs font-bold text-primary/70 uppercase tracking-wider mb-2">Try asking instead:</p>
+                                    <div className="grid sm:grid-cols-2 gap-3">
+                                        {item.alternative_questions.map((aq, idx) => (
+                                            <div key={idx} className="p-3 bg-background rounded-lg border border-border text-xs shadow-sm">
+                                                <span className="font-semibold text-primary block mb-1">"{aq.question}"</span>
+                                                <span className="text-muted-foreground text-[10px] uppercase tracking-wide opacity-80">{aq.rationale}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+    </GlassCard>
+)
+
+// --- VIEW COMPONENTS ---
+
+// --- MENTORSHIP REFLECTION VIEW (Observation-Based Learning) ---
+const MentorshipReflectionView = ({ data }: { data: MentorshipReflectionData }) => {
+    // Handle learning_takeaways which can be either string[] or { what_you_can_observe_and_practice: string[] }
+    const takeaways: string[] = Array.isArray(data.learning_takeaways)
+        ? data.learning_takeaways
+        : (data.learning_takeaways as any)?.what_you_can_observe_and_practice || []
+
+    const reflectionPrompts = data.closing_reflection_prompts || data.reflection_prompts || []
+
+    return (
+        <div className="space-y-8">
+            {/* SECTION 1: Conversation Snapshot */}
+            <ConversationSnapshotSection data={data} />
+
+
+            {/* Legacy executive summary for backward compat */}
+            {!data.conversation_snapshot && data.executive_summary && (
+                <GlassCard className="border-l-4 border-l-purple-500">
+                    <SectionHeader icon={Activity} title="Mentorship Overview" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
+                    <p className="text-xl font-medium text-foreground/90 leading-relaxed mb-6">{data.executive_summary.snapshot}</p>
+                    <div className="bg-purple-500/5 border-purple-500/10 rounded-xl p-4 border">
+                        <span className="text-xs font-bold text-purple-500 uppercase tracking-widest block mb-2">Outcome Summary</span>
+                        <p className="text-sm text-foreground/80">{data.executive_summary.outcome_summary}</p>
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* SECTION 2: Interaction Highlights */}
+            {data.interaction_highlights && (
+                <div className="space-y-6">
+                    <SectionHeader icon={Zap} title="Interaction Highlights" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
+                    {data.interaction_highlights.note && data.interaction_highlights.note !== "This replaces scoring â€” structured observation of key patterns." && (
+                        <p className="text-sm text-muted-foreground -mt-4">{data.interaction_highlights.note}</p>
+                    )}
+                    <div className="grid lg:grid-cols-3 gap-6">
+                    {data.interaction_highlights.ai_response_strategy_observed && data.interaction_highlights.ai_response_strategy_observed.length > 0 && (
+                        <GlassCard className="border-t-4 border-t-purple-500">
+                            <SectionHeader icon={Zap} title="3.1 AI Response Strategy Observed" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
+                            <p className="text-xs text-muted-foreground mb-3 italic">What techniques did the AI demonstrate?</p>
+                            <ul className="space-y-3">
+                                {data.interaction_highlights.ai_response_strategy_observed.map((s, i) => (
+                                    <li key={i} className="flex gap-3 text-sm text-foreground/90 bg-purple-500/5 p-3 rounded-lg border border-purple-500/10">
+                                        <ChevronRight className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" /> {s}
+                                    </li>
+                                ))}
+                            </ul>
+                        </GlassCard>
+                    )}
+                    {data.interaction_highlights.questioning_techniques_used_by_ai && data.interaction_highlights.questioning_techniques_used_by_ai.length > 0 && (
+                        <GlassCard className="border-t-4 border-t-blue-500">
+                            <SectionHeader icon={MessageSquare} title="3.2 Questioning Techniques Used by AI" colorClass="text-blue-500" bgClass="bg-blue-500/10" />
+                            <ul className="space-y-3">
+                                {data.interaction_highlights.questioning_techniques_used_by_ai.map((t, i) => (
+                                    <li key={i} className="flex gap-3 text-sm text-foreground/90 bg-blue-500/5 p-3 rounded-lg border border-blue-500/10">
+                                        <ChevronRight className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" /> {t}
+                                    </li>
+                                ))}
+                            </ul>
+                        </GlassCard>
+                    )}
+                    {data.interaction_highlights.emotional_handling_patterns && data.interaction_highlights.emotional_handling_patterns.length > 0 && (
+                        <GlassCard className="border-t-4 border-t-pink-500">
+                            <SectionHeader icon={Brain} title="3.3 Emotional Handling Patterns" colorClass="text-pink-500" bgClass="bg-pink-500/10" />
+                            <p className="text-xs text-muted-foreground mb-3 italic">How the AI handled tone and emotion:</p>
+                            <ul className="space-y-3">
+                                {data.interaction_highlights.emotional_handling_patterns.map((p, i) => (
+                                    <li key={i} className="flex gap-3 text-sm text-foreground/90 bg-pink-500/5 p-3 rounded-lg border border-pink-500/10">
+                                        <ChevronRight className="w-4 h-4 text-pink-500 shrink-0 mt-0.5" /> {p}
+                                    </li>
+                                ))}
+                            </ul>
+                        </GlassCard>
+                    )}
+                </div>
+                </div>
+            )}
+
+            {/* Legacy mentorship observations */}
+            {!data.interaction_highlights && data.mentorship_observations && data.mentorship_observations.length > 0 && (
+                <GlassCard className="border-l-4 border-l-purple-500">
+                    <SectionHeader icon={BookOpen} title="Mentorship Observations" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
+                    <div className="space-y-6">
+                        {data.mentorship_observations.map((obs, i) => (
+                            <div key={i} className="p-5 rounded-xl bg-purple-500/5 border border-purple-500/10">
+                                <h3 className="font-bold text-lg text-purple-600 mb-3">{obs.observation}</h3>
+                                {obs.evidence_quote && (
+                                    <div className="flex gap-3 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border-l-4 border-purple-500/20 italic mb-3">
+                                        <Quote className="w-4 h-4 shrink-0 opacity-50" /> "{obs.evidence_quote}"
+                                    </div>
+                                )}
+                                <div className="flex gap-2 text-sm">
+                                    <span className="font-bold text-xs text-purple-600 uppercase tracking-wider shrink-0">Significance:</span>
+                                    <span className="text-foreground/80">{obs.significance}</span>
+                                </div>
+                                {obs.suggestion && (
+                                    <div className="flex gap-2 items-start mt-2 p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
+                                        <Lightbulb className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                                        <span className="text-sm text-foreground/90 font-medium">{obs.suggestion}</span>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* SECTION 3: Turning Points in the Discussion */}
+            {data.turning_points && data.turning_points.length > 0 && (
+                <GlassCard>
+                    <SectionHeader icon={History} title="Turning Points in the Discussion" colorClass="text-amber-500" bgClass="bg-amber-500/10" />
+                    <div className="space-y-6">
+                        {data.turning_points.map((tp, i) => (
+                            <div key={i} className="relative pl-8 pb-6 border-l-2 border-amber-500/30 last:pb-0 last:border-l-transparent">
+                                <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-amber-500 border-2 border-background" />
+                                <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">
+                                            Turning Point {tp.point_number || i + 1}
+                                        </span>
+                                        {tp.title && <span className="text-sm font-bold text-foreground">{tp.title}</span>}
+                                    </div>
+                                    <p className="text-sm text-foreground/90 leading-relaxed mb-2">{tp.description || tp.point}</p>
+                                    {tp.ai_technique_used && (
+                                        <div className="text-sm mt-2">
+                                            <span className="font-bold text-amber-600">Technique:</span>{' '}
+                                            <span className="text-foreground/80">{tp.ai_technique_used}</span>
+                                        </div>
+                                    )}
+                                    {tp.impact && (
+                                        <div className="text-sm mt-1">
+                                            <span className="font-bold text-amber-600">Impact:</span>{' '}
+                                            <span className="text-foreground/80">{tp.impact}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* SECTION 4: Learning Takeaways for Practice */}
+            {takeaways.length > 0 && (
+                <GlassCard>
+                    <SectionHeader icon={Lightbulb} title="Learning Takeaways for Practice" colorClass="text-teal-500" bgClass="bg-teal-500/10" />
+                    <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-3">What You Can Observe & Practice</p>
+                    <div className="space-y-3">
+                        {takeaways.map((takeaway, i) => (
+                            <div key={i} className="flex gap-3 text-sm text-foreground/90 bg-teal-500/5 p-4 rounded-lg border border-teal-500/10">
+                                <ChevronRight className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" />
+                                <span className="font-medium leading-relaxed">{takeaway}</span>
+                            </div>
+                        ))}
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* SECTION 5: Example Phrases Demonstrated by AI */}
+            {data.example_phrases_demonstrated && data.example_phrases_demonstrated.length > 0 && (
+                <GlassCard>
+                    <SectionHeader icon={Quote} title="Example Phrases Demonstrated by AI" colorClass="text-indigo-500" bgClass="bg-indigo-500/10" />
+                    <p className="text-sm text-muted-foreground mb-4 italic">Specific lines used during the conversation â€” your practical toolkit.</p>
+                    <div className="space-y-4">
+                        {data.example_phrases_demonstrated.map((ep, i) => (
+                            <div key={i} className="p-4 rounded-xl bg-background border border-indigo-500/10 shadow-sm">
+                                <p className="text-base font-medium text-foreground italic mb-3 pl-4 border-l-4 border-indigo-500/40">
+                                    "{ep.phrase}"
+                                </p>
+                                <div className="grid md:grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <span className="font-bold text-indigo-600 text-xs uppercase tracking-wider">Context:</span>{' '}
+                                        <span className="text-foreground/80">{ep.context}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-indigo-600 text-xs uppercase tracking-wider">Technique:</span>{' '}
+                                        <span className="text-foreground/80">{ep.technique}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* SECTION 6: Alternative Pathways */}
+            {data.alternative_pathways && data.alternative_pathways.alternatives && data.alternative_pathways.alternatives.length > 0 && (
+                <GlassCard className="bg-gradient-to-br from-purple-500/5 to-indigo-500/5">
+                    <SectionHeader icon={TrendingUp} title="Alternative Pathways" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
+                    {(() => {
+                        const altNote = data.alternative_pathways.note || 'Based on this scenario, other effective approaches could include:'
+                        if (altNote.trim() === 'No evaluation. Just exposure.') return null
+                        return (
+                            <p className="text-sm text-muted-foreground mb-4 italic">{altNote}</p>
+                        )
+                    })()}
+                    <div className="space-y-3">
+                        {data.alternative_pathways.alternatives.map((alt, i) => (
+                            <div key={i} className="flex gap-3 text-sm text-foreground/90 bg-purple-500/5 p-4 rounded-lg border border-purple-500/10">
+                                <ChevronRight className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+                                <span className="font-medium">{alt}</span>
+                            </div>
+                        ))}
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* SECTION 7: Closing Reflection Prompt */}
+            {reflectionPrompts.length > 0 && (
+                <GlassCard className="bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
+                    <SectionHeader icon={Brain} title="Closing Reflection Prompt" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
+                    <p className="text-sm text-muted-foreground mb-4">Reflect on these questions to deepen your learning:</p>
+                    <div className="space-y-4">
+                        {reflectionPrompts.map((prompt, i) => (
+                            <div key={i} className="p-4 rounded-xl bg-background border border-indigo-500/10 text-foreground/90 italic font-medium text-base leading-relaxed pl-5 border-l-4 border-l-indigo-500/40">
+                                "{prompt}"
+                            </div>
+                        ))}
+                    </div>
+                </GlassCard>
+            )}
+        </div>
+    )
+}
+
+
+
+
+const SimulationView = ({ data }: { data: SimulationReportData }) => {
+    return (
+        <div className="space-y-8">
+
+            {/* 1) Conversation Snapshot */}
+            <ConversationSnapshotSection data={data} />
+
+            {/* 2) Executive Dashboard */}
+            {data.executive_summary && (
+                <GlassCard className="border-l-4 border-l-primary">
+                    <SectionHeader icon={Activity} title="Executive Dashboard" colorClass="text-primary" bgClass="bg-primary/10" />
+                    <p className="text-xl font-medium text-foreground/90 leading-relaxed mb-6">{data.executive_summary.snapshot}</p>
+                    <div className="grid md:grid-cols-2 gap-4">
+                        {data.executive_summary.outcome_summary && (
+                            <div className="bg-primary/5 border-primary/10 rounded-xl p-4 border">
+                                <span className="text-xs font-bold text-primary uppercase tracking-widest block mb-2">Outcome Summary</span>
+                                <p className="text-sm text-foreground/80">{data.executive_summary.outcome_summary}</p>
+                            </div>
+                        )}
+                        {data.executive_summary.strengths_summary && (
+                            <div className="bg-emerald-500/5 border-emerald-500/10 rounded-xl p-4 border">
+                                <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest block mb-2">Strengths Summary</span>
+                                <p className="text-sm text-foreground/80">{data.executive_summary.strengths_summary}</p>
+                            </div>
+                        )}
+                        {data.executive_summary.improvements_summary && (
+                            <div className="bg-amber-500/5 border-amber-500/10 rounded-xl p-4 border md:col-span-2">
+                                <span className="text-xs font-bold text-amber-600 uppercase tracking-widest block mb-2">Areas for Improvement</span>
+                                <p className="text-sm text-foreground/80">{data.executive_summary.improvements_summary}</p>
+                            </div>
+                        )}
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* 3) Coaching Efficacy */}
+            {data.coaching_style && (
+                <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/5 rounded-3xl p-1 shadow-sm">
+                    <GlassCard className="border-none shadow-none m-0 bg-background/60 backdrop-blur-sm">
+                        <SectionHeader icon={Award} title="Coaching Efficacy" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
+                        <div className="flex flex-col md:flex-row gap-6 items-center">
+                            <div className="bg-background rounded-2xl p-6 border border-emerald-500/20 text-center md:w-1/3 shrink-0 shadow-sm">
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest block mb-2">Primary Style</span>
+                                <div className="text-2xl lg:text-3xl font-black text-emerald-500 uppercase tracking-wide">{data.coaching_style.primary_style}</div>
+                            </div>
+                            <p className="text-lg lg:text-xl text-foreground/90 leading-relaxed font-medium italic">"{data.coaching_style.description}"</p>
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+
+            {/* 4) Heat Map */}
+            {data.heat_map && data.heat_map.length > 0 && (
+                <GlassCard>
+                    <SectionHeader icon={Activity} title="Competency Heat Map" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
+                    <CompetencyHeatMap items={data.heat_map} />
+                </GlassCard>
+            )}
+
+            {/* 5) Skill Visualization */}
+            {data.heat_map && data.heat_map.length > 0 && (
+                <GlassCard>
+                    <SectionHeader icon={Target} title="Skill Visualization" colorClass="text-indigo-500" bgClass="bg-indigo-500/10" />
+                    <div className="bg-muted/10 rounded-3xl p-4 border border-border/50 flex justify-center w-full max-w-4xl mx-auto">
+                        <SkillRadarChart items={data.heat_map} />
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* 6) Goal Attainment */}
+            {data.goal_attainment && (
+                <GlassCard>
+                    <SectionHeader icon={Target} title="Goal Attainment" colorClass="text-blue-500" bgClass="bg-blue-500/10" />
+                    <div className="space-y-6">
+                        <div>
+                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest block mb-2">Expectation vs Reality</span>
+                            <p className="text-sm text-foreground/90 leading-relaxed">{data.goal_attainment.expectation_vs_reality}</p>
+                        </div>
+                        {data.goal_attainment.primary_gaps && data.goal_attainment.primary_gaps.length > 0 && (
+                            <div>
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest block mb-2">Primary Gaps</span>
+                                <ul className="space-y-2">
+                                    {data.goal_attainment.primary_gaps.map((gap, i) => (
+                                        <li key={i} className="flex gap-2 text-sm text-foreground/80"><X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />{gap}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                        {data.goal_attainment.observation_focus && data.goal_attainment.observation_focus.length > 0 && (
+                            <div>
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest block mb-2">Observation Focus</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {data.goal_attainment.observation_focus.map((focus, i) => (
+                                        <span key={i} className="px-2 py-1 bg-slate-500/10 text-slate-600 rounded text-xs font-medium border border-slate-500/20">{focus}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* 7) Performance Scorecard */}
+            {data.scorecard && <ScorecardSection items={data.scorecard} />}
+
+            {/* 8) Deep Dive Analysis (i. communication style, ii. behaviour analysis, iii. EMOTIONAL INTELLIGENCE) */}
+            {(data.deep_dive_analysis?.length || data.behaviour_analysis?.length || data.eq_analysis?.length) && (
+                <GlassCard>
+                    <SectionHeader icon={BookOpen} title="Deep Dive Analysis" colorClass="text-indigo-500" bgClass="bg-indigo-500/10" />
+                    <div className="space-y-10">
+
+                        {/* i) Communication Style */}
+                        {data.deep_dive_analysis && data.deep_dive_analysis.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-black uppercase tracking-widest text-indigo-500 mb-4 flex items-center gap-2 pb-2 border-b border-indigo-500/10">
+                                    <MessageSquare className="w-4 h-4" /> i) Communication Style
+                                </h3>
+                                <div className="grid xl:grid-cols-2 gap-4">
+                                    {data.deep_dive_analysis.map((item, i) => (
+                                        <div key={i} className="bg-background rounded-xl p-5 border border-border shadow-sm">
+                                            <h4 className="font-bold text-base text-indigo-600 mb-3 pb-2 border-b border-indigo-500/10">{item.topic}</h4>
+                                            <div className="space-y-2 text-sm">
+                                                {item.tone && <div><span className="font-bold text-muted-foreground">Tone: </span><span className="text-foreground/90">{item.tone}</span></div>}
+                                                {item.language_impact && <div><span className="font-bold text-muted-foreground">Language Impact: </span><span className="text-foreground/90">{item.language_impact}</span></div>}
+                                                {item.comfort_level && <div><span className="font-bold text-muted-foreground">Comfort Level: </span><span className="text-foreground/90">{item.comfort_level}</span></div>}
+                                                {item.impact && <div><span className="font-bold text-muted-foreground">Impact: </span><span className="text-foreground/90">{item.impact}</span></div>}
+                                                {item.questions_asked && <div><span className="font-bold text-muted-foreground">Questions: </span><span className="text-foreground/90">{item.questions_asked}</span></div>}
+                                                {item.exploration && <div><span className="font-bold text-muted-foreground">Exploration: </span><span className="text-foreground/90">{item.exploration}</span></div>}
+                                                {item.understanding_depth && <div><span className="font-bold text-muted-foreground">Understanding Depth: </span><span className="text-foreground/90">{item.understanding_depth}</span></div>}
+                                                {item.analysis && <div className="text-foreground/90">{item.analysis}</div>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ii) Behaviour Analysis */}
+                        {data.behaviour_analysis && data.behaviour_analysis.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-black uppercase tracking-widest text-purple-500 mb-4 flex items-center gap-2 pb-2 border-b border-purple-500/10">
+                                    <Brain className="w-4 h-4" /> ii) Behaviour Analysis
+                                </h3>
+                                <div className="space-y-4">
+                                    {data.behaviour_analysis.map((item, i) => (
+                                        <div key={i} className="flex flex-col md:flex-row gap-6 p-5 rounded-xl bg-background border border-border hover:shadow-md transition-shadow">
+                                            <div className="flex-1 space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                    <h4 className="font-bold text-base text-foreground">{item.behavior}</h4>
+                                                    <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${item.impact.toLowerCase().includes('positive') ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{item.impact}</span>
+                                                </div>
+                                                <p className="text-muted-foreground leading-relaxed">{item.insight}</p>
+                                                {item.quote && (
+                                                    <div className="flex gap-3 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border-l-4 border-primary/20 italic">
+                                                        <Quote className="w-4 h-4 shrink-0 opacity-50" /> "{item.quote}"
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {item.improved_approach && (
+                                                <div className="md:w-1/3 bg-blue-500/5 border border-blue-500/10 p-4 rounded-lg">
+                                                    <h5 className="flex items-center gap-2 text-xs font-bold text-blue-500 uppercase tracking-wider mb-2"><Lightbulb className="w-4 h-4" /> Try This Instead</h5>
+                                                    <p className="text-sm text-foreground/90 leading-relaxed font-medium">{item.improved_approach}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* iii) Emotional Intelligence */}
+                        {data.eq_analysis && data.eq_analysis.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-black uppercase tracking-widest text-pink-500 mb-4 flex items-center gap-2 pb-2 border-b border-pink-500/10">
+                                    <Brain className="w-4 h-4" /> iii) Emotional Intelligence
+                                </h3>
+                                <div className="space-y-4">
+                                    {data.eq_analysis.map((item, i) => (
+                                        <div key={i} className="p-4 rounded-xl bg-pink-500/5 border border-pink-500/10">
+                                            <h4 className="font-bold text-base text-pink-600 mb-2">{item.nuance}</h4>
+                                            {(item.proof || item.observation) && (
+                                                <div className="flex gap-2 text-sm text-foreground/80 mb-2">
+                                                    <span className="font-bold text-xs uppercase text-slate-500 mt-1">Proof:</span>
+                                                    <span className="italic">"{item.proof || item.observation}"</span>
+                                                </div>
+                                            )}
+                                            {item.suggestion && (
+                                                <div className="flex gap-2 text-sm text-foreground/80">
+                                                    <span className="font-bold text-xs uppercase text-slate-500 mt-1">Suggestion:</span>
+                                                    <span>{item.suggestion}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </GlassCard>
+            )}
+
+            {/* 9) Strengths only (removed Missed Opportunities) */}
+            {(data.strengths_and_improvements?.strengths?.length || 0) > 0 && (
+                <div>
+                    <GlassCard>
+                        <SectionHeader icon={CheckCircle2} title="Key Strengths" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
+                        <ul className="space-y-3">
+                            {(data.strengths_and_improvements?.strengths || []).map((s, i) => (
+                                <li key={i} className="flex gap-3 text-sm text-foreground/90 bg-emerald-500/5 p-3 rounded-lg border border-emerald-500/10">
+                                    <Check className="w-4 h-4 text-emerald-500 mt-0.5" /> {s}
+                                </li>
+                            ))}
+                        </ul>
+                    </GlassCard>
+                </div>
+            )}
+
+            {/* 10) IDEAL Coaching Questions (definition + scoring + impact) */}
+            <IdealCoachingQuestionsSection questions={data.deal_coaching_questions || data.ideal_questions} />
+
+            {/* 11) Action Plan Improve */}
+            {data.action_plan && (
+                <div className="grid lg:grid-cols-2 gap-6">
+                    <GlassCard className="border-t-4 border-t-purple-500 md:col-span-2">
+                        <SectionHeader icon={Activity} title="Action Plan Improve" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
+                        <div className="space-y-4 mb-6 text-sm">
+                            <div className="flex justify-between bg-purple-500/5 p-3 rounded-lg border border-purple-500/10 max-w-sm">
+                                <span className="font-bold text-purple-600">Timeline</span>
+                                <span className="font-medium">{data.action_plan.timeline}</span>
+                            </div>
+                        </div>
+                        <div className="space-y-6">
+                            <div>
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest block mb-3">Specific Actions</span>
+                                <ul className="space-y-3">
+                                    {data.action_plan.specific_actions?.map((action, i) => (
+                                        <li key={i} className="flex gap-4 text-sm text-foreground/90 bg-background border border-border p-4 rounded-xl shadow-sm">
+                                            <div className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-600 flex items-center justify-center text-xs shrink-0 mt-0 font-bold">{i + 1}</div>
+                                            <span className="mt-0.5">{action}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                            {data.action_plan.success_indicators && data.action_plan.success_indicators.length > 0 && (
+                                <div className="pt-5 border-t border-border/50">
+                                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest block mb-3">Success Indicators</span>
+                                    <ul className="space-y-3 text-sm text-foreground/80">
+                                        {data.action_plan.success_indicators.map((ind, i) => (
+                                            <li key={i} className="flex gap-3 items-center p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-lg">
+                                                <Check className="w-5 h-5 text-emerald-500 shrink-0" /> <span className="font-medium">{ind}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+        </div>
+    )
+}
+
