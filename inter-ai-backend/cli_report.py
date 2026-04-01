@@ -1068,14 +1068,14 @@ class DashboardPDF(FPDF):
             elif "4-6" in grade: self.set_text_color(*COLORS['warning'])
             else: self.set_text_color(*COLORS['danger'])
             
-            self.cell(25, 6, grade, 0, 0)
+            self.cell(26, 6, grade, 0, 0)
             
             self.set_font('helvetica', '', 8)
             self.set_text_color(*COLORS['text_light'])
             self.cell(3, 6, "|", 0, 0)
             
             self.set_text_color(*COLORS['text_main'])
-            self.multi_cell(150, 6, desc)
+            self.multi_cell(152, 6, desc)
             current_y += 7
 
         actual_tmp = self.get_y()
@@ -1107,14 +1107,14 @@ class DashboardPDF(FPDF):
             self.set_xy(15, current_y)
             self.set_font('helvetica', 'B', 8)
             self.set_text_color(*color)
-            self.cell(20, 6, style, 0, 0)
+            self.cell(26, 6, style, 0, 0)
             
             self.set_font('helvetica', '', 8)
             self.set_text_color(*COLORS['text_light'])
             self.cell(3, 6, "|", 0, 0)
             
             self.set_text_color(*COLORS['text_main'])
-            self.multi_cell(155, 6, desc)
+            self.multi_cell(152, 6, desc)
             current_y += 10
 
         actual_tmp = self.get_y()
@@ -2183,7 +2183,56 @@ class DashboardPDF(FPDF):
         # ─────────────────────────────────────────────────────────────
         # 1. CONVERSATION SNAPSHOT
         # ─────────────────────────────────────────────────────────────
-        if data.get('meta', {}).get('scenario'):
+        snapshot = data.get('conversation_snapshot', {})
+        if snapshot:
+            block_title("Conversation Snapshot", PURPLE)
+            
+            sim = snapshot.get("simulation_context", {})
+            if sim:
+                small_label("Simulation Context", PURPLE)
+                card_y = self.get_y()
+                self.set_fill_color(*LIGHT_BG)
+                self.rect(10, card_y, 190, 34, 'F')
+                self.set_draw_color(226, 232, 240)
+                self.rect(10, card_y, 190, 34, 'D')
+
+                # Row 1
+                self.set_xy(15, card_y + 3)
+                self.set_font('helvetica', 'B', 7.5)
+                self.set_text_color(*TEXT_LIGHT)
+                self.cell(90, 4, "YOUR ROLE", 0, 0)
+                self.cell(0, 4, "AI ROLE", 0, 1)
+
+                self.set_xy(15, card_y + 8)
+                self.set_font('helvetica', '', 9.5)
+                self.set_text_color(*TEXT_MAIN)
+                self.cell(90, 5, sanitize_text(str(sim.get("your_role", "-"))), 0, 0)
+                self.cell(0, 5, sanitize_text(str(sim.get("ai_role", "-"))), 0, 1)
+
+                # Row 2
+                self.set_xy(15, card_y + 17)
+                self.set_font('helvetica', 'B', 7.5)
+                self.set_text_color(*TEXT_LIGHT)
+                self.cell(90, 4, "SCENARIO TYPE", 0, 0)
+                self.cell(0, 4, "PRIMARY SKILL FOCUS", 0, 1)
+
+                self.set_xy(15, card_y + 22)
+                self.set_font('helvetica', 'B', 9.5)
+                self.set_text_color(*PURPLE)
+                self.cell(90, 5, sanitize_text(str(sim.get("scenario_type", "-"))), 0, 0)
+                self.cell(0, 5, sanitize_text(str(sim.get("primary_skill_focus", "-"))), 0, 1)
+
+                self.set_y(card_y + 37)
+
+            flow = snapshot.get("conversation_flow_overview", "")
+            if flow:
+                small_label("Conversation Flow Overview", PURPLE)
+                self.ln(1)
+                body_text(flow)
+                self.ln(2)
+                
+            divider()
+        elif data.get('meta', {}).get('scenario'):
             self.draw_context_summary()
             divider()
 
