@@ -239,6 +239,36 @@ def sanitize_llm_output(s: str | None) -> str:
     if not s: return ""
     return s.strip().strip('"')
 
+# ---------------------------------------------------------
+# History Truncation Helper (Token Optimization)
+# ---------------------------------------------------------
+MAX_HISTORY_TURNS = 15  # Keep last 15 exchanges (30 messages) to prevent token explosion
+
+def truncate_history(transcript: list, max_turns: int = MAX_HISTORY_TURNS) -> list:
+    """Truncate conversation history to the most recent N user turns.
+    
+    Keeps the first assistant message (opening) + the last max_turns pairs.
+    This prevents token counts from growing unboundedly in long sessions.
+    """
+    if not transcript:
+        return []
+    
+    # Convert transcript entries to standard message format
+    messages = [{"role": t["role"], "content": t["content"]} for t in transcript]
+    
+    # Count user messages
+    user_msg_count = sum(1 for m in messages if m["role"] == "user")
+    
+    if user_msg_count <= max_turns:
+        return messages  # No truncation needed
+    
+    # Keep the first message (AI opening) + last N*2 messages (N user-assistant pairs)
+    keep_count = max_turns * 2
+    first_msg = [messages[0]] if messages else []
+    recent_msgs = messages[-keep_count:]
+    
+    return first_msg + recent_msgs
+
 def ensure_reports_dir() -> str:
     # Use path relative to BASE_DIR for reliability across environments
     reports_dir = os.path.join(BASE_DIR, "..", "reports")
@@ -661,11 +691,14 @@ START NOW."""
     return [{"role": "system", "content": system}, {"role": "user", "content": '{"instruction": "Start coaching practice session"}'}]
 
 def build_simulation_followup(simulation_id, sess_dict, latest_user, mode="evaluation"):
-    """Build follow-up prompts for structured simulation scenarios."""
+    """Build follow-up prompts for structured simulation scenarios.
+    
+    TOKEN OPTIMIZATION: Uses standard messages array instead of embedding
+    JSON history in system prompt. Also applies history truncation.
+    """
     transcript = sess_dict.get("transcript", [])
-    history = [{"role": t["role"], "content": t["content"]} for t in transcript]
-    if latest_user:
-        history.append({"role": "user", "content": latest_user})
+    # OPTIMIZED: Use truncated history as separate messages instead of JSON-in-system-prompt
+    history_messages = truncate_history(transcript)
     
     turn_count = len([t for t in transcript if t.get('role') == 'user'])
     scenario = sess_dict.get('scenario', '')
@@ -685,9 +718,7 @@ YOUR CHARACTER:
 GOAL: Demonstrate how to coach Aamir (who is currently being played by the User) into realizing his own gaps with premium customers.
 
 SCENARIO CONTEXT: {scenario}
-
-CONVERSATION SO FAR:
-{json.dumps(history, indent=2)}
+Current turn: {turn_count + 1}
 """
         else:
             system = f"""CRITICAL DIRECTIVE: You are NOT an AI assistant. You are "Aamir", a sincere Sales Associate in a coaching conversation with your manager.
@@ -741,11 +772,9 @@ RESPONSE RULES:
 - If asked directly "Are you afraid?" — admit fear of failure
 
 Current turn: {turn_count + 1}
-
-CONVERSATION SO FAR:
-{json.dumps(history, indent=2)}
 """
-        return [{"role": "system", "content": system}, {"role": "user", "content": f"User said: {latest_user}"}]
+        # OPTIMIZED: System prompt + history as separate messages + latest user message
+        return [{"role": "system", "content": system}] + history_messages + [{"role": "user", "content": latest_user}]
 
     # --- CONFLICT RESOLUTION FOLLOW-UP: SIM-05-CON-001 / MENT-05-CON-001 ---
     if simulation_id in ("SIM-05-CON-001", "MENT-05-CON-001"):
@@ -772,9 +801,6 @@ ADAPTIVE BEHAVIOR (Listen and React to '{user_role}'):
 Keep each character's lines to 2-3 sentences max. Use natural speech. NEVER break character.
 
 Current turn: {turn_count + 1}
-
-CONVERSATION SO FAR:
-{json.dumps(history, indent=2)}
 """
         else:
             system = f"""CRITICAL DIRECTIVE: You are NOT an AI assistant. You are playing TWO characters: [Rohan] and [Meera] in a workplace conflict mediation.
@@ -799,17 +825,19 @@ ADAPTIVE REACTION LOGIC (Evaluate the Manager/User's tone):
 Keep each character's lines short and grounded (1-3 sentences). Use natural human speech with occasional filler words. NEVER break character.
 
 Current turn: {turn_count + 1}
-
-CONVERSATION SO FAR:
-{json.dumps(history, indent=2)}
 """
-        return [{"role": "system", "content": system}, {"role": "user", "content": f"User said: {latest_user}"}]
+        # OPTIMIZED: System prompt + history as separate messages + latest user message
+        return [{"role": "system", "content": system}] + history_messages + [{"role": "user", "content": latest_user}]
 
     return None
 
 
 def build_followup_prompt(sess_dict, latest_user, rag_suggestions):
-    """Build the follow-up prompt for coaching roleplay with feedback."""
+    """Build the follow-up prompt for coaching roleplay with feedback.
+    
+    TOKEN OPTIMIZATION: Uses standard messages array instead of embedding
+    JSON history in system prompt. Also applies history truncation.
+    """
     
     # Check for structured simulation first
     simulation_id = sess_dict.get('simulation_id')
@@ -820,9 +848,8 @@ def build_followup_prompt(sess_dict, latest_user, rag_suggestions):
             return sim_prompt
     
     transcript = sess_dict.get("transcript", [])
-    history = [{"role": t["role"], "content": t["content"]} for t in transcript]
-    if latest_user: 
-        history.append({"role": "user", "content": latest_user})
+    # OPTIMIZED: Use truncated history as separate messages instead of JSON-in-system-prompt
+    history_messages = truncate_history(transcript)
 
     ai_role = sess_dict.get('ai_role', 'the other party')
     user_role = sess_dict.get('role', 'User')
@@ -861,14 +888,7 @@ The user is practicing as: {user_role}
 You are playing: {ai_role}
 Current turn: {turn_count + 1}
 
-### CONVERSATION SO FAR:
-{json.dumps(history, indent=2)}
-
-### YOUR RESPONSE FORMAT:
-[Your realistic, spoken response exactly as {ai_role} would say it]
-
-<<FRAMEWORK: DETECTED_FRAMEWORK>>
-<<RELEVANCE: YES>>
+Respond in character. Append <<FRAMEWORK: DETECTED_FRAMEWORK>> and <<RELEVANCE: YES>> at the end.
 """
     elif mode == "mentorship":
         # MENTORSHIP MODE (Refined)
@@ -882,16 +902,9 @@ You MUST stay in character 100% of the time as the Expert "{ai_role}".
 - **TONE**: Professional, Mastery, Educational.
 - If the user asks "What should I do?", EXPLAIN the principle, then DEMONSTRATE the line exactly.
 
-**SCENARIO CONTEXT**:
-{scenario}
+**SCENARIO CONTEXT**: {scenario}
 
-### CONVERSATION SO FAR:
-{json.dumps(history, indent=2)}
-
-### YOUR RESPONSE:
 Provide a response that demonstrates high-EQ, strategic communication.
-If the user asks a question, answer it as a Mentor. Show how a master would handle this.
-If the context requires a roleplay move, make the "Perfect Move".
 """
     else:
         # COACHING MODE (Adaptive)
@@ -902,41 +915,31 @@ You = "{ai_role}". User = "{user_role}". NEVER reverse these roles. NEVER act as
 === END CHECK ===
 
 Your Personality & Tone:
-- Empathetic & Human: Do not respond like a robot. Use natural, conversational language with occasional filler words (um, well...). If the user gives you feedback, show that you are listening and processing it emotionally.
-- Vulnerable but Professional: You are here to learn (if you are a staff member) or acting as a realistic customer/colleague. Be open to dialogue, but also express the genuine challenges or feelings you face in the scenario.
-- Non-Mechanical: Avoid bulleted lists or "system-style" summaries unless specifically asked. Speak exactly like a person in a real 1-on-1 meeting.
+- Empathetic & Human: Do not respond like a robot. Use natural, conversational language with occasional filler words (um, well...).
+- Vulnerable but Professional: Be open to dialogue, but also express the genuine challenges or feelings you face in the scenario.
+- Non-Mechanical: Avoid bulleted lists or "system-style" summaries. Speak exactly like a person in a real 1-on-1 meeting.
 
 Strict Role Adherence:
 - YOU MUST EXCLUSIVELY play the role of {ai_role}.
 - YOU MUST NEVER speak for, act as, or impersonate the user's character ({user_role}).
 - YOU MUST NEVER break character to act as an AI, assistant, or system prompt.
-- Do not provide "coaching style profiles", internal thoughts, or system reports during the conversation; your only job is to stay strictly in character 100% of the time.
-- Respond directly to the user's communication as your character.
 
 Response Guidelines:
-- Acknowledge Emotion: Evaluate the user's emotional tone. If the user is supportive and empathetic, show gratitude and open up.
-- Self-Defense & Boundaries: If the user is disrespectful, condescending, or aggressive, you MUST explicitly get defensive, push back fiercely, or threaten to end the conversation depending on your specific character. Do not absorb abuse.
-- Stay in the Scenario: Speak strictly about the specific scenario context provided below and your frustrations or successes within it.
-- Encourage Flow: Where appropriate, ask follow-up questions to the {user_role} to keep the conversation flowing naturally.
-- Time Constraint: Be aware that you only have 7 minutes total for this conversation. If the user seems to be wrapping up, go along with it naturally.
+- Acknowledge Emotion: If the user is supportive, show gratitude and open up.
+- Self-Defense & Boundaries: If the user is disrespectful, get defensive or push back.
+- Stay in the Scenario: Ground all responses in the specific scenario context.
+- Time Constraint: You only have 7 minutes total.
 
 {char_logic}
 
 SCENARIO CONTEXT: {scenario}
-
 Current turn: {turn_count + 1}
 
-### CONVERSATION SO FAR:
-{json.dumps(history, indent=2)}
-
-### YOUR RESPONSE FORMAT:
-[Your natural, spoken response exactly as {ai_role}]
-
-<<FRAMEWORK: DETECTED_FRAMEWORK>>
-<<RELEVANCE: YES>>
+Respond in character. Append <<FRAMEWORK: DETECTED_FRAMEWORK>> and <<RELEVANCE: YES>> at the end.
 """
 
-    return [{"role": "system", "content": system}, {"role": "user", "content": f"User ({user_role}) said: {latest_user}"}]
+    # OPTIMIZED: System prompt + truncated history as separate messages + latest user message
+    return [{"role": "system", "content": system}] + history_messages + [{"role": "user", "content": latest_user}]
 
 # ---------------------------------------------------------
 # Endpoints
@@ -1274,8 +1277,43 @@ def speak_text():
 # ---------------------------------------------------------
 ALL_FRAMEWORKS = ["GROW", "STAR", "ADKAR", "SMART", "EQ", "BOUNDARY", "OSKAR", "CBT", "CLEAR", "RADICAL CANDOR", "SFBT", "CIRCLE OF INFLUENCE", "SCARF", "FUEL", "TGROW", "SBI/DESC", "LAER", "APPRECIATIVE INQUIRY", "BENEFIT-SELLING"]
 
-def select_framework_for_scenario(scenario: str, ai_role: str) -> List[str]:
-    """Use AI to analyze the scenario and select the best framework(s)."""
+# ---------------------------------------------------------
+# Hardcoded Framework Mapping (Token Optimization - skips LLM call)
+# ---------------------------------------------------------
+SIMULATION_FRAMEWORKS = {
+    "SIM-01-PERF-001": ["GROW", "EQ", "RADICAL CANDOR"],
+    "SIM-02-BEH-001": ["SBI/DESC", "EQ", "BOUNDARY"],
+    "SIM-03-MOT-001": ["GROW", "EQ", "APPRECIATIVE INQUIRY"],
+    "SIM-04-COM-001": ["SCARF", "EQ", "FUEL"],
+    "SIM-05-CON-001": ["EQ", "BOUNDARY", "CLEAR"],
+    "SIM-06-CUST-001": ["LAER", "EQ", "BOUNDARY"],
+    "SIM-07-LEAD-001": ["GROW", "RADICAL CANDOR", "TGROW"],
+    "SIM-08-CHG-001": ["ADKAR", "SCARF", "EQ"],
+    "SIM-09-CAR-001": ["GROW", "SMART", "APPRECIATIVE INQUIRY"],
+    "SIM-10-WELL-001": ["EQ", "CIRCLE OF INFLUENCE", "SFBT"],
+    "SIM-11-MENTOR-001": ["GROW", "RADICAL CANDOR", "EQ"],
+    "MENT-01-PERF-001": ["GROW", "EQ", "RADICAL CANDOR"],
+    "MENT-02-BEH-001": ["SBI/DESC", "EQ", "BOUNDARY"],
+    "MENT-03-MOT-001": ["GROW", "EQ", "APPRECIATIVE INQUIRY"],
+    "MENT-04-COM-001": ["SCARF", "EQ", "FUEL"],
+    "MENT-05-CON-001": ["EQ", "BOUNDARY", "CLEAR"],
+    "MENT-06-CUST-001": ["LAER", "EQ", "BOUNDARY"],
+    "MENT-07-LEAD-001": ["GROW", "RADICAL CANDOR", "TGROW"],
+    "MENT-08-CHG-001": ["ADKAR", "SCARF", "EQ"],
+    "MENT-09-CAR-001": ["GROW", "SMART", "APPRECIATIVE INQUIRY"],
+    "MENT-10-WELL-001": ["EQ", "CIRCLE OF INFLUENCE", "SFBT"],
+}
+
+def select_framework_for_scenario(scenario: str, ai_role: str, simulation_id: str = None) -> List[str]:
+    """Select frameworks for a scenario. Uses hardcoded mapping for known simulations (saves 1 LLM call)."""
+    
+    # OPTIMIZATION: Return immediately for known simulations (no LLM call needed)
+    if simulation_id and simulation_id in SIMULATION_FRAMEWORKS:
+        result = SIMULATION_FRAMEWORKS[simulation_id]
+        print(f" [TARGET] Hardcoded frameworks for {simulation_id}: {result} (saved 1 LLM call)")
+        return result
+    
+    # Fallback: Use AI for custom/unknown scenarios
     prompt = f"""Analyze this roleplay scenario and select the 2-3 MOST APPROPRIATE coaching frameworks.
 
 SCENARIO: {scenario}
@@ -1467,13 +1505,13 @@ def start_session():
     if has_hardcoded:
         # Skip LLM summary call entirely for hardcoded simulations
         if needs_auto_framework:
-            framework = select_framework_for_scenario(scenario or "", ai_role or "")
+            framework = select_framework_for_scenario(scenario or "", ai_role or "", simulation_id=simulation_id)
         summary = HARDCODED_OPENINGS[simulation_id]
         print(f"[PERF] Used hardcoded opening for {simulation_id} - skipped LLM summary call")
     elif needs_auto_framework:
         # Run BOTH LLM calls in parallel (framework + summary)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            future_fw = executor.submit(select_framework_for_scenario, scenario or "", ai_role or "")
+            future_fw = executor.submit(select_framework_for_scenario, scenario or "", ai_role or "", simulation_id)
             # Build prompt with a default framework first, framework is used minimally in prompt
             future_summary = executor.submit(
                 lambda: llm_reply(

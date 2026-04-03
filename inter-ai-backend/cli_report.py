@@ -647,8 +647,33 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
   }},
   "final_evaluation": {{
     "readiness_level": "Level", "maturity_rating": "X/10", "immediate_focus": ["Priorities"], "long_term_suggestion": "Future goal."
+  }},
+  "character_assessment": {{
+    "observed_traits": [
+      {{ "trait": "Trait Name", "evidence_quote": "EXACT quote", "impact": "Positive/Negative", "insight": "Why this trait matters" }}
+    ],
+    "scenario_fit": {{
+      "required_traits": ["Active Listening", "Empathy", "Accountability", "Growth Mindset", "Professional Communication"],
+      "user_strengths": ["Traits demonstrated well"],
+      "user_gaps": ["Traits missing or weak"],
+      "fit_score": "X/10",
+      "fit_assessment": "Overall character fit assessment",
+      "development_priority": "The #1 trait to develop"
+    }},
+    "character_development_plan": ["Specific behavior change 1", "Specific behavior change 2"]
+  }},
+  "question_analysis": {{
+    "questions_asked_count": 0,
+    "questions_missed": [
+      {{ "question": "Question they should have asked", "category": "Discovery|Probing|Clarifying|Vision|Closing", "timing": "Early|Mid|Late", "why_important": "Why it matters", "when_to_ask": "At what point", "impact_if_asked": "Expected outcome" }}
+    ],
+    "question_quality_score": "X/10",
+    "question_quality_feedback": "Overall questioning assessment",
+    "questioning_improvement_tip": "Specific advice"
   }}
 }}
+
+IMPORTANT: The character_assessment and question_analysis sections are REQUIRED. Analyze the USER's character traits and missed questions as part of this single response.
 """
 
     # ANALYST PERSONA
@@ -658,18 +683,14 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
     ### ANALYST STYLE: CHIEF MENTOR
     - **Tone**: Wise, observant, and outcome-oriented.
     - **Focus**: The balance between empathy and high standards.
-    - **Detail Level**: High quality analysis focusing on growth.
-    - **Signature**: Use phrases like "I noticed the mentee...", "An opportunity to empower...", "Consider guiding them to...".
     - **Evidence**: Quote the user's exact words to support your insights.
-    - **Advice**: Focus on whether the user helped the mentee 'find their own way' versus just telling them what to do. Provide specific phrasing examples.
+    - **Advice**: Focus on whether the user helped the mentee 'find their own way' versus just telling them what to do.
     """
     elif ai_character == "sarah":
         analyst_persona = """
     ### ANALYST STYLE: COACH SARAH (MENTOR)
     - **Tone**: Warm, encouraging, high-EQ, "Supportive Feedback" approach.
     - **Focus**: Psychological safety, growth mindset, and emotional intelligence.
-    - **Detail Level**: High quality analysis. Provide 2-3 distinct topic sections in `detailed_analysis`.
-    - **Signature**: Use phrases like "I appreciated how you...", "Consider trying...", "A helpful adjustment could be...".
     - **Evidence**: Quote the user's exact words to support your insights.
     - **Advice**: Provide specific suggestions (e.g., "Next time, try saying...") for practical growth.
     """
@@ -678,8 +699,6 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
     ### ANALYST STYLE: COACH ALEX (EVALUATOR)
     - **Tone**: Professional, direct, and analytical.
     - **Focus**: Efficiency, clear outcomes, and professional impact.
-    - **Detail Level**: High logic depth. Analyze the conversation strategy.
-    - **Signature**: Use phrases like "The conversation indicates...", "There was an opportunity to...", "To optimize further...".
     - **Evidence**: Back every score or critique with a verbatim quote from the transcript.
     - **Tactical Advice**: Provide high-impact phrasing adjustments or strategic shifts.
     """
@@ -689,14 +708,12 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
         f"You are {ai_character.title() if ai_character else 'a professional coach'} providing a session assessment.\n"
         f"In the conversation below, the human participant is 'USER' (Role: {role}) and the AI assistant is 'ASSISTANT' (Role: {ai_role}).\n"
         f"Your task is to analyze the 'USER' based on their participation.\n"
-        f"(Scenario content is handled separately in report metadata.)\n"
         f"{analyst_persona}\n"
         f"{unified_instruction}\n"
         f"Assessment Criteria:\n"
         "1. GROUNDING: Use the transcript below as the sole source of truth.\n"
         "2. EVIDENCE: Include short, verbatim quotes to support your findings.\n"
-        "3. DEPTH: Look for tone and subtext in the user's choices.\n"
-        "4. RESPONSE FORMAT: Provide your analysis as a single JSON object matching the requested schema.\n"
+        "3. RESPONSE FORMAT: Provide your analysis as a single JSON object matching the requested schema.\n"
     )
 
     try:
@@ -716,51 +733,25 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
         # Create Chain
         chain_raw = prompt | llm
         
-        print(f" [INFO] Starting PARALLEL report generation (3 LLM calls)...", flush=True)
+        # =====================================================================
+        # CONSOLIDATED: Single LLM call instead of 3 parallel calls
+        # Saves ~60% API cost by eliminating 2 redundant transcript sends
+        # =====================================================================
+        print(f" [INFO] Starting CONSOLIDATED report generation (1 LLM call instead of 3)...", flush=True)
         
         t1 = dt.datetime.now()
         
-        # Run all 3 LLM analyses in PARALLEL using ThreadPoolExecutor
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            # Submit all 3 tasks immediately (non-blocking)
-            future_main = executor.submit(
-                lambda: chain_raw.invoke({
-                    "system_prompt": system_prompt,
-                    "conversation": full_conversation
-                })
-            )
-            
-            future_character = executor.submit(
-                analyze_character_traits,
-                transcript, role, ai_role, scenario, scenario_type
-            )
-            
-            future_questions = executor.submit(
-                analyze_questions_missed,
-                transcript, role, ai_role, scenario, scenario_type
-            )
-            
-            # Wait with TIMEOUT: main=60s (critical), secondary=30s (optional)
-            try:
-                raw_response = future_main.result(timeout=60)
-            except concurrent.futures.TimeoutError:
-                print(f" [WARN] Main report timeout (60s) - using fallback", flush=True)
-                raw_response = None
-            
-            try:
-                character_analysis = future_character.result(timeout=30)
-            except concurrent.futures.TimeoutError:
-                print(f" [WARN] Character analysis timeout (30s) - skipping", flush=True)
-                character_analysis = None
-            
-            try:
-                question_analysis = future_questions.result(timeout=30)
-            except concurrent.futures.TimeoutError:
-                print(f" [WARN] Question analysis timeout (30s) - skipping", flush=True)
-                question_analysis = None
+        try:
+            raw_response = chain_raw.invoke({
+                "system_prompt": system_prompt,
+                "conversation": full_conversation
+            })
+        except Exception as invoke_error:
+            print(f" [ERROR] Report LLM call failed: {invoke_error}", flush=True)
+            raw_response = None
         
         t2 = dt.datetime.now()
-        print(f" [SUCCESS] All analyses completed in PARALLEL in {(t2-t1).total_seconds():.2f}s! (70% faster)", flush=True)
+        print(f" [SUCCESS] Consolidated report completed in {(t2-t1).total_seconds():.2f}s (saved 2 LLM calls)", flush=True)
         
         # Handle potential timeout/None response
         if raw_response is None:
@@ -797,11 +788,17 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
         data['meta']['session_mode'] = session_mode or data['meta'].get('session_mode', 'skill_assessment')
         if 'type' not in data: data['type'] = scenario_type
 
-        # Merge parallel analyses
-        if character_analysis:
-            data['character_assessment'] = character_analysis
-        if question_analysis:
-            data['question_analysis'] = question_analysis
+        # Ensure character_assessment and question_analysis exist (fallback if LLM omitted them)
+        if 'character_assessment' not in data:
+            data['character_assessment'] = {
+                "observed_traits": [], "scenario_fit": {"required_traits": [], "user_strengths": [], "user_gaps": ["Analysis unavailable"], "fit_score": "N/A", "fit_assessment": "Unable to analyze", "development_priority": "N/A"},
+                "character_development_plan": []
+            }
+        if 'question_analysis' not in data:
+            data['question_analysis'] = {
+                "questions_asked_count": 0, "questions_missed": [], "question_quality_score": "N/A",
+                "question_quality_feedback": "Analysis unavailable", "questioning_improvement_tip": "Ask more open-ended questions"
+            }
 
         return data
         
@@ -1043,10 +1040,7 @@ class DashboardPDF(FPDF):
         
         self.draw_section_header("SCORING METHODOLOGY (COACHING EFFICACY)", COLORS['secondary'])
         
-        # Grid Background
-        self.set_fill_color(248, 250, 252)
         start_y = self.get_y()
-        self.rect(10, start_y, 190, 35, 'F')
         
         # Scoring Levels
         levels = [
@@ -1056,15 +1050,34 @@ class DashboardPDF(FPDF):
             ("1-3 (Needs Ops)", "Struggles with core skills. May be defensive, dismissive, or completely miss the objective. Immediate practice required.")
         ]
         
+        # First pass: calculate total height needed
         current_y = start_y + 4
-        
+        row_positions = []
         for grade, desc in levels:
-            self.set_xy(15, current_y)
+            row_positions.append(current_y)
+            # Estimate lines needed for description text
+            self.set_font('helvetica', '', 8)
+            desc_width = 152
+            text_width = self.get_string_width(desc)
+            num_lines = max(1, int(text_width / desc_width) + 1)
+            row_height = max(8, num_lines * 6 + 2)
+            current_y += row_height
+        
+        total_height = current_y - start_y + 2
+        
+        # Draw background rectangle with calculated height
+        self.set_fill_color(248, 250, 252)
+        self.rect(10, start_y, 190, total_height, 'F')
+        
+        # Second pass: draw content
+        for i, (grade, desc) in enumerate(levels):
+            row_y = row_positions[i]
+            self.set_xy(15, row_y)
             self.set_font('helvetica', 'B', 8)
             
             # Color coding for levels
             if "9-10" in grade: self.set_text_color(*COLORS['success'])
-            elif "7-8" in grade: self.set_text_color(*COLORS['success']) # Lighter green ideally, but success works
+            elif "7-8" in grade: self.set_text_color(*COLORS['success'])
             elif "4-6" in grade: self.set_text_color(*COLORS['warning'])
             else: self.set_text_color(*COLORS['danger'])
             
@@ -1075,12 +1088,9 @@ class DashboardPDF(FPDF):
             self.cell(3, 6, "|", 0, 0)
             
             self.set_text_color(*COLORS['text_main'])
-            self.multi_cell(152, 6, desc)
-            current_y += 7
+            self.draw_wrapped_text(44, row_y, 152, 6, desc)
 
-        actual_tmp = self.get_y()
-        if actual_tmp < start_y: self.set_y(actual_tmp + 2)
-        else: self.set_y(max(actual_tmp + 2, start_y + 42))
+        self.set_y(start_y + total_height + 2)
 
     def draw_style_rubric(self):
         """Draw the Coaching Style rubric section."""
@@ -1089,10 +1099,7 @@ class DashboardPDF(FPDF):
         
         self.draw_section_header("PRIMARY COACHING STYLES (RUBRIC)", COLORS['accent'])
         
-        # Grid Background
-        self.set_fill_color(248, 250, 252)
         start_y = self.get_y()
-        self.rect(10, start_y, 190, 45, 'F')
         
         styles = [
             ("Directive", "The coach tells the user exactly what to do. High control, low empowerment. Suitable for emergencies, but limits long-term growth.", COLORS['danger']),
@@ -1101,10 +1108,29 @@ class DashboardPDF(FPDF):
             ("Balanced", "The coach validates emotion while driving accountability. Uses open questions and co-creates plans. The ideal coaching state.", COLORS['success'])
         ]
         
+        # First pass: calculate total height needed
         current_y = start_y + 4
-        
+        row_positions = []
         for style, desc, color in styles:
-            self.set_xy(15, current_y)
+            row_positions.append(current_y)
+            # Estimate lines needed for description text
+            self.set_font('helvetica', '', 8)
+            desc_width = 152
+            text_width = self.get_string_width(desc)
+            num_lines = max(1, int(text_width / desc_width) + 1)
+            row_height = max(10, num_lines * 6 + 3)
+            current_y += row_height
+        
+        total_height = current_y - start_y + 2
+        
+        # Draw background rectangle with calculated height
+        self.set_fill_color(248, 250, 252)
+        self.rect(10, start_y, 190, total_height, 'F')
+        
+        # Second pass: draw content
+        for i, (style, desc, color) in enumerate(styles):
+            row_y = row_positions[i]
+            self.set_xy(15, row_y)
             self.set_font('helvetica', 'B', 8)
             self.set_text_color(*color)
             self.cell(26, 6, style, 0, 0)
@@ -1114,12 +1140,9 @@ class DashboardPDF(FPDF):
             self.cell(3, 6, "|", 0, 0)
             
             self.set_text_color(*COLORS['text_main'])
-            self.multi_cell(152, 6, desc)
-            current_y += 10
+            self.draw_wrapped_text(44, row_y, 152, 6, desc)
 
-        actual_tmp = self.get_y()
-        if actual_tmp < start_y: self.set_y(actual_tmp + 2)
-        else: self.set_y(max(actual_tmp + 2, start_y + 47))
+        self.set_y(start_y + total_height + 2)
 
     def draw_detailed_analysis(self, analysis_data):
         """Draw the detailed analysis section (Supporting string or list of topics)."""
