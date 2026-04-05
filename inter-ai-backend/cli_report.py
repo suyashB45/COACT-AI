@@ -564,156 +564,53 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
         )
     else:
         unified_instruction = f"""
-### PERFORMANCE ANALYSIS GUIDELINES
-**Objective**: Provide a professional, structured assessment of the User's performance in the provided transcript.
-**Focus**: Constructive feedback and actionable insights.
-**Language Tone**: Use encouraging, accessible, and plain English. Avoid heavy corporate jargon.
-**Evidence Requirement**: Ensure every insight or score is directly supported by interaction details from the transcript.
-**Clarity**: Keep reasoning and suggestions concise (ideally 1-2 clear sentences).
+Assess USER's performance. Use encouraging plain English. Every score needs transcript evidence. Concise reasoning (1-2 sentences).
 
-**Scorecard Dimensions**: Please evaluate exactly these 6 dimensions: {scorecard_dimensions}. Rate each from 1 to 10.
+**Scorecard**: Evaluate these 6 dimensions (1-10): {scorecard_dimensions}
 
-**JSON Response Schema**:
+**JSON Schema**:
 {{
-  "meta": {{ "scenario_id": "{scenario_type}", "outcome_status": "Completed/Incomplete", "overall_grade": "X/10", "summary": "Brief summary of the session." }},
+  "meta": {{ "scenario_id": "{scenario_type}", "outcome_status": "Completed/Incomplete", "overall_grade": "X/10", "summary": "Brief summary." }},
   "type": "unified_report",
-  "conversation_snapshot": {{
-    "simulation_context": {{
-      "your_role": "The role the user played",
-      "ai_role": "The role the AI played",
-      "scenario_type": "Type of scenario",
-      "primary_skill_focus": "The main skill being assessed"
-    }},
-    "conversation_flow_overview": "A brief narrative of how the conversation progressed."
-  }},
-  "executive_summary": {{
-    "snapshot": "Overall performance highlight.", "final_score": "X/10", "strengths_summary": "Top strengths.", "improvements_summary": "Key growth areas.", "outcome_summary": "The ultimate result of the conversation."
-  }},
-  "goal_attainment": {{
-    "score": "X/10", "expectation_vs_reality": "Comparison.", "primary_gaps": ["Gap 1", "Gap 2"], "observation_focus": ["Focus 1", "Focus 2"]
-  }},
-  "coaching_style": {{
-    "primary_style": "Directive | Supportive | Avoidant | Balanced",
-    "description": "Short explanation of the style choice."
-  }},
-  "deep_dive_analysis": [
-    {{"topic": "Communication Style", "tone": "Professional", "impact": "Positive", "analysis": "Detailed breakdown."}}
-  ],
-  "pattern_summary": "A short overview of the most frequent behavior.",
-  "behaviour_analysis": [
-    {{
-      "behavior": "Specific Behavior",
-      "quote": "Verbatim line from transcript",
-      "insight": "Impact of this behavior",
-      "impact": "Positive/Negative",
-      "improved_approach": "Suggested alternative phrasing (Do not provide entirely new questions here, only rephrasing of what they said)"
-    }}
-  ],
-  "turning_points": [
-    {{"point": "Significant shift", "timestamp": "Context"}}
-  ],
-  "eq_analysis": [
-    {{ "nuance": "Specific emotion/tone", "observation": "Evidence", "suggestion": "Suggested adjustment" }}
-  ],
-  "heat_map": [
-    {{ "dimension": "First Dimension", "score": 8 }}
-  ],
-  "scorecard": [
-    {{ 
-      "dimension": "Dimension Name", 
-      "score": "X/10", 
-      "reasoning": "Simple explanation.",
-      "quote": "Direct quote proof.",
-      "suggestion": "How to improve this specifically.",
-      "alternative_questions": [{{"question": "Better phrasing of their approach (Not a new strategic question)", "rationale": "Why it works"}}]
-    }}
-  ],
-  "ideal_questions": [
-    {{
-      "question": "High-impact new strategic question 1",
-      "definition": "Why this question is powerful",
-      "scoring": "10/10",
-      "impact": "The expected outcome or awareness shift it creates"
-    }}
-  ], // MUST provide EXACTLY 3 to 5 questions. These must be entirely NEW questions the user missed, NOT repeats from earlier sections.
-  "action_plan": {{
-    "specific_actions": ["Action 1 (Do not write 'Owner' or 'User: ' - just write the action)"], "timeline": "Next 30 days", "success_indicators": ["Indicator 1"]
-  }},
-  "follow_up_strategy": {{
-    "review_cadence": "Duration", "metrics_to_track": ["Metric 1"], "accountability_method": "Method"
-  }},
-  "strengths_and_improvements": {{
-    "strengths": ["Strength 1"], "missed_opportunities": ["Opportunity 1"]
-  }},
-  "final_evaluation": {{
-    "readiness_level": "Level", "maturity_rating": "X/10", "immediate_focus": ["Priorities"], "long_term_suggestion": "Future goal."
-  }},
-  "character_assessment": {{
-    "observed_traits": [
-      {{ "trait": "Trait Name", "evidence_quote": "EXACT quote", "impact": "Positive/Negative", "insight": "Why this trait matters" }}
-    ],
-    "scenario_fit": {{
-      "required_traits": ["Active Listening", "Empathy", "Accountability", "Growth Mindset", "Professional Communication"],
-      "user_strengths": ["Traits demonstrated well"],
-      "user_gaps": ["Traits missing or weak"],
-      "fit_score": "X/10",
-      "fit_assessment": "Overall character fit assessment",
-      "development_priority": "The #1 trait to develop"
-    }},
-    "character_development_plan": ["Specific behavior change 1", "Specific behavior change 2"]
-  }},
-  "question_analysis": {{
-    "questions_asked_count": 0,
-    "questions_missed": [
-      {{ "question": "Question they should have asked", "category": "Discovery|Probing|Clarifying|Vision|Closing", "timing": "Early|Mid|Late", "why_important": "Why it matters", "when_to_ask": "At what point", "impact_if_asked": "Expected outcome" }}
-    ],
-    "question_quality_score": "X/10",
-    "question_quality_feedback": "Overall questioning assessment",
-    "questioning_improvement_tip": "Specific advice"
-  }}
+  "conversation_snapshot": {{ "simulation_context": {{ "your_role": "", "ai_role": "", "scenario_type": "", "primary_skill_focus": "" }}, "conversation_flow_overview": "" }},
+  "executive_summary": {{ "snapshot": "", "final_score": "X/10", "strengths_summary": "", "improvements_summary": "", "outcome_summary": "" }},
+  "goal_attainment": {{ "score": "X/10", "expectation_vs_reality": "", "primary_gaps": [], "observation_focus": [] }},
+  "coaching_style": {{ "primary_style": "Directive|Supportive|Avoidant|Balanced", "description": "" }},
+  "deep_dive_analysis": [{{ "topic": "", "tone": "", "impact": "", "analysis": "" }}],
+  "pattern_summary": "",
+  "behaviour_analysis": [{{ "behavior": "", "quote": "verbatim", "insight": "", "impact": "Positive/Negative", "improved_approach": "rephrased version only" }}],
+  "turning_points": [{{ "point": "", "timestamp": "" }}],
+  "eq_analysis": [{{ "nuance": "", "observation": "", "suggestion": "" }}],
+  "heat_map": [{{ "dimension": "", "score": 8 }}],
+  "scorecard": [{{ "dimension": "", "score": "X/10", "reasoning": "", "quote": "verbatim", "suggestion": "", "alternative_questions": [{{ "question": "rephrased only", "rationale": "" }}] }}],
+  "ideal_questions": [{{ "question": "new strategic question", "definition": "", "scoring": "10/10", "impact": "" }}],
+  "action_plan": {{ "specific_actions": [], "timeline": "Next 30 days", "success_indicators": [] }},
+  "follow_up_strategy": {{ "review_cadence": "", "metrics_to_track": [], "accountability_method": "" }},
+  "strengths_and_improvements": {{ "strengths": [], "missed_opportunities": [] }},
+  "final_evaluation": {{ "readiness_level": "", "maturity_rating": "X/10", "immediate_focus": [], "long_term_suggestion": "" }},
+  "character_assessment": {{ "observed_traits": [{{ "trait": "", "evidence_quote": "EXACT", "impact": "", "insight": "" }}], "scenario_fit": {{ "required_traits": ["Active Listening","Empathy","Accountability","Growth Mindset","Professional Communication"], "user_strengths": [], "user_gaps": [], "fit_score": "X/10", "fit_assessment": "", "development_priority": "" }}, "character_development_plan": [] }},
+  "question_analysis": {{ "questions_asked_count": 0, "questions_missed": [{{ "question": "", "category": "Discovery|Probing|Clarifying|Vision|Closing", "timing": "Early|Mid|Late", "why_important": "", "when_to_ask": "", "impact_if_asked": "" }}], "question_quality_score": "X/10", "question_quality_feedback": "", "questioning_improvement_tip": "" }}
 }}
 
-IMPORTANT: The character_assessment and question_analysis sections are REQUIRED. Analyze the USER's character traits and missed questions as part of this single response.
+RULES: ideal_questions must have 3-5 NEW questions (not repeats). character_assessment and question_analysis are REQUIRED.
 """
 
-    # ANALYST PERSONA
+    # ANALYST PERSONA (compressed)
     analyst_persona = ""
     if scenario_type == "mentorship" or simulation_id == "SIM-11-MENTOR-001":
-        analyst_persona = """
-    ### ANALYST STYLE: CHIEF MENTOR
-    - **Tone**: Wise, observant, and outcome-oriented.
-    - **Focus**: The balance between empathy and high standards.
-    - **Evidence**: Quote the user's exact words to support your insights.
-    - **Advice**: Focus on whether the user helped the mentee 'find their own way' versus just telling them what to do.
-    """
+        analyst_persona = "STYLE: Wise, outcome-oriented. Focus on empathy vs high standards balance. Quote exact words."
     elif ai_character == "sarah":
-        analyst_persona = """
-    ### ANALYST STYLE: COACH SARAH (MENTOR)
-    - **Tone**: Warm, encouraging, high-EQ, "Supportive Feedback" approach.
-    - **Focus**: Psychological safety, growth mindset, and emotional intelligence.
-    - **Evidence**: Quote the user's exact words to support your insights.
-    - **Advice**: Provide specific suggestions (e.g., "Next time, try saying...") for practical growth.
-    """
+        analyst_persona = "STYLE: Warm, encouraging, high-EQ. Focus on psychological safety and growth mindset. Quote exact words."
     else:
-        analyst_persona = """
-    ### ANALYST STYLE: COACH ALEX (EVALUATOR)
-    - **Tone**: Professional, direct, and analytical.
-    - **Focus**: Efficiency, clear outcomes, and professional impact.
-    - **Evidence**: Back every score or critique with a verbatim quote from the transcript.
-    - **Tactical Advice**: Provide high-impact phrasing adjustments or strategic shifts.
-    """
+        analyst_persona = "STYLE: Professional, direct, analytical. Back every score with verbatim quote. High-impact tactical advice."
 
     # Unified System Prompt
     system_prompt = (
-        f"You are {ai_character.title() if ai_character else 'a professional coach'} providing a session assessment.\n"
-        f"In the conversation below, the human participant is 'USER' (Role: {role}) and the AI assistant is 'ASSISTANT' (Role: {ai_role}).\n"
-        f"Your task is to analyze the 'USER' based on their participation.\n"
+        f"You are {ai_character.title() if ai_character else 'a professional coach'} assessing a session.\n"
+        f"USER={role}, ASSISTANT={ai_role}. Analyze USER only.\n"
         f"{analyst_persona}\n"
         f"{unified_instruction}\n"
-        f"Assessment Criteria:\n"
-        "1. GROUNDING: Use the transcript below as the sole source of truth.\n"
-        "2. EVIDENCE: Include short, verbatim quotes to support your findings.\n"
-        "3. RESPONSE FORMAT: Provide your analysis as a single JSON object matching the requested schema.\n"
+        "Use transcript as sole source of truth. Include verbatim quotes. Return a single JSON object.\n"
     )
 
     try:
