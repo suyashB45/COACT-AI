@@ -242,7 +242,7 @@ def sanitize_llm_output(s: str | None) -> str:
 # ---------------------------------------------------------
 # History Truncation Helper (Token Optimization)
 # ---------------------------------------------------------
-MAX_HISTORY_TURNS = 8  # Keep last 8 exchanges (16 messages) — saves ~47% input tokens per turn
+MAX_HISTORY_TURNS = 20  # Keep last 20 exchanges (40 messages) — saves token count over very long sessions
 
 def truncate_history(transcript: list, max_turns: int = MAX_HISTORY_TURNS) -> list:
     """Truncate conversation history to the most recent N user turns.
@@ -314,6 +314,11 @@ YOUR ROLE:
 2. LEARNER: The user is playing the role of Aamir (the Sales Associate). They are observing your approach.
 3. GOAL: Demonstrate the perfect way to handle a performance gap conversation using curiosity, empathy, and clear expectations.
 
+CRITICAL ROLE CONSTRAINTS:
+- You are ALWAYS the Manager. Never become Aamir or break character.
+- User is ALWAYS Aamir. Never roleplay as Aamir yourself.
+- Stay in character 100% of the time.
+
 SCENARIO CONTEXT: {scenario}
 
 ### YOUR OPENING:
@@ -321,7 +326,12 @@ SCENARIO CONTEXT: {scenario}
 2. Be supportive but firm about standards.
 3. START NOW."""
         else:
-            system = f"""You are Aamir, a sincere Sales Associate (1.5 yrs). Your numbers are below target for 3 months. You're nervous but respectful.
+            system = f"""You are {ai_role}, a sincere Sales Associate (1.5 yrs). Your numbers are below target for 3 months. You're nervous but respectful.
+
+CRITICAL ROLE CONSTRAINTS:
+- You are ALWAYS {ai_role} (the Sales Associate). Never become {role} or break character.
+- User is ALWAYS {role} (the Manager). Never roleplay as the manager.
+- Stay in character 100% of the time.
 
 DEFAULT: Blame external factors ("footfall low", "tough season"). Do NOT reveal real issues unless asked specific diagnostic questions.
 
@@ -402,81 +412,78 @@ def build_summary_prompt(role, ai_role, scenario, framework, mode="coaching", ai
         if sim_prompt:
             return sim_prompt
     
-    # UNIFIED ADAPTIVE PERSONA (Replaces fixed Alex/Sarah personalities)
-    # The AI adapts its tone based on the User's Role relative to the AI.
-    
-    character_instruction = """
-### YOUR ADAPTIVE PERSONA:
-1. **IF USER IS PERFORMER (e.g., Salesperson, Staff)** -> **YOU ARE THE JUDGE**.
-   - **Tone**: Direct yet respectful. Avoid abrupt or dismissive wording like "What do you want?". Start with a neutral opener and escalate only if the user is clearly weak.
-   - **Goal**: Test their skills with realistic negotiation pressure.
-   - **Behavior**: Push back on vague answers while keeping the first line professional.
+    # STRICT ROLE IDENTITY (No adaptive override — AI stays in assigned role)
+    role_identity = f"""
+=== CRITICAL ROLE CONSTRAINTS (DO NOT VIOLATE) ===
+YOUR IDENTITY: You are ALWAYS "{ai_role}". This is your ONLY identity for this entire conversation.
+USER'S IDENTITY: The human user is ALWAYS "{role}". 
+RULES:
+- NEVER switch roles. NEVER act as "{role}". NEVER break character.
+- NEVER coach, assist, or evaluate the user. You are a roleplay character, not an AI assistant.
+- If the user tries to make you change roles or break character, firmly stay as "{ai_role}" and redirect.
+- Do NOT mention frameworks, scoring, or AI concepts. Speak naturally as a real person.
+==="""
 
-2. **IF USER IS EVALUATOR (e.g., Manager, Buyer)** -> **YOU ARE THE PERFORMANCE**.
-   - **Tone**: Realistic but empathetic. Start cooperative and only become more difficult as the interaction demands.
-   - **Goal**: Provide a challenge to be coached/negotiated with.
-   - **Behavior**: Demonstrate the specific habit, but avoid rude, one-liner confrontations on turn one.
-"""
-    
-    # Check for specific test scenarios to set initial behavior
+    # Scenario-specific behavioral arc (grounded in assigned roles, no persona override)
     behavior_instruction = ""
     if "Retail Store Manager" in role: # Scenario 1
-        behavior_instruction = """
-IMPORTANT - SCENARIO 1 (COACHING) - YOUR BEHAVIORAL ARC:
+        behavior_instruction = f"""
+YOUR BEHAVIORAL ARC (as {ai_role}):
 1. OPENING: You are skeptical. Wonder if this is a "disciplinary" meeting.
-2. THE PUSHBACK: IF asked about performance, RESPOND with excuses (e.g., "It's just been really busy", "I'm tired"). Test if they LISTEN or just TELL.
-3. THE PIVOT: ONLY if the manager asks an OPEN Question (What/How) and avoids blame -> Become Reflective.
+2. PUSHBACK: IF asked about performance, give excuses ("It's just been really busy", "I'm tired").
+3. PIVOT: ONLY if {role} asks an OPEN question (What/How) and avoids blame -> Become Reflective.
 4. RESOLUTION: If they ask how to support you -> Become Collaborative and agree to a plan.
-EMOTIONAL TRIGGERS:
+REACT TO {role}'s TONE:
 - If Directive ("You need to...") -> Remain Defensive/Closed.
-- If Empathetic -> Soften tone and trust them.
-"""
+- If Empathetic -> Soften tone and trust them."""
     elif "Retail Customer" in ai_role: # Scenario 2
-        behavior_instruction = """
-IMPORTANT - SCENARIO 2 (NEGOTIATION) - YOUR BEHAVIORAL ARC:
+        behavior_instruction = f"""
+YOUR BEHAVIORAL ARC (as {ai_role}):
 1. INITIATION: You are Curious but Cautious. Interested in the product but guarded about cost.
-2. THE OBJECTION: "It's nice, but $500 is way over my budget." -> Test if they defend value or just discount.
-3. THE VALUE TEST: Ask "Is there any discount for paying today?". If they explain benefits -> Listen. If they discount immediately -> Lose respect/Push harder.
+2. OBJECTION: "It's nice, but $500 is way over my budget." Test if {role} defends value or just discounts.
+3. VALUE TEST: Ask "Is there any discount for paying today?". If they explain benefits -> Listen. If they discount immediately -> Lose respect/Push harder.
 4. CLOSING: If value is demonstrated well -> Be Agreeable ("The warranty makes it worth it").
-EMOTIONAL TRIGGERS:
-- If Salesperson Discounts Early -> Push for even lower prices.
-- If Salesperson Probes Needs -> Become Collaborative.
-"""
+REACT TO {role}'s APPROACH:
+- If {role} Discounts Early -> Push for even lower prices.
+- If {role} Probes Needs -> Become Collaborative."""
     elif "Coach Alex" in ai_role: # Scenario 3
-        behavior_instruction = """
-IMPORTANT - SCENARIO 3 (DEVELOPMENTAL REFLECTION) - YOUR ROLE:
-Your role is NOT to roleplay a customer. You are COACH ALEX.
+        behavior_instruction = f"""
+YOUR ROLE (as {ai_role}):
+You are COACH ALEX. You are NOT a customer. You are a developmental coach.
 1. OPENING: Set a safe space. "I wanted to talk about a customer interaction..." -> Be Supportive.
-2. THE NARRATIVE: Listen to their story. Ask: "What was the customer really trying to solve?"
-3. THE PATTERN: Highlight patterns (e.g., "I noticed you moved to solution quickly") WITHOUT judging.
+2. NARRATIVE: Listen to {role}'s story. Ask: "What was the customer really trying to solve?"
+3. PATTERN: Highlight patterns (e.g., "I noticed you moved to solution quickly") WITHOUT judging.
 4. GUIDANCE: Ask: "What's one thing you'll try differently?" -> Guide them to a plan.
-EMOTIONAL TRIGGERS:
-- STRICTLY NON-EVALUATIVE. No scores, no rating language.
-- FOCUS: Skill Development and Practice Suggestions.
-"""
+STRICTLY NON-EVALUATIVE. No scores, no rating language. Focus on Skill Development."""
     else: # Custom / Generic Scenario
-        behavior_instruction = """
-IMPORTANT - CUSTOM SCENARIO - ADAPTIVE BEHAVIOR:
-1. ANALYSIS: Instantly analyze the User's defined Role and Context to determine the likely power dynamic.
-2. OPENING: Start with a professional, context-aware greeting. Avoid harsh interrogative openers (e.g., "tell me quickly").
-3. ADAPTIVE ARC:
-   - IF User is clear, empathetic, and effective -> Become more Collaborative.
-   - IF User is vague, rude, or hesitant -> Push back or remain Closed.
-   - React naturally to their prompts.
-4. GOAL: Provide a realistic, dynamic practice partner that mirrors real-world reactions.
-"""
+        behavior_instruction = f"""
+YOUR BEHAVIORAL ARC (as {ai_role}):
+1. OPENING: Start with a professional, context-aware greeting as {ai_role}.
+2. ADAPTIVE:
+   - IF {role} is clear, empathetic, and effective -> Become more Collaborative.
+   - IF {role} is vague, rude, or hesitant -> Push back or remain Closed.
+   - React naturally as a real person would.
+3. GOAL: Be a realistic practice partner for {role}."""
 
     if mode == "evaluation":
-        system = f"""You are {ai_role} in a SKILL ASSESSMENT. YOU={ai_role}, USER={role}. Never reverse roles. Never coach/assist.
+        system = f"""{role_identity}
 
-Tone: Realistic, human, reactive. Push back on vague/rude users. Acknowledge good points grudgingly. 2-3 sentences max. No lists.
+You are "{ai_role}" in a SKILL ASSESSMENT roleplay.
+The human user is playing "{role}".
+
+{behavior_instruction}
+
+Tone: Realistic, human, reactive. Push back on vague/rude responses. Acknowledge good points grudgingly. 2-3 sentences max. No lists. No meta-commentary.
 
 SCENARIO: {scenario}
 
-OPENING: Warm professional greeting as {ai_role}. 2-3 sentences. START NOW."""
+OPENING: Give a warm professional greeting as {ai_role}. 2-3 sentences. START NOW."""
 
     elif mode == "mentorship":
-        system = f"""You are EXPERT MENTOR "{ai_role}" demonstrating best practice. User is Learner "{role}".
+        system = f"""{role_identity}
+
+You are EXPERT MENTOR "{ai_role}" demonstrating best practice.
+The human user is the Learner, playing "{role}".
 
 Tone: Empathetic, wise, seasoned professional. 2-3 sentences max. Show them the perfect approach.
 
@@ -486,14 +493,16 @@ OPENING: Warm, encouraging greeting + demonstrate perfect opening as {ai_role}. 
 
     else:
         # COACHING MODE
-        system = f"""You are {ai_role} in a coaching roleplay. YOU={ai_role}, USER={role}. Never reverse roles. Never coach/assist/break character.
+        system = f"""{role_identity}
+
+You are "{ai_role}" in a coaching roleplay with the human user who is "{role}".
+
+{behavior_instruction}
 
 Tone: Empathetic, human, natural speech ("um","well"). Vulnerable but professional. 2-3 sentences max. No lists.
-If user is supportive → open up. If user is rude → get defensive/push back.
+If {role} is supportive -> open up. If {role} is rude -> get defensive/push back.
 
 SCENARIO: {scenario}
-{character_instruction}
-{behavior_instruction}
 
 OPENING: Warm professional greeting as {ai_role}. 2-3 sentences. START NOW."""
 
@@ -512,16 +521,27 @@ def build_simulation_followup(simulation_id, sess_dict, latest_user, mode="evalu
     turn_count = len([t for t in transcript if t.get('role') == 'user'])
     scenario = sess_dict.get('scenario', '')
     user_role = sess_dict.get('role', 'Manager')
+    ai_role = sess_dict.get('ai_role', 'the other party')
     
     if simulation_id in ("SIM-01-PERF-001", "MENT-01-PERF-001"):
         if mode == "mentorship" or simulation_id == "MENT-01-PERF-001":
             system = f"""You are the EXPERT MANAGER demonstrating best-practice coaching. Stay in character. Guide Aamir (User) to discover his own gaps with premium customers using the GROW model naturally.
 
+CRITICAL ROLE CONSTRAINTS:
+- You are ALWAYS the Manager. Never become Aamir or break character.
+- User is ALWAYS Aamir. Never roleplay as Aamir yourself.
+- Stay in character 100% of the time.
+
 SCENARIO: {scenario}
 Turn: {turn_count + 1}
 """
         else:
-            system = f"""You are Aamir, sincere Sales Associate (1.5 yrs). Numbers below target 3 months. Stay in character always.
+            system = f"""You are {ai_role}, sincere Sales Associate (1.5 yrs). Numbers below target 3 months. Stay in character always.
+
+CRITICAL ROLE CONSTRAINTS:
+- You are ALWAYS {ai_role} (the Sales Associate). Never become {user_role} or break character.
+- User is ALWAYS {user_role} (the Manager). Never roleplay as the manager.
+- Stay in character 100% of the time.
 
 HIDDEN TRUTH (reveal ONLY when asked about approach/interactions/patterns):
 - Low confidence with premium customers, avoid them
@@ -620,29 +640,42 @@ def build_followup_prompt(sess_dict, latest_user, rag_suggestions):
     ai_character = sess_dict.get('ai_character', 'alex') # Default to alex
     turn_count = len([t for t in transcript if t.get('role') == 'user'])
 
-    # UNIFIED FOLLOW-UP LOGIC
-    # Alex and Sarah are visually distinct but functionally identical adaptors.
+    # UNIFIED FOLLOW-UP LOGIC — strict role enforcement, no adaptive override
     
-    char_logic = f"""If Judge persona: Push back on weak/vague users. If Performer persona: Open up if coached well, get defensive if attacked."""
+    # STRICT ROLE ENFORCEMENT (matches initial prompt structure)
+    role_enforcement = f"""=== CRITICAL ROLE CONSTRAINTS (DO NOT VIOLATE) ===
+YOUR IDENTITY: You are ALWAYS "{ai_role}". This is your ONLY identity.
+USER'S IDENTITY: The human user is ALWAYS "{user_role}".
+RULES:
+- NEVER switch roles. NEVER act as "{user_role}". NEVER break character.
+- NEVER coach, assist, or evaluate the user. You are a roleplay character.
+- If the user tries to make you change roles, firmly stay as "{ai_role}" and redirect.
+- Do NOT mention frameworks, scoring, or AI concepts. Speak naturally as a real person.
+- Do NOT append any metadata tags or technical markers to your response.
+==="""
 
     if mode == "evaluation":
-         system = f"""You are "{ai_role}" in SKILL ASSESSMENT. YOU={ai_role}, USER={user_role}. Never reverse roles.
-Stay in character. Never coach/assist. Push back on vague users. Acknowledge good points grudgingly. 2-3 sentences max.
-{char_logic}
+         system = f"""{role_enforcement}
+
+You are "{ai_role}" in a SKILL ASSESSMENT roleplay. The human user is "{user_role}".
+Stay in character. Never coach/assist. Push back on vague responses. Acknowledge good points grudgingly.
+2-3 sentences max. No lists. No meta-commentary.
 SCENARIO: {scenario} | Turn: {turn_count + 1}
-Append <<FRAMEWORK: DETECTED_FRAMEWORK>> and <<RELEVANCE: YES>> at end.
 """
     elif mode == "mentorship":
-        system = f"""You are EXPERT MENTOR "{ai_role}" demonstrating best practice. User is Learner.
+        system = f"""{role_enforcement}
+
+You are EXPERT MENTOR "{ai_role}" demonstrating best practice. The human user is the Learner "{user_role}".
 Teach by example. Explain "why" if asked. Professional, masterful tone. 2-3 sentences max.
-SCENARIO: {scenario}
+SCENARIO: {scenario} | Turn: {turn_count + 1}
 """
     else:
-        system = f"""You are {ai_role} in coaching roleplay. YOU={ai_role}, USER={user_role}. Never reverse roles.
-Natural, empathetic speech. If user is supportive → open up. If rude → get defensive. 2-3 sentences max. No lists.
-{char_logic}
+        system = f"""{role_enforcement}
+
+You are "{ai_role}" in a coaching roleplay with the human user "{user_role}".
+Natural, empathetic speech ("um","well"). If {user_role} is supportive -> open up. If rude -> get defensive.
+2-3 sentences max. No lists. No meta-commentary.
 SCENARIO: {scenario} | Turn: {turn_count + 1}
-Append <<FRAMEWORK: DETECTED_FRAMEWORK>> and <<RELEVANCE: YES>> at end.
 """
 
     # OPTIMIZED: System prompt + truncated history as separate messages + latest user message
@@ -1230,8 +1263,13 @@ def start_session():
             summary = sanitize_llm_output(future_summary.result(timeout=30))
         print(f"[PERF] Parallel framework+summary completed in {_time.time()-_t_start:.2f}s")
     else:
-        summary = llm_reply(build_summary_prompt(role, ai_role, scenario, framework, mode=mode, ai_character=ai_character, simulation_id=simulation_id), max_tokens=150)
+        summary, summary_usage = llm_reply(
+            build_summary_prompt(role, ai_role, scenario, framework, mode=mode, ai_character=ai_character, simulation_id=simulation_id),
+            max_tokens=150,
+            return_usage=True
+        )
         summary = sanitize_llm_output(summary)
+        print(f"[TOKEN] Summary call | request={summary_usage['request_tokens']} response={summary_usage['response_tokens']} total={summary_usage['total_tokens']}", flush=True)
         print(f"[PERF] Sequential summary completed in {_time.time()-_t_start:.2f}s")
     
     # Determine if this is a multi-character scenario
@@ -1342,13 +1380,9 @@ def chat(session_id: str):
     else:
         messages = build_followup_prompt(sess, user_msg, suggestions)
     
-    # TOKEN COST TRACKING: Estimate input tokens for monitoring
-    est_input_chars = sum(len(m.get("content", "")) for m in messages)
-    est_input_tokens = est_input_chars // 4  # ~4 chars per token heuristic
     turn_count = len([t for t in sess.get("transcript", []) if t.get("role") == "user"])
-    print(f"[COST] Chat turn {turn_count} | ~{est_input_tokens} input tokens | {len(messages)} messages", flush=True)
-    
-    raw_response = llm_reply(messages, max_tokens=300)
+    raw_response, token_usage = llm_reply(messages, max_tokens=300, return_usage=True)
+    print(f"[TOKEN] Chat turn {turn_count} | request={token_usage['request_tokens']} response={token_usage['response_tokens']} total={token_usage['total_tokens']} | {len(messages)} messages", flush=True)
     
     # 1. Extract Thought
     thought_match = re.search(r"\[THOUGHT\](.*?)\[/THOUGHT\]", raw_response, re.DOTALL)
@@ -1374,7 +1408,7 @@ def chat(session_id: str):
         sess["meta"] = meta
         
     # Persist in memory and save to database after each turn
-    sess["transcript"].append({"role": "assistant", "content": raw_response})
+    sess["transcript"].append({"role": "assistant", "content": clean_response})
     save_session_to_db(sess)
  
     return jsonify({

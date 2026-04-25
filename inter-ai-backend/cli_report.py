@@ -9,6 +9,7 @@ from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
+from litellm import token_counter
 import httpx
 import concurrent.futures
 import time
@@ -33,21 +34,38 @@ def setup_langchain_model():
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", os.getenv("MODEL_NAME", "gpt-4.1-mini")),
+            deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", os.getenv("MODEL_NAME", "gpt-4o-mini")),
             http_client=http_client,
-            temperature=0.4
+            temperature=0.1  # REDUCED from 0.4 to prevent hallucinations
         )
     return ChatOpenAI(
         api_key=os.getenv("OPENAI_API_KEY"), 
-        model=os.getenv("MODEL_NAME", "gpt-4.1-mini"),
+        model=os.getenv("MODEL_NAME", "gpt-4o-mini"),
         http_client=http_client,
-        temperature=0.4
+        temperature=0.1  # REDUCED from 0.4 to prevent hallucinations
     )
 
 llm = setup_langchain_model()
 prompt_template = PromptTemplate(template="{prompt}", input_variables=["prompt"])
 
-MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", os.getenv("MODEL_NAME", "gpt-4.1-mini"))
+MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", os.getenv("MODEL_NAME", "gpt-4o-mini"))
+
+
+def count_request_tokens(messages, model=MODEL_NAME):
+    try:
+        return token_counter(model=model, messages=messages)
+    except Exception as e:
+        print(f"[TOKEN] request token count failed: {e}", flush=True)
+        return 0
+
+
+def count_response_tokens(text, model=MODEL_NAME):
+    try:
+        return token_counter(model=model, text=text, count_response_tokens=True)
+    except Exception as e:
+        print(f"[TOKEN] response token count failed: {e}", flush=True)
+        return 0
+
 
 # --- Premium Modern Palette ---
 COLORS = {
@@ -171,19 +189,30 @@ def get_bar_color(score):
     if s > 0.0: return COLORS['danger']
     return COLORS['grey_text']
 
-def llm_reply(messages, max_tokens=4000, max_retries=3, delay=1):
+def llm_reply(messages, max_tokens=4000, max_retries=3, delay=1, return_usage=False):
+    request_tokens = count_request_tokens(messages) if return_usage else None
     for attempt in range(max_retries):
         try:
             print(f" [DEBUG] llm_reply attempt {attempt + 1}", flush=True)
             response = llm.invoke(messages)
-            return response.content.strip()
+            text = response.content.strip()
+            if return_usage:
+                response_tokens = count_response_tokens(text)
+                total_tokens = request_tokens + response_tokens
+                print(f"[TOKEN] request={request_tokens} response={response_tokens} total={total_tokens}", flush=True)
+                return text, {
+                    "request_tokens": request_tokens,
+                    "response_tokens": response_tokens,
+                    "total_tokens": total_tokens,
+                }
+            return text
         except Exception as e:
             print(f"LLM Error (Attempt {attempt + 1}/{max_retries}): {e}")
             if attempt < max_retries - 1:
                 # Exponential backoff: 1s, 2s, 4s...
                 time.sleep(delay * (2 ** attempt))
             else:
-                return "{}"
+                return ("{}", {"request_tokens": request_tokens or 0, "response_tokens": 0, "total_tokens": request_tokens or 0}) if return_usage else "{}"
 
 def parse_json_robustly(json_text):
     """
@@ -297,7 +326,7 @@ def analyze_character_traits(transcript, role, ai_role, scenario, scenario_type)
     if not user_msgs:
         return {}
     
-    conversation = "\n".join([f"USER: {t['content']}" for t in user_msgs])
+    conversation = "\n".join([f"[HUMAN LEARNER ({role})]: {t['content']}" for t in user_msgs])
     
     # Universal required traits for all scenarios
     required_traits = ["Active Listening", "Empathy", "Accountability", "Growth Mindset", "Professional Communication"]
@@ -305,15 +334,15 @@ def analyze_character_traits(transcript, role, ai_role, scenario, scenario_type)
     prompt = f"""
 You are providing a professional assessment of a human player's character and personality fit for a {scenario_type} simulation.
 
-Note: In the transcript, the human player is labeled 'USER' (Role: '{role}').
-The AI assistant is labeled 'ASSISTANT' (Role: '{ai_role}').
-Evaluate the 'USER' based on their participation.
+Note: In the transcript, the human player is labeled '[HUMAN LEARNER]' (Role: '{role}').
+The AI assistant is labeled '[AI COACH]' (Role: '{ai_role}').
+Evaluate the [HUMAN LEARNER] ONLY based on their participation.
 
 (Scenario details are in report metadata; do not rely on it in the prompt.)
 
 REQUIRED TRAITS: {', '.join(required_traits)}
 
-Analyze the human player's ('USER's') character based exclusively on their responses. (Note: Only the USER's lines have been provided for brevity).
+Analyze the [HUMAN LEARNER]'s character based exclusively on their responses.
 
 CONVERSATION:
 {conversation}
@@ -386,7 +415,7 @@ def analyze_questions_missed(transcript, role, ai_role, scenario, scenario_type)
         return {}
     
     conversation = "\n".join([
-        f"{'USER' if t['role'] == 'user' else 'ASSISTANT'}: {t['content']}" 
+        f"[HUMAN LEARNER ({role})]: {t['content']}" if t['role'] == 'user' else f"[AI COACH ({ai_role})]: {t['content']}"
         for t in transcript
     ])
     
@@ -396,16 +425,16 @@ def analyze_questions_missed(transcript, role, ai_role, scenario, scenario_type)
     prompt = f"""
 You are providing a professional assessment of questioning quality in a {scenario_type} simulation.
 
-Note: In the transcript, the human player is labeled 'USER' (Role: '{role}').
-The AI assistant is labeled 'ASSISTANT' (Role: '{ai_role}').
-Evaluate the 'USER' based on their questioning approach.
+Note: In the transcript, the human player is labeled '[HUMAN LEARNER]' (Role: '{role}').
+The AI assistant is labeled '[AI COACH]' (Role: '{ai_role}').
+Evaluate the [HUMAN LEARNER] ONLY based on their questioning approach.
 
 (Scenario details are in report metadata; do not rely on it in the prompt.)
 
 CONVERSATION:
 {conversation}
 
-Analyze what QUESTIONS the human player ('USER') SHOULD HAVE ASKED but DIDN'T.
+Analyze what QUESTIONS the [HUMAN LEARNER] SHOULD HAVE ASKED but DIDN'T.
 
 
 For {scenario_type} scenarios, strong performers ask:
@@ -433,7 +462,7 @@ Return VALID JSON with this EXACT structure:
   "questioning_improvement_tip": "Specific advice to ask better questions"
 }}
 
-Identify 5-8 HIGH-IMPACT questions they missed. Be SPECIFIC about WHEN and WHY.
+Identify 3-5 HIGH-IMPACT questions they missed IF they genuinely missed them. Do NOT invent missed questions if performance was strong.
 Categorize each question and specify optimal timing in the conversation.
 """
     
@@ -564,35 +593,47 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
         )
     else:
         unified_instruction = f"""
-Assess USER's performance. Use encouraging plain English. Every score needs transcript evidence. Concise reasoning (1-2 sentences).
+=== CRITICAL EVALUATION TARGET ===
+You MUST evaluate ONLY the [HUMAN LEARNER]'s performance (the person playing "{role}").
+Do NOT evaluate the [AI COACH]'s performance (the AI playing "{ai_role}").
+The [AI COACH]'s responses are ONLY context for understanding how the [HUMAN LEARNER] reacted.
+Every score, quote, and insight MUST be about the [HUMAN LEARNER]'s words and actions ONLY.
+===
 
-**Scorecard**: Evaluate these 6 dimensions (1-10): {scorecard_dimensions}
+Use encouraging plain English. Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise reasoning (1-2 sentences).
+
+**Scorecard**: Evaluate the [HUMAN LEARNER]'s performance on these 6 dimensions (1-10): {scorecard_dimensions}
 
 **JSON Schema**:
 {{
-  "meta": {{ "scenario_id": "{scenario_type}", "outcome_status": "Completed/Incomplete", "overall_grade": "X/10", "summary": "Brief summary." }},
+  "meta": {{ "scenario_id": "{scenario_type}", "outcome_status": "Completed/Incomplete", "overall_grade": "X/10", "summary": "Brief summary of [HUMAN LEARNER]'s performance." }},
   "type": "unified_report",
-  "conversation_snapshot": {{ "simulation_context": {{ "your_role": "", "ai_role": "", "scenario_type": "", "primary_skill_focus": "" }}, "conversation_flow_overview": "" }},
+  "conversation_snapshot": {{ "simulation_context": {{ "your_role": "{role}", "ai_role": "{ai_role}", "scenario_type": "{scenario_type}", "primary_skill_focus": "" }}, "conversation_flow_overview": "" }},
   "executive_summary": {{ "snapshot": "", "final_score": "X/10", "strengths_summary": "", "improvements_summary": "", "outcome_summary": "" }},
   "goal_attainment": {{ "score": "X/10", "expectation_vs_reality": "", "primary_gaps": [], "observation_focus": [] }},
   "coaching_style": {{ "primary_style": "Directive|Supportive|Avoidant|Balanced", "description": "" }},
   "deep_dive_analysis": [{{ "topic": "", "tone": "", "impact": "", "analysis": "" }}],
   "pattern_summary": "",
-  "behaviour_analysis": [{{ "behavior": "", "quote": "verbatim", "insight": "", "impact": "Positive/Negative", "improved_approach": "rephrased version only" }}],
+  "behaviour_analysis": [{{ "behavior": "", "quote": "EXACT verbatim quote from [HUMAN LEARNER] only", "insight": "", "impact": "Positive/Negative", "improved_approach": "rephrased version only" }}],
   "turning_points": [{{ "point": "", "timestamp": "" }}],
   "eq_analysis": [{{ "nuance": "", "observation": "", "suggestion": "" }}],
   "heat_map": [{{ "dimension": "", "score": 8 }}],
-  "scorecard": [{{ "dimension": "", "score": "X/10", "reasoning": "", "quote": "verbatim", "suggestion": "", "alternative_questions": [{{ "question": "rephrased only", "rationale": "" }}] }}],
-  "ideal_questions": [{{ "question": "new strategic question", "definition": "", "scoring": "10/10", "impact": "" }}],
+  "scorecard": [{{ "dimension": "", "score": "X/10", "reasoning": "", "quote": "EXACT verbatim quote from [HUMAN LEARNER] only", "suggestion": "", "alternative_questions": [{{ "question": "rephrased only", "rationale": "" }}] }}],
+  "ideal_questions": [{{ "question": "new strategic question the [HUMAN LEARNER] could have asked", "definition": "", "scoring": "10/10", "impact": "" }}],
   "action_plan": {{ "specific_actions": [], "timeline": "Next 30 days", "success_indicators": [] }},
   "follow_up_strategy": {{ "review_cadence": "", "metrics_to_track": [], "accountability_method": "" }},
   "strengths_and_improvements": {{ "strengths": [], "missed_opportunities": [] }},
   "final_evaluation": {{ "readiness_level": "", "maturity_rating": "X/10", "immediate_focus": [], "long_term_suggestion": "" }},
-  "character_assessment": {{ "observed_traits": [{{ "trait": "", "evidence_quote": "EXACT", "impact": "", "insight": "" }}], "scenario_fit": {{ "required_traits": ["Active Listening","Empathy","Accountability","Growth Mindset","Professional Communication"], "user_strengths": [], "user_gaps": [], "fit_score": "X/10", "fit_assessment": "", "development_priority": "" }}, "character_development_plan": [] }},
+  "character_assessment": {{ "observed_traits": [{{ "trait": "", "evidence_quote": "EXACT quote from [HUMAN LEARNER]", "impact": "", "insight": "" }}], "scenario_fit": {{ "required_traits": ["Active Listening","Empathy","Accountability","Growth Mindset","Professional Communication"], "user_strengths": [], "user_gaps": [], "fit_score": "X/10", "fit_assessment": "", "development_priority": "" }}, "character_development_plan": [] }},
   "question_analysis": {{ "questions_asked_count": 0, "questions_missed": [{{ "question": "", "category": "Discovery|Probing|Clarifying|Vision|Closing", "timing": "Early|Mid|Late", "why_important": "", "when_to_ask": "", "impact_if_asked": "" }}], "question_quality_score": "X/10", "question_quality_feedback": "", "questioning_improvement_tip": "" }}
 }}
 
-RULES: ideal_questions must have 3-5 NEW questions (not repeats). character_assessment and question_analysis are REQUIRED.
+RULES:
+- ideal_questions must have 3-5 NEW questions (not repeats) that the [HUMAN LEARNER] could have asked.
+- character_assessment and question_analysis are REQUIRED.
+- questions_missed: Include 3-5 questions IF the learner genuinely missed them. If they performed well, include fewer. Do NOT invent missed questions.
+- ALL quotes MUST come from [HUMAN LEARNER] lines. NEVER quote [AI COACH] lines as evidence.
+- TONE: Use balanced, objective, and constructive language. Do NOT use overly harsh, dramatic, or exaggerated phrasing in summaries (e.g., avoid "completely failed").
 """
 
     # ANALYST PERSONA (compressed)
@@ -604,18 +645,25 @@ RULES: ideal_questions must have 3-5 NEW questions (not repeats). character_asse
     else:
         analyst_persona = "STYLE: Professional, direct, analytical. Back every score with verbatim quote. High-impact tactical advice."
 
-    # Unified System Prompt
+    # Unified System Prompt — explicitly identifies who to evaluate
     system_prompt = (
-        f"You are {ai_character.title() if ai_character else 'a professional coach'} assessing a session.\n"
-        f"USER={role}, ASSISTANT={ai_role}. Analyze USER only.\n"
+        f"You are a professional performance analyst assessing a roleplay session.\n"
+        f"\n"
+        f"=== WHO TO EVALUATE ===\n"
+        f"[HUMAN LEARNER] = The real human user, playing the role of \"{role}\". EVALUATE THIS PERSON ONLY.\n"
+        f"[AI COACH] = The AI system, playing the role of \"{ai_role}\". Do NOT evaluate this. Use only as context.\n"
+        f"===\n"
+        f"\n"
         f"{analyst_persona}\n"
         f"{unified_instruction}\n"
-        "Use transcript as sole source of truth. Include verbatim quotes. Return a single JSON object.\n"
+        f"\n"
+        f"Use the transcript below as your SOLE source of truth. ALL verbatim quotes MUST come from [HUMAN LEARNER] lines.\n"
+        f"Return a single JSON object. Do NOT include any text before or after the JSON.\n"
     )
 
     try:
-        # Create conversation text for analysis
-        full_conversation = "\n".join([f"{'USER' if t['role'] == 'user' else 'ASSISTANT'}: {t['content']}" for t in transcript])
+        # Create conversation text for analysis — explicit labels to prevent role confusion
+        full_conversation = "\n".join([f"[HUMAN LEARNER ({role})]: {t['content']}" if t['role'] == 'user' else f"[AI COACH ({ai_role})]: {t['content']}" for t in transcript])
         
         # Setup LangChain Parser
         parser = JsonOutputParser()
