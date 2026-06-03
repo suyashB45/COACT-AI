@@ -59,8 +59,6 @@ export default function Conversation() {
     const abortControllerRef = useRef<AbortController | null>(null);
     const sessionEndedRef = useRef(false)
     const ttsAbortRef = useRef<AbortController | null>(null)
-    const wsRef = useRef<WebSocket | null>(null)
-    const processorRef = useRef<any>(null)
 
     const [state, setState] = useState<ConversationState>({
         transcript: [],
