@@ -30,26 +30,28 @@ services:
 
   backend:
     build:
-      context: ./inter-ai-backend
+      context: ./inter-ai-backend-go
       dockerfile: Dockerfile
     expose:
       - "8000"
     volumes:
-      - ./inter-ai-backend/reports:/app/reports
-      - ./inter-ai-backend/static:/app/static
+      - ./inter-ai-backend-go/reports:/app/reports
+      - ./inter-ai-backend-go/data:/app/data
+      - ./piper_models:/app/models
+      - backend-db:/app/db
     environment:
-      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
-      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
-      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
-      - MODEL_NAME=${MODEL_NAME:-gpt-4.1-mini}
-      - WHISPER_DEPLOYMENT_NAME=${WHISPER_DEPLOYMENT_NAME:-whisper}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+      - PORT=8000
+      - MODEL_NAME=${MODEL_NAME:-qwen3.5:0.8b}
+      - OLLAMA_API_URL=${OLLAMA_API_URL:-http://host.docker.internal:11434}
+      - WHISPER_CMD=whisper
+      - PIPER_CMD=/app/piper/piper
+      - PIPER_MODEL_PATH=${PIPER_MODEL_PATH:-/app/models/en_US-lessac-medium.onnx}
+      - PIPER_MODEL_PATH_BOY=${PIPER_MODEL_PATH_BOY:-/app/models/en_US-lessac-medium.onnx}
+      - PIPER_MODEL_PATH_GIRL=${PIPER_MODEL_PATH_GIRL:-/app/models/en_US-lessac-medium.onnx}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - PYTHONPATH=/app
-      - FLASK_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-super-secret-production-key}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://coact-ai.com,https://www.coact-ai.com}
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
@@ -68,3 +70,6 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
+
+volumes:
+  backend-db:

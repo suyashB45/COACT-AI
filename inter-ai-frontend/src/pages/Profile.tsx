@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Clock, Trophy, Calendar, ArrowRight, LogOut, PlayCircle } from 'lucide-react';
 import Navigation from '../components/landing/Navigation';
-import { supabase } from '../lib/supabase';
 import { getApiUrl } from '../lib/api';
 
 interface Session {
@@ -29,43 +28,36 @@ const Profile: React.FC = () => {
 
     const fetchUserAndHistory = async () => {
         try {
-            // Get current user from Supabase
-            const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-            if (!currentUser) {
+            // Get current user
+            const userStr = localStorage.getItem('user');
+            if (!userStr) {
                 navigate('/login');
                 return;
             }
-
+            const currentUser = JSON.parse(userStr);
             setUser(currentUser);
 
-            // Get session for API calls
-            const { data: { session } } = await supabase.auth.getSession();
-
-            if (session) {
-                // Fetch practice history
-                const res = await fetch(getApiUrl('/api/history'), {
-                    headers: {
-                        'Authorization': `Bearer ${session.access_token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (res.ok) {
-                    const historyData = await res.json();
-                    setSessions(historyData);
-
-                    // Calculate stats
-                    const completed = historyData.filter((s: Session) => s.completed).length;
-                    const scores = historyData.filter((s: Session) => s.score).map((s: Session) => s.score || 0);
-                    const avgScore = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
-
-                    setStats({
-                        total: historyData.length,
-                        completed,
-                        avgScore
-                    });
+            // Fetch practice history
+            const res = await fetch(getApiUrl('/api/history'), {
+                headers: {
+                    'Content-Type': 'application/json'
                 }
+            });
+
+            if (res.ok) {
+                const historyData = await res.json();
+                setSessions(historyData);
+
+                // Calculate stats
+                const completed = historyData.filter((s: Session) => s.completed).length;
+                const scores = historyData.filter((s: Session) => s.score).map((s: Session) => s.score || 0);
+                const avgScore = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
+
+                setStats({
+                    total: historyData.length,
+                    completed,
+                    avgScore
+                });
             }
         } catch (error) {
             console.error('Error fetching profile data:', error);
@@ -75,7 +67,6 @@ const Profile: React.FC = () => {
     };
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
         localStorage.removeItem('user');
         navigate('/login');
     };

@@ -4,10 +4,9 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Mic, Square, ArrowLeft, Clock, User, Bot, Send, Sparkles, History, X, Loader2 } from "lucide-react"
+import { Square, ArrowLeft, Clock, User, History, X, Loader2, Video, VideoOff, Phone, Mic, MicOff } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { getApiUrl } from "@/lib/api"
-import { supabase } from "@/lib/supabase"
 
 interface TranscriptMessage {
     role: "user" | "assistant"
@@ -60,6 +59,8 @@ export default function Conversation() {
     const abortControllerRef = useRef<AbortController | null>(null);
     const sessionEndedRef = useRef(false)
     const ttsAbortRef = useRef<AbortController | null>(null)
+    const wsRef = useRef<WebSocket | null>(null)
+    const processorRef = useRef<any>(null)
 
     const [state, setState] = useState<ConversationState>({
         transcript: [],
@@ -72,11 +73,92 @@ export default function Conversation() {
         interimText: "",
         showTranscript: false,
     })
+    const isProcessingRef = useRef(false)
+    useEffect(() => {
+        isProcessingRef.current = state.isProcessing
+    }, [state.isProcessing])
+
     const [isAiSpeaking, setIsAiSpeaking] = useState(false)
+    const isAiSpeakingRef = useRef(false)
+    useEffect(() => {
+        isAiSpeakingRef.current = isAiSpeaking
+    }, [isAiSpeaking])
+
     const [showEndConfirm, setShowEndConfirm] = useState(false)
     const [isEnding, setIsEnding] = useState(false)
     const [multiCharacters, setMultiCharacters] = useState(false)
     const [characters, setCharacters] = useState<CharacterConfig[]>([])
+
+    // Video call state
+    const [isVideoOn, setIsVideoOn] = useState(true)
+    const [userStream, setUserStream] = useState<MediaStream | null>(null)
+    const userVideoRef = useRef<HTMLVideoElement>(null)
+
+    useEffect(() => {
+        if (isVideoOn && userVideoRef.current && userStream) {
+            userVideoRef.current.srcObject = userStream
+        }
+    }, [isVideoOn, userStream, userVideoRef.current])
+
+    useEffect(() => {
+        let mounted = true
+        const startVideo = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+                if (mounted) {
+                    setUserStream(stream)
+                } else {
+                    stream.getTracks().forEach(track => track.stop())
+                }
+            } catch (err) {
+                console.error('Error accessing webcam:', err)
+                if (mounted) setIsVideoOn(false)
+            }
+        }
+        startVideo()
+        return () => {
+            mounted = false
+        }
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            if (userStream) {
+                 userStream.getTracks().forEach(track => track.stop())
+            }
+        }
+    }, [userStream])
+
+    const toggleUserVideo = async () => {
+        if (!isVideoOn) {
+            try {
+                let stream = userStream;
+                if (!stream || !stream.active) {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true })
+                    setUserStream(stream)
+                }
+                setIsVideoOn(true)
+            } catch (err) {
+                console.error('Error accessing webcam:', err)
+            }
+        } else {
+            if (userStream) {
+                userStream.getTracks().forEach(track => track.stop())
+                setUserStream(null)
+            }
+            setIsVideoOn(false)
+        }
+    }
+
+    const stopVideo = useCallback(() => {
+        if (userStream) {
+            userStream.getTracks().forEach(track => track.stop());
+            setUserStream(null);
+        }
+        setIsVideoOn(false);
+    }, [userStream]);
+
+
 
     // Helper: Parse character-labeled lines from AI response
     const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -159,9 +241,9 @@ export default function Conversation() {
     }, [state.elapsedSeconds, isEnding])
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+    const audioChunksRef = useRef<Blob[]>([])
 
-    // State for user's uploaded audio URL
-    const [lastAudioUrl, setLastAudioUrl] = useState<string | null>(null)
+
     const audioRef = useRef<HTMLAudioElement | null>(null)
 
     // Audio playback for AI response
@@ -247,9 +329,60 @@ export default function Conversation() {
     const speakMultiCharacter = async (text: string, chars: CharacterConfig[] = characters) => {
         if (sessionEndedRef.current) return
         const parts = parseCharacterLines(text, chars, true)
-        for (const part of parts) {
-            if (sessionEndedRef.current) break
-            await speakText(part.text, undefined, part.voice)
+        
+        setIsAiSpeaking(true)
+        if (ttsAbortRef.current) ttsAbortRef.current.abort()
+        const ttsController = new AbortController()
+        ttsAbortRef.current = ttsController
+        
+        try {
+            // Fire all TTS requests in parallel
+            const audioUrlPromises = parts.map(async (part) => {
+                const voice = part.voice || 'fable'
+                const response = await fetch(getApiUrl('/api/speak'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: part.text, voice }),
+                    signal: ttsController.signal
+                })
+                if (!response.ok) throw new Error(`TTS failed`)
+                const blob = await response.blob()
+                return URL.createObjectURL(blob)
+            })
+
+            // Play them sequentially as they become ready
+            for (let i = 0; i < parts.length; i++) {
+                if (sessionEndedRef.current) break
+                const url = await audioUrlPromises[i]
+                
+                await new Promise<void>((resolve) => {
+                    if (sessionEndedRef.current) {
+                        URL.revokeObjectURL(url)
+                        return resolve()
+                    }
+                    
+                    const audio = new Audio(url)
+                    aiAudioRef.current = audio
+                    
+                    audio.onended = () => {
+                        URL.revokeObjectURL(url)
+                        resolve()
+                    }
+                    audio.onerror = () => {
+                        URL.revokeObjectURL(url)
+                        resolve()
+                    }
+                    audio.play().catch(err => {
+                        console.error("Audio playback error:", err)
+                        URL.revokeObjectURL(url)
+                        resolve()
+                    })
+                })
+            }
+        } catch (e) {
+            console.error("Multi TTS Error", e)
+        } finally {
+            setIsAiSpeaking(false)
         }
     }
 
@@ -314,124 +447,67 @@ export default function Conversation() {
             if (recognitionRef.current) {
                 recognitionRef.current.stop()
             }
-            // Ensure media recorder tracks are stopped (microphone off)
-            if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
-                mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop())
-            }
             // Abort any pending API calls
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort()
             }
+            // Stop user video if active
+            if (userVideoRef.current && userVideoRef.current.srcObject) {
+                const stream = userVideoRef.current.srcObject as MediaStream
+                stream.getTracks().forEach(track => track.stop())
+            }
+            // Stop Live Mode
+            stopLiveMode()
         }
     }, [])
 
-    const stopRecording = useCallback(() => {
-        if (recognitionRef.current) {
-            recognitionRef.current.stop()
-        }
+    // ===== VAD State and Refs =====
+    const [isLiveMode, setIsLiveMode] = useState(false)
+    const [isUserSpeaking, setIsUserSpeaking] = useState(false)
+    const liveRecordingActive = useRef(false)
+    
+    const audioContextRef = useRef<AudioContext | null>(null)
+    const analyserRef = useRef<AnalyserNode | null>(null)
+    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
+    const vadStreamRef = useRef<MediaStream | null>(null)
+    const animationFrameRef = useRef<number | null>(null)
+
+    const stopLiveMode = useCallback(() => {
+        setIsLiveMode(false)
+        setIsUserSpeaking(false)
+        liveRecordingActive.current = false
+
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+        
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.onstop = null
             mediaRecorderRef.current.stop()
-            if (mediaRecorderRef.current.stream) {
-                mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop())
-            }
         }
+        
+        if (vadStreamRef.current) {
+            vadStreamRef.current.getTracks().forEach(t => t.stop())
+            vadStreamRef.current = null
+        }
+        
+        if (audioContextRef.current) {
+            audioContextRef.current.close()
+            audioContextRef.current = null
+        }
+        
         setState((prev) => ({ ...prev, isRecording: false }))
     }, [])
 
-    const startRecording = async () => {
-        if (isAiSpeaking) return
+    // Global cleanup on unmount
+    useEffect(() => {
+        return () => {
+            stopVideo();
+            stopLiveMode();
+        };
+    }, [stopVideo, stopLiveMode]);
 
-        try {
-            // Use MediaRecorder to capture audio and send to Whisper backend
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                } 
-            })
-            const audioChunks: Blob[] = []
-
-            // Try to use a mime type supported by the browser
-            const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
-            const mediaRecorder = new MediaRecorder(stream, { mimeType })
-            mediaRecorderRef.current = mediaRecorder
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunks.push(event.data)
-                }
-            }
-
-            mediaRecorder.onstop = async () => {
-                stream.getTracks().forEach(track => track.stop())
-                if (audioChunks.length === 0) return
-
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
-
-                try {
-                    setState(prev => ({ ...prev, isProcessing: true, interimText: "Transcribing..." }))
-
-                    const formData = new FormData()
-                    formData.append('file', audioBlob, 'audio.webm')
-                    if (sessionId) formData.append('session_id', sessionId)
-
-                    const response = await fetch(getApiUrl('/api/transcribe'), {
-                        method: 'POST',
-                        body: formData,
-                        signal: abortControllerRef.current?.signal
-                    })
-
-                    if (!response.ok) throw new Error('Whisper API failed')
-
-                    const data = await response.json()
-                    const transcribedText = data.text?.trim()
-
-                    if (data.audio_url) {
-                        setLastAudioUrl(data.audio_url)
-                    }
-
-                    if (transcribedText) {
-                        setState(prev => ({
-                            ...prev,
-                            currentDraft: prev.currentDraft + transcribedText + " ",
-                            isProcessing: false,
-                            interimText: ""
-                        }))
-                    } else {
-                        setState(prev => ({ ...prev, isProcessing: false, interimText: "" }))
-                    }
-                } catch (error) {
-                    console.error("Whisper STT Error:", error)
-                    setState(prev => ({ ...prev, isProcessing: false, interimText: "" }))
-                    toast.error("Transcription Error", {
-                        description: "Could not transcribe audio via Whisper."
-                    })
-                }
-            }
-
-            mediaRecorder.onerror = () => {
-                console.error("MediaRecorder error")
-                stream.getTracks().forEach(track => track.stop())
-                setState(prev => ({ ...prev, isRecording: false }))
-            }
-
-            mediaRecorder.start(1000)
-            setState(prev => ({ ...prev, isRecording: true, interimText: "Recording..." }))
-
-        } catch (error) {
-            console.error("Error accessing microphone:", error)
-            toast.error("Microphone Error", {
-                description: "Unable to access microphone. Please check permissions."
-            })
-        }
-    }
-
-    const handleSend = async () => {
-        const message = state.currentDraft.trim()
-        if (!message) return
-
-        stopRecording()
+    const submitMessage = async (message: string, audioUrl: string | null) => {
+        if (!message.trim()) return
 
         setState((prev) => ({
             ...prev,
@@ -441,39 +517,28 @@ export default function Conversation() {
         }))
 
         try {
-            // Abort previous pending request if any
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort()
             }
             const controller = new AbortController()
             abortControllerRef.current = controller
 
-            // Get auth token for session persistence
-            const { data: { session: authSession } } = await supabase.auth.getSession()
             const authHeaders: Record<string, string> = {
                 'Content-Type': 'application/json'
             }
-            if (authSession?.access_token) {
-                authHeaders['Authorization'] = `Bearer ${authSession.access_token}`
-            }
 
-            // Call backend chat API
             const response = await fetch(getApiUrl(`/api/session/${sessionId}/chat`), {
                 method: 'POST',
                 headers: authHeaders,
                 body: JSON.stringify({
                     message,
-                    audio_url: lastAudioUrl // Send the audio we just saved
+                    audio_url: audioUrl
                 }),
                 signal: controller.signal
             })
 
-            // Reset audio url for next turn
-            setLastAudioUrl(null)
 
-            if (!response.ok) {
-                throw new Error("Failed to get AI response")
-            }
+            if (!response.ok) throw new Error("Failed to get AI response")
 
             const data = await response.json()
             const aiResponse = data.follow_up
@@ -491,7 +556,6 @@ export default function Conversation() {
                 speakText(aiResponse)
             }
 
-            // Update local storage
             if (state.sessionData) {
                 const updated = {
                     ...state.sessionData,
@@ -502,20 +566,175 @@ export default function Conversation() {
                 }
                 localStorage.setItem(`session_${sessionId}`, JSON.stringify(updated))
             }
-
         } catch (error: any) {
-            if (error.name === 'AbortError') {
-                console.log("Request aborted")
-                return
-            }
+            if (error.name === 'AbortError') return
             console.error("Conversation Error:", error)
             setState((prev) => ({ ...prev, isProcessing: false }))
-
-            toast.error("Error", {
-                description: "Something went wrong. Please try again."
-            })
+            toast.error("Error", { description: "Something went wrong. Please try again." })
         }
     }
+
+
+
+    const startVADRecording = () => {
+        if (liveRecordingActive.current || !vadStreamRef.current) return
+        liveRecordingActive.current = true
+        setState(prev => ({ ...prev, isRecording: true, interimText: "Listening..." }))
+
+        audioChunksRef.current = []
+        try {
+            const mediaRecorder = new MediaRecorder(vadStreamRef.current)
+            mediaRecorderRef.current = mediaRecorder
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    audioChunksRef.current.push(e.data)
+                }
+            }
+
+            mediaRecorder.start(100) // Get chunks every 100ms
+        } catch (e) {
+            console.error("MediaRecorder start error:", e)
+        }
+    }
+
+    const monitorVAD = () => {
+        if (!analyserRef.current) return
+        const analyser = analyserRef.current
+        const dataArray = new Uint8Array(analyser.frequencyBinCount)
+        
+        const checkAudio = () => {
+            analyser.getByteFrequencyData(dataArray)
+            let sum = 0
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
+            const average = sum / dataArray.length
+            
+            // If AI is speaking or we are processing the AI's response, mute the mic (ignore VAD)
+            if (isAiSpeakingRef.current || isProcessingRef.current) {
+                animationFrameRef.current = requestAnimationFrame(checkAudio)
+                return
+            }
+            
+            const THRESHOLD = 20 
+            
+            if (average > THRESHOLD) {
+                if (!liveRecordingActive.current) {
+                    setIsUserSpeaking(true)
+                    startVADRecording()
+                }
+                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+                
+                silenceTimerRef.current = setTimeout(() => {
+                    setIsUserSpeaking(false)
+                    liveRecordingActive.current = false
+                    setState(prev => ({ ...prev, isRecording: false, interimText: "Processing..." }))
+                    
+                    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                        mediaRecorderRef.current.onstop = async () => {
+                            if (audioChunksRef.current.length === 0) {
+                                setState(prev => ({ ...prev, interimText: "" }))
+                                return
+                            }
+                            
+                            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+                            audioChunksRef.current = []
+                            
+                            const formData = new FormData()
+                            formData.append("file", audioBlob, "audio.webm")
+                            formData.append("session_id", sessionId)
+                            
+                            try {
+                                const res = await fetch(getApiUrl('/api/transcribe'), {
+                                    method: 'POST',
+                                    body: formData
+                                })
+                                if (!res.ok) throw new Error("Transcription failed")
+                                const data = await res.json()
+                                
+                                setState(prev => ({ ...prev, interimText: "" }))
+                                if (data.text && data.text.trim().length > 0) {
+                                    submitMessage(data.text, data.audio_url || null)
+                                }
+                            } catch (e) {
+                                console.error("Transcription error:", e)
+                                setState(prev => ({ ...prev, interimText: "" }))
+                            }
+                        }
+                        mediaRecorderRef.current.stop()
+                    } else {
+                        setState(prev => ({ ...prev, interimText: "" }))
+                    }
+                }, 700) // 700ms silence triggers send for ultra-low latency
+            }
+            
+            animationFrameRef.current = requestAnimationFrame(checkAudio)
+        }
+        
+        checkAudio()
+    }
+
+    const toggleLiveMode = async () => {
+        if (isLiveMode) {
+            stopLiveMode()
+            return
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            })
+            vadStreamRef.current = stream
+
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+            const audioCtx = new AudioContextClass({ sampleRate: 16000 })
+            
+            // CRITICAL: Browsers suspend AudioContexts created without an active user gesture.
+            // We must resume it explicitly to guarantee audio flows to the VAD and Worklet.
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume()
+            }
+            
+            audioContextRef.current = audioCtx
+
+            const source = audioCtx.createMediaStreamSource(stream)
+            const analyser = audioCtx.createAnalyser()
+            analyser.fftSize = 512
+            analyser.smoothingTimeConstant = 0.4
+            source.connect(analyser)
+            analyserRef.current = analyser
+            
+
+
+            setIsLiveMode(true)
+            monitorVAD()
+
+        } catch (error) {
+            console.error("VAD Microphone error:", error)
+            toast.error("Microphone Error", { description: "Unable to access microphone." })
+        }
+    }
+
+    // Auto-start Live Mode on mount
+    useEffect(() => {
+        let mounted = true;
+        const initLiveMode = async () => {
+            if (!isLiveMode) {
+                await toggleLiveMode();
+            }
+        };
+        // Small delay to ensure refs and elements are ready
+        const timer = setTimeout(() => {
+            if (mounted) initLiveMode();
+        }, 1000);
+        return () => { 
+            mounted = false;
+            clearTimeout(timer);
+        };
+    }, []);
 
     const handleEndConversation = async () => {
         if (isEnding) return // Prevent double-clicks
@@ -546,15 +765,13 @@ export default function Conversation() {
         if (mediaRecorderRef.current) {
             mediaRecorderRef.current.onstop = null
         }
-        stopRecording()
+        stopLiveMode()
+        
+        // Aggressively kill camera
+        stopVideo()
 
         try {
-            // Get auth token for session persistence
-            const { data: { session: authSession } } = await supabase.auth.getSession()
             const authHeaders: Record<string, string> = {}
-            if (authSession?.access_token) {
-                authHeaders['Authorization'] = `Bearer ${authSession.access_token}`
-            }
 
             // Call backend to complete session and generate report
             const completeRes = await fetch(getApiUrl(`/api/session/${sessionId}/complete`), {
@@ -595,324 +812,340 @@ export default function Conversation() {
     const lastMessage = state.transcript.length > 0 ? state.transcript[state.transcript.length - 1] : null
 
     return (
-        <div className="min-h-screen bg-background text-foreground relative overflow-hidden flex flex-col font-sans transition-colors duration-500">
-            {/* Animated Background */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-[20%] left-[20%] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] animate-pulse duration-[10s]" />
-                <div className="absolute bottom-[20%] right-[20%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] animate-pulse duration-[8s]" />
-
+        <div className="h-screen bg-[#05050A] relative overflow-hidden flex flex-col font-sans">
+            {/* ===== AMBIENT MESH BACKGROUND ===== */}
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                <div className="ambient-mesh"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/60" />
+                <div className="absolute inset-0 vignette" />
             </div>
 
-            {/* Header - Mobile responsive */}
-            <header className="relative z-50 px-3 sm:px-6 py-3 sm:py-6 flex justify-between items-center">
-                <div className="flex items-center gap-2 sm:gap-4">
+            {/* ===== DYNAMIC ISLAND (TOP BAR) ===== */}
+            <header className="relative z-30 pt-6 sm:pt-8 flex justify-center w-full pointer-events-none">
+                <div className="dynamic-island px-2 py-2 rounded-full flex items-center gap-2 pointer-events-auto max-w-full overflow-hidden mx-4">
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => navigate("/practice")}
-                        className="text-foreground hover:bg-muted/20 rounded-full w-9 h-9 sm:w-10 sm:h-10 border border-border backdrop-blur-md"
+                        className="text-white/80 hover:text-white hover:bg-white/10 rounded-full w-9 h-9 shrink-0 transition-colors"
                     >
-                        <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <div className="bg-card/50 backdrop-blur-xl px-3 sm:px-4 py-2 sm:py-2 rounded-full border border-border flex items-center gap-2 sm:gap-3 shadow-lg">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${state.isRecording ? 'bg-destructive animate-pulse shadow-[0_0_10px_oklch(from_var(--destructive)_l_c_h_/_0.5)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'}`} />
-                        <span className="text-xs sm:text-sm font-semibold tracking-wide text-foreground/80 hidden xs:inline">
-                            {state.isRecording ? "Listening..." : isAiSpeaking ? "AI Speaking" : "Connected"}
-                        </span>
-                        <div className="w-px h-3 sm:h-4 bg-border" />
-                        <Clock className="w-3 h-3 text-muted-foreground" />
-                        <span className="text-xs sm:text-sm text-muted-foreground font-mono tracking-wider">{formatTime(state.elapsedSeconds)}</span>
+                    
+                    <div className="w-px h-6 bg-white/10 mx-1" />
+                    
+                    <div className="flex items-center gap-3 px-2">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors duration-300 ${
+                            state.isRecording
+                                ? 'bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]'
+                                : isAiSpeaking 
+                                    ? 'bg-purple-500 animate-pulse shadow-[0_0_10px_rgba(168,85,247,0.8)]'
+                                    : 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]'
+                        }`} />
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                            <span className="text-[11px] sm:text-xs font-semibold text-white/90 tracking-wide uppercase">
+                                {multiCharacters 
+                                    ? (characters.length > 0 ? characters.map(c => c.name).join(' & ') : 'Simulation')
+                                    : (state.sessionData?.ai_character === 'sarah' ? 'Sarah' : 'Alex')}
+                            </span>
+                            <span className="text-[10px] sm:text-xs font-medium text-white/50 hidden sm:inline">
+                                • {isAiSpeaking ? 'Speaking' : state.isRecording ? 'Listening' : state.isProcessing ? 'Thinking' : 'Connected'}
+                            </span>
+                        </div>
                     </div>
-                </div>
-
-                <div className="flex gap-3">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setState(prev => ({ ...prev, showTranscript: true }))}
-                        className="text-muted-foreground hover:text-foreground rounded-full bg-card/50 border border-border w-9 h-9 sm:w-10 sm:h-10 backdrop-blur-md"
-                    >
-                        <History className="h-5 w-5" />
-                    </Button>
-                    <Button
-                        variant="destructive"
-                        onClick={() => setShowEndConfirm(true)}
-                        disabled={isEnding}
-                        className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-full px-4 sm:px-6 text-sm font-semibold backdrop-blur-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isEnding ? 'Ending...' : 'End Session'}
-                    </Button>
+                    
+                    <div className="w-px h-6 bg-white/10 mx-1" />
+                    
+                    <div className="flex items-center gap-1.5 px-3">
+                        <Clock className="w-3.5 h-3.5 text-white/40" />
+                        <span className="text-xs text-white/70 font-mono tracking-wider">{formatTime(state.elapsedSeconds)}</span>
+                    </div>
                 </div>
             </header>
 
-            {/* Main Content - Voice Sphere */}
-            <main className="flex-1 flex flex-col items-center justify-center relative z-10 p-4 sm:p-6 min-h-[400px] sm:min-h-[600px]">
+            {/* ===== MAIN AREA (SPLIT PANE) ===== */}
+            <main className="flex-1 relative z-10 w-full p-4 sm:p-6 flex flex-col md:flex-row gap-4 sm:gap-6 overflow-hidden">
+                {/* Left Panel(s): AI */}
+                {multiCharacters && characters.length > 0 ? (
+                    characters.map((char, index) => (
+                        <div key={index} className="flex-1 rounded-3xl overflow-hidden bg-black/40 backdrop-blur-sm border border-white/10 relative shadow-2xl flex flex-col items-center justify-center p-4 sm:p-6 min-h-0">
+                            
+                            <div className="relative flex items-center justify-center w-[min(12rem,40vh)] h-[min(12rem,40vh)] md:w-[min(16rem,50vh)] md:h-[min(16rem,50vh)] max-h-full">
+                                <AnimatePresence>
+                                    {isAiSpeaking && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.8 }}
+                                            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                                        >
+                                            <div className="ripple-ring" style={{ animationDelay: '0s' }}></div>
+                                            <div className="ripple-ring" style={{ animationDelay: '0.6s' }}></div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                                
+                                <div className={`w-full h-full rounded-full bg-gradient-to-br ${char.color === 'pink' ? 'from-pink-600 to-rose-600' : 'from-purple-600 to-indigo-600'} flex items-center justify-center relative z-10 shadow-[0_0_50px_rgba(147,51,234,0.3)] border-2 border-white/20`}>
+                                    <span className="text-5xl md:text-7xl font-black text-white shadow-sm">
+                                        {char.name.charAt(0)}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {/* Status text */}
+                            <div className="mt-4 sm:mt-8 flex items-center gap-2 sm:gap-3 bg-black/50 px-4 sm:px-6 py-2 sm:py-3 rounded-full border border-white/10 shadow-lg z-20 shrink-0">
+                                {isUserSpeaking ? (
+                                    <>
+                                        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
+                                        <span className="text-xs sm:text-base font-semibold text-white/95">Listening...</span>
+                                    </>
+                                ) : isAiSpeaking ? (
+                                    <>
+                                        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-purple-500 animate-pulse shadow-[0_0_12px_rgba(168,85,247,0.8)]" />
+                                        <span className="text-xs sm:text-base font-semibold text-white/95">Speaking...</span>
+                                    </>
+                                ) : state.isProcessing ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white/90 animate-spin" />
+                                        <span className="text-xs sm:text-base font-semibold text-white/95">Thinking...</span>
+                                    </>
+                                ) : isLiveMode ? (
+                                    <>
+                                        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]" />
+                                        <span className="text-xs sm:text-base font-semibold text-white/95">Live Mode On</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-gray-500 shadow-[0_0_12px_rgba(107,114,128,0.8)]" />
+                                        <span className="text-xs sm:text-base font-semibold text-white/50">Muted</span>
+                                    </>
+                                )}
+                            </div>
 
-                {/* The Sphere Container */}
-                <div className="relative mb-8 sm:mb-16 group">
-                    {/* Morphing Background Blob */}
-                    <div className={`absolute -inset-8 sm:-inset-12 morph-blob blur-3xl transition-all duration-1000 ${state.isRecording
-                        ? 'bg-destructive/20'
-                        : isAiSpeaking
-                            ? 'bg-primary/25'
-                            : 'bg-indigo-500/10 dark:bg-indigo-500/10'
-                        }`} />
-
-                    {/* Ring Pulse Effect - Multiple Rings */}
-                    {(state.isRecording || isAiSpeaking) && (
-                        <>
-                            <div className={`absolute -inset-4 rounded-full border-2 animate-ring-pulse ${state.isRecording ? 'border-destructive/40' : 'border-primary/40'
-                                }`} />
-                            <div className={`absolute -inset-4 rounded-full border-2 animate-ring-pulse ${state.isRecording ? 'border-destructive/40' : 'border-primary/40'
-                                }`} style={{ animationDelay: '0.5s' }} />
-                            <div className={`absolute -inset-4 rounded-full border-2 animate-ring-pulse ${state.isRecording ? 'border-destructive/40' : 'border-primary/40'
-                                }`} style={{ animationDelay: '1s' }} />
-                        </>
-                    )}
-
-                    {/* Outer Glow Ring */}
-                    <motion.div
-                        animate={{
-                            scale: isAiSpeaking ? [1, 1.3, 1] : state.isProcessing ? [1, 1.1, 1] : 1,
-                            opacity: isAiSpeaking ? [0.15, 0.3, 0.15] : state.isRecording ? 0.2 : 0.08
-                        }}
-                        transition={{ duration: isAiSpeaking ? 1.5 : 3, repeat: Infinity, ease: "easeInOut" }}
-                        className={`absolute -inset-6 sm:-inset-8 rounded-full blur-2xl transition-colors duration-700 ${state.isRecording
-                            ? 'bg-gradient-to-br from-destructive/40 to-rose-600/30'
-                            : isAiSpeaking
-                                ? 'bg-gradient-to-br from-primary/30 to-purple-500/30'
-                                : 'bg-primary/5 dark:bg-blue-500/15'
-                            }`}
-                    />
-
-                    {/* Inner Border Ring */}
-                    <motion.div
-                        animate={{
-                            scale: isAiSpeaking ? [1, 1.08, 1] : 1,
-                            rotate: state.isProcessing ? 360 : 0
-                        }}
-                        transition={{
-                            scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
-                            rotate: { duration: 8, repeat: Infinity, ease: "linear" }
-                        }}
-                        className={`absolute -inset-4 sm:-inset-5 rounded-full border transition-colors duration-500 ${state.isRecording
-                            ? 'border-destructive/30'
-                            : state.isProcessing
-                                ? 'border-dashed border-primary/40'
-                                : 'border-border'
-                            }`}
-                    />
-
-                    {/* Core Sphere */}
-                    <motion.div
-                        animate={{
-                            scale: isAiSpeaking ? [1, 1.04, 1] : state.isRecording ? [1, 1.02, 1] : 1,
-                        }}
-                        transition={{ duration: isAiSpeaking ? 0.8 : 2, repeat: Infinity, ease: "easeInOut" }}
-                        className={`w-44 h-44 sm:w-52 sm:h-52 rounded-full shadow-2xl flex items-center justify-center relative overflow-hidden transition-all duration-700 border border-border ${!state.isRecording && !isAiSpeaking && !state.isProcessing ? 'animate-breathe' : ''
-                            }`}
-                        style={{
-                            background: state.isRecording
-                                ? "linear-gradient(135deg, oklch(from var(--destructive) l c h) 0%, oklch(from var(--destructive) l c h / 0.8) 100%)"
-                                : isAiSpeaking
-                                    ? "linear-gradient(135deg, oklch(from var(--primary) l c h) 0%, oklch(from var(--primary) l c h / 0.8) 100%)"
-                                    : state.isProcessing
-                                        ? "linear-gradient(135deg, oklch(from var(--primary) l c h / 0.8) 0%, oklch(from var(--primary) l c h) 100%)"
-                                        : "var(--card)"
-                        }}
-                    >
-                        {/* Internal Shine/Reflection */}
-                        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-bl from-white/25 via-transparent to-transparent rounded-full" />
-                        <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-black/50 to-transparent rounded-full" />
-
-                        {/* Subtle Inner Glow */}
-                        <div className={`absolute inset-4 rounded-full blur-xl transition-opacity duration-500 ${isAiSpeaking ? 'bg-primary/20 opacity-100' : state.isRecording ? 'bg-destructive/20 opacity-100' : 'opacity-0'
-                            }`} />
-
-                        {/* Content: Icon or Audio Visualizer */}
-                        <div className="relative z-10 transition-transform duration-300 flex items-center justify-center">
+                            <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 bg-black/60 backdrop-blur-md rounded-xl border border-white/10 px-2 sm:px-3 py-1 sm:py-1.5 text-center">
+                                <span className="text-[10px] sm:text-xs font-semibold text-white/90">
+                                    {char.name}
+                                </span>
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="flex-1 rounded-3xl overflow-hidden bg-black/40 backdrop-blur-sm border border-white/10 relative shadow-2xl flex flex-col items-center justify-center p-4 sm:p-6 min-h-0">
+                        
+                        <div className="relative flex items-center justify-center w-[min(12rem,40vh)] h-[min(12rem,40vh)] md:w-[min(16rem,50vh)] md:h-[min(16rem,50vh)] max-h-full">
+                            <AnimatePresence>
+                                {isAiSpeaking && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                                    >
+                                        <div className="ripple-ring" style={{ animationDelay: '0s' }}></div>
+                                        <div className="ripple-ring" style={{ animationDelay: '0.6s' }}></div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            
+                            <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center relative z-10 shadow-[0_0_50px_rgba(147,51,234,0.3)] border-2 border-white/20">
+                                <span className="text-5xl md:text-7xl font-black text-white shadow-sm">
+                                    {state.sessionData?.ai_character === 'sarah' ? 'S' : 'A'}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        {/* Status text */}
+                        <div className="mt-4 sm:mt-8 flex items-center gap-2 sm:gap-3 bg-black/50 px-4 sm:px-6 py-2 sm:py-3 rounded-full border border-white/10 shadow-lg z-20 shrink-0">
                             {state.isRecording ? (
-                                /* Audio Visualizer Bars while Recording */
-                                <div className="flex items-end justify-center gap-1 h-16">
-                                    {[...Array(9)].map((_, i) => (
-                                        <div
-                                            key={i}
-                                            className="audio-bar w-1.5 rounded-full"
-                                            style={{
-                                                height: `${30 + Math.random() * 40}%`,
-                                                background: 'linear-gradient(180deg, var(--background) 0%, var(--destructive) 100%)',
-                                                animationDelay: `${i * 0.1}s`
-                                            }}
-                                        />
-                                    ))}
-                                </div>
+                                <>
+                                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
+                                    <span className="text-xs sm:text-base font-semibold text-white/95">Listening...</span>
+                                </>
                             ) : isAiSpeaking ? (
-                                /* Audio Visualizer for AI Speaking */
-                                <div className="flex items-end justify-center gap-1 h-16">
-                                    {[...Array(9)].map((_, i) => (
-                                        <div
-                                            key={i}
-                                            className="audio-bar w-1.5 rounded-full"
-                                            style={{
-                                                animationDelay: `${i * 0.1}s`
-                                            }}
-                                        />
-                                    ))}
-                                </div>
+                                <>
+                                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-purple-500 animate-pulse shadow-[0_0_12px_rgba(168,85,247,0.8)]" />
+                                    <span className="text-xs sm:text-base font-semibold text-white/95">Speaking...</span>
+                                </>
                             ) : state.isProcessing ? (
-                                <Sparkles className="w-16 h-16 text-primary drop-shadow-[0_4px_8px_rgba(0,0,0,0.1)] animate-spin-slow" />
+                                <>
+                                    <Loader2 className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white/90 animate-spin" />
+                                    <span className="text-xs sm:text-base font-semibold text-white/95">Thinking...</span>
+                                </>
                             ) : (
-                                <Bot className="w-16 h-16 text-muted-foreground drop-shadow-[0_4px_8px_rgba(0,0,0,0.1)] group-hover:text-foreground transition-colors" />
+                                <>
+                                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]" />
+                                    <span className="text-xs sm:text-base font-semibold text-white/95">Connected</span>
+                                </>
                             )}
                         </div>
-                    </motion.div>
-                </div>
 
-                {/* AI Spoken Text Box */}
-                <div className="max-w-2xl w-full px-4 relative z-20">
-                    <AnimatePresence mode="wait">
-                        {state.currentDraft ? (
-                            <motion.div
-                                key="draft"
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                className="bg-card/80 backdrop-blur-xl border border-border rounded-2xl p-5 sm:p-6 shadow-lg"
-                            >
-                                <div className="flex items-center gap-2 mb-3">
-                                    <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Listening...</span>
-                                </div>
-                                <p className="text-base sm:text-lg text-foreground leading-relaxed">
-                                    "{state.currentDraft}"
-                                    <span className="inline-block w-2 h-5 bg-primary rounded-full animate-pulse ml-1 align-middle" />
-                                </p>
-                            </motion.div>
-                        ) : lastMessage ? (
-                            <motion.div
-                                key="last-msg"
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                className="space-y-3 max-h-[300px] overflow-y-auto"
-                            >
-                                {lastMessage.role === 'assistant' && multiCharacters ? (
-                                    /* Multi-character: render each character's line separately */
-                                    parseCharacterLines(lastMessage.content).map((part, idx) => (
-                                        <div
-                                            key={idx}
-                                            className={`backdrop-blur-xl border rounded-2xl p-4 sm:p-5 shadow-lg ${part.color === 'pink'
-                                                ? 'bg-pink-500/10 border-pink-500/20'
-                                                : 'bg-blue-500/10 border-blue-500/20'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className={`p-1.5 rounded-lg ${part.color === 'pink' ? 'bg-pink-500/10' : 'bg-blue-500/10'
-                                                    }`}>
-                                                    <Bot className={`w-3.5 h-3.5 ${part.color === 'pink' ? 'text-pink-500' : 'text-blue-500'
-                                                        }`} />
-                                                </div>
-                                                <span className={`text-xs font-bold uppercase tracking-widest ${part.color === 'pink' ? 'text-pink-500' : 'text-blue-500'
-                                                    }`}>
-                                                    {part.char}
-                                                </span>
-                                            </div>
-                                            <p className="text-base sm:text-lg leading-relaxed text-foreground font-medium">
-                                                {part.text}
-                                            </p>
-                                        </div>
-                                    ))
-                                ) : (
-                                    /* Single character: original rendering */
-                                    <div className={`backdrop-blur-xl border rounded-2xl p-5 sm:p-6 shadow-lg ${lastMessage.role === 'assistant'
-                                        ? 'bg-primary/5 border-primary/20'
-                                        : 'bg-card/80 border-border'
-                                        }`}>
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <div className={`p-1.5 rounded-lg ${lastMessage.role === 'assistant' ? 'bg-primary/10' : 'bg-muted/50'}`}>
-                                                {lastMessage.role === 'assistant' ? <Bot className="w-3.5 h-3.5 text-primary" /> : <User className="w-3.5 h-3.5 text-muted-foreground" />}
-                                            </div>
-                                            <span className={`text-xs font-bold uppercase tracking-widest ${lastMessage.role === 'assistant' ? 'text-primary' : 'text-muted-foreground'}`}>
-                                                {lastMessage.role === 'assistant' ? 'AI Coach' : 'You'}
-                                            </span>
-                                            {lastMessage.role === 'assistant' && isAiSpeaking && (
-                                                <div className="flex items-center gap-0.5 ml-auto">
-                                                    {[...Array(4)].map((_, i) => (
-                                                        <div key={i} className="w-1 bg-primary rounded-full animate-pulse" style={{ height: `${8 + Math.random() * 8}px`, animationDelay: `${i * 0.15}s` }} />
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <p className={`text-base sm:text-lg leading-relaxed ${lastMessage.role === 'assistant'
-                                            ? 'text-foreground font-medium'
-                                            : 'text-muted-foreground'
-                                            }`}>
-                                            {lastMessage.content}
-                                        </p>
-                                    </div>
-                                )}
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="bg-card/50 backdrop-blur-xl border border-dashed border-border rounded-2xl p-5 sm:p-6 text-center"
-                            >
-                                <p className="text-muted-foreground text-base font-medium">Tap the microphone to start the conversation</p>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
+                        <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 bg-black/60 backdrop-blur-md rounded-xl border border-white/10 px-2 sm:px-3 py-1 sm:py-1.5 text-center">
+                            <span className="text-[10px] sm:text-xs font-semibold text-white/90">
+                                {state.sessionData?.ai_character === 'sarah' ? 'Sarah' : 'Alex'}
+                            </span>
+                        </div>
+                    </div>
+                )}
 
+                {/* Right Panel: User */}
+                <div className={`flex-1 rounded-3xl overflow-hidden bg-black/40 backdrop-blur-sm border border-white/10 relative shadow-2xl transition-all duration-300 ${
+                    isUserSpeaking ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : ''
+                }`}>
+                    {isVideoOn ? (
+                        <video ref={userVideoRef} autoPlay muted playsInline className="w-full h-full object-cover mirror" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border border-white/10 flex items-center justify-center shadow-inner">
+                                <User className="w-10 h-10 sm:w-14 sm:h-14 text-white/30" />
+                            </div>
+                        </div>
+                    )}
+                    
+                    {isUserSpeaking && (
+                        <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-500/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg">
+                            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                            <span className="text-xs font-bold text-white uppercase tracking-wider">Live</span>
+                        </div>
+                    )}
+                    
+                    <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md rounded-xl border border-white/10 px-3 py-1.5 text-center">
+                        <span className="text-xs font-semibold text-white/90">You</span>
+                    </div>
+                </div>
             </main>
 
-            {/* Bottom Controls - Mobile responsive */}
-            <div className="relative z-50 p-4 sm:p-10 flex justify-center items-center gap-4 sm:gap-10">
-
-                {/* Cancel Button (Hidden but usable for layout balance if needed, or keeping simplified) */}
-                <div className="w-16 sm:w-20 hidden md:block" />
-
-                <div className="relative group">
-                    {/* Ripple Effect */}
-                    {state.isRecording && (
-                        <div className="absolute inset-0 rounded-full bg-destructive/30 animate-ping duration-1000" />
+            {/* ===== FLOATING SUBTITLES (Lower Third) ===== */}
+            <div className="absolute bottom-[100px] sm:bottom-[120px] left-1/2 -translate-x-1/2 z-40 px-4 sm:px-8 w-full max-w-2xl mx-auto pointer-events-none">
+                <AnimatePresence mode="wait">
+                    {state.currentDraft ? (
+                        <motion.div
+                            key="draft"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="w-full pointer-events-auto"
+                        >
+                            <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-3 shadow-lg">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">Listening</span>
+                                </div>
+                                <p className="text-sm sm:text-base text-white/90 leading-relaxed font-medium">
+                                    {state.currentDraft}
+                                    <span className="inline-block w-1 h-4 bg-primary rounded-full animate-pulse ml-1.5 align-middle" />
+                                </p>
+                            </div>
+                        </motion.div>
+                    ) : lastMessage ? (
+                        <motion.div
+                            key="last-msg"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="w-full space-y-2 max-h-[200px] overflow-y-auto scrollbar-hide pointer-events-auto"
+                        >
+                            {lastMessage.role === 'assistant' && multiCharacters ? (
+                                parseCharacterLines(lastMessage.content).map((part, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-3 shadow-lg relative overflow-hidden"
+                                    >
+                                        <div className={`absolute top-0 left-0 w-1 h-full ${part.color === 'pink' ? 'bg-pink-500' : 'bg-purple-500'}`} />
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                                                part.color === 'pink' ? 'text-pink-400' : 'text-purple-400'
+                                            }`}>{part.char}</span>
+                                        </div>
+                                        <p className="text-sm sm:text-base leading-relaxed text-white/95 font-medium">{part.text}</p>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className={`bg-black/60 backdrop-blur-md border rounded-2xl px-4 py-3 shadow-lg relative overflow-hidden transition-colors duration-500 ${
+                                    lastMessage.role === 'assistant' ? 'border-primary/30' : 'border-white/10'
+                                }`}>
+                                    {lastMessage.role === 'assistant' && (
+                                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-purple-600 opacity-50" />
+                                    )}
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                                            lastMessage.role === 'assistant' ? 'text-primary' : 'text-white/40'
+                                        }`}>
+                                            {lastMessage.role === 'assistant'
+                                                ? (state.sessionData?.ai_character === 'sarah' ? 'Sarah' : 'Alex')
+                                                : 'You'}
+                                        </span>
+                                    </div>
+                                    <p className={`text-sm sm:text-base leading-relaxed font-medium ${
+                                        lastMessage.role === 'assistant' ? 'text-white/95' : 'text-white/70'
+                                    }`}>{lastMessage.content}</p>
+                                </div>
+                            )}
+                        </motion.div>
+                    ) : (
+                        <AnimatePresence>
+                            {/* No longer showing the tap text since it's automatic */}
+                        </AnimatePresence>
                     )}
+                </AnimatePresence>
+            </div>
 
-                    <Button
-                        onClick={state.isRecording ? stopRecording : startRecording}
-                        disabled={isAiSpeaking || state.isProcessing}
-                        className={`h-16 w-16 sm:h-24 sm:w-24 rounded-full shadow-2xl transition-all duration-300 relative z-10 border-4 border-background ${state.isRecording
-                            ? "bg-gradient-to-br from-destructive to-red-600 hover:from-destructive hover:to-red-500 scale-110 shadow-[0_0_40px_oklch(from_var(--destructive)_l_c_h_/_0.4)]"
-                            : "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 shadow-[0_0_30px_oklch(from_var(--primary)_l_c_h_/_0.3)]"
-                            }`}
+            {/* ===== BOTTOM CONTROL BAR (Glass Dock) ===== */}
+            <div className="relative z-30 px-4 pb-6 sm:pb-8 w-full flex justify-center">
+                <div className="glass-dock rounded-[2rem] px-4 py-3 sm:px-6 sm:py-4 flex items-center gap-3 sm:gap-5 transition-all">
+                    
+                    {/* Transcript Toggle */}
+                    <button
+                        onClick={() => setState(prev => ({ ...prev, showTranscript: true }))}
+                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-all group"
+                        title="View Transcript"
                     >
-                        {state.isRecording ? (
-                            <Square className="w-6 h-6 sm:w-10 sm:h-10 fill-current text-white" />
-                        ) : (
-                            <Mic className="w-6 h-6 sm:w-10 sm:h-10 text-white" />
-                        )}
-                    </Button>
-                </div>
+                        <History className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
+                    </button>
 
-                <div className="w-16 sm:w-20 flex justify-start">
-                    <AnimatePresence>
-                        {state.currentDraft && !state.isProcessing && (
-                            <motion.div
-                                initial={{ scale: 0, opacity: 0, x: -20 }}
-                                animate={{ scale: 1, opacity: 1, x: 0 }}
-                                exit={{ scale: 0, opacity: 0, x: -20 }}
-                            >
-                                <Button
-                                    onClick={handleSend}
-                                    className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-500 text-white shadow-xl shadow-primary/20 border border-border"
-                                >
-                                    <Send className="w-5 h-5 sm:w-7 sm:h-7 ml-0.5" />
-                                </Button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    {/* Mic Toggle */}
+                    <button
+                        onClick={toggleLiveMode}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 group ${
+                            isLiveMode
+                                ? 'bg-white/5 hover:bg-white/10 border border-white/10'
+                                : 'bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30'
+                        }`}
+                        title={isLiveMode ? "Mute Microphone" : "Unmute Microphone"}
+                    >
+                        {isLiveMode
+                            ? <Mic className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
+                            : <MicOff className="w-5 h-5" />
+                        }
+                    </button>
+
+                    {/* Video Toggle */}
+                    <button
+                        onClick={toggleUserVideo}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 group ${
+                            isVideoOn
+                                ? 'bg-white/5 hover:bg-white/10 border border-white/10'
+                                : 'bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30'
+                        }`}
+                        title={isVideoOn ? "Turn off camera" : "Turn on camera"}
+                    >
+                        {isVideoOn
+                            ? <Video className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
+                            : <VideoOff className="w-5 h-5" />
+                        }
+                    </button>
+
+                    {/* End Call */}
+                    <button
+                        onClick={() => setShowEndConfirm(true)}
+                        disabled={isEnding}
+                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-red-500/80 hover:bg-red-500 flex items-center justify-center transition-all disabled:opacity-40 hover:scale-105"
+                        title="End Session"
+                    >
+                        <Phone className="w-5 h-5 text-white rotate-[135deg]" />
+                    </button>
                 </div>
             </div>
+
 
             {/* Transcript Drawer / Panel */}
             <AnimatePresence>

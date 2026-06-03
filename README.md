@@ -70,30 +70,34 @@ To maintain the "Realism" of COACT.AI, the following standards are targeted:
 ### 1. Client Layer (Frontend)
 -   **Interface:** React (Vite) application providing a chat-based UI.
 -   **State Management:** Tracks the session state and visual feedback.
--   **Communication:** REST APIs for communication with the Flask backend.
+-   **Communication:** REST APIs for communication with the Go backend.
 
 ### 2. Service Layer (Backend)
--   **API Server:** Flask server (Python) handling authentication, scenario routing, and report generation.
--   **AI Integration:** Connects to Azure OpenAI Service for LLM capabilities.
--   **Report Generation:** Uses `fpdf` and `reportlab` to generate detailed PDF reports.
+-   **API Server:** Go (Fiber) server handling authentication, scenario routing, and report generation.
+-   **AI Integration:** Connects to self-hosted LLM via Ollama for chat capabilities.
+-   **Report Generation:** Uses `go-pdf/fpdf` to generate detailed PDF reports.
+-   **Speech-to-Text:** Local OpenAI Whisper CLI for audio transcription.
+-   **Text-to-Speech:** Piper TTS for local speech synthesis.
 
 ### 3. Data Layer (Persistence)
--   **Supabase:**
+-   **SQLite (via GORM):** Local database for session history, user data, and reports.
+-   **Supabase (optional):**
     -   **Auth:** Handles user sign-up, login, and session management.
-    -   **Database:** PostgreSQL database storing user profiles and session history (via Supabase Client).
+    -   **Database:** PostgreSQL database storing user profiles and session history.
 
 ---
 
 ## 7. Technology Stack Summary
 
-| **Category**        | **Tools**                     |
-| ------------------- | ----------------------------- |
-| **LLMs**            | Azure OpenAI (GPT-4o Mini)    |
-| **Backend**         | Flask (Python)                |
-| **Frontend**        | React (Vite), TailwindCSS     |
-| **Database & Auth** | Supabase                      |
-| **Deployment**      | Docker, Azure VM              |
-| **Text-to-Speech**  | Azure Speech Services / OpenAI|
+| **Category**        | **Tools**                        |
+| ------------------- | -------------------------------- |
+| **LLMs**            | Self-hosted via Ollama           |
+| **Backend**         | Go (Fiber)                       |
+| **Frontend**        | React (Vite), TailwindCSS        |
+| **Database**        | SQLite (GORM) / Supabase         |
+| **STT**             | OpenAI Whisper (local)           |
+| **TTS**             | Piper TTS (local)                |
+| **Deployment**      | Docker, Azure VM                 |
 
 ---
 
@@ -102,27 +106,26 @@ To maintain the "Realism" of COACT.AI, the following standards are targeted:
 ### Prerequisites
 -   **Docker & Docker Compose**: For containerized deployment.
 -   **Node.js**: If running frontend locally.
--   **Python 3.11+**: If running backend locally.
--   **Supabase Account**: For database and authentication.
--   **Azure OpenAI Keys**: For LLM access.
+-   **Go 1.23+**: If running backend locally.
+-   **Ollama**: Self-hosted LLM server (install from https://ollama.com).
+-   **FFmpeg**: Required for Whisper audio transcription.
 
 ### Configuration
 Create a `.env` file in the root directory (based on `.env.example`) with the following:
 
 ```env
-# Azure OpenAI
-AZURE_OPENAI_API_KEY=...
-AZURE_OPENAI_ENDPOINT=...
-AZURE_OPENAI_API_VERSION=...
+# Ollama / LLM
+MODEL_NAME=qwen3.5:0.8b
+OLLAMA_API_URL=http://localhost:11434
 
-# Supabase
+# Supabase (optional)
 SUPABASE_URL=...
 SUPABASE_KEY=...
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_KEY=...
 
-# Azure Storage (if used)
-AZURE_STORAGE_CONNECTION_STRING=...
+# Piper TTS Models
+PIPER_MODEL_PATH=./piper_models/en_US-lessac-medium.onnx
 ```
 
 ### Running with Docker (Recommended)
@@ -132,13 +135,10 @@ docker-compose up --build
 The frontend will be available at `http://localhost` (or configured domain) and backend at `http://localhost:8000`.
 
 ### Running Locally (Dev Mode)
-**Backend:**
+**Backend (Go):**
 ```bash
-cd inter-ai-backend
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-python app.py
+cd inter-ai-backend-go
+go run ./cmd/server
 ```
 
 **Frontend:**
@@ -146,4 +146,10 @@ python app.py
 cd inter-ai-frontend
 npm install
 npm run dev
+```
+
+**Both (concurrent):**
+```bash
+cd inter-ai-frontend
+npm run dev:all
 ```

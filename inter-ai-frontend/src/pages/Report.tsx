@@ -8,7 +8,6 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } fro
 
 import Navigation from "../components/landing/Navigation"
 import { getApiUrl } from "@/lib/api"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 
 // --- TYPES & INTERFACES (UPDATED TO MATCH BACKEND) ---
@@ -263,13 +262,9 @@ export default function Report() {
             try {
                 if (!sessionId) return;
 
-                const { data: { session } } = await supabase.auth.getSession();
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json'
                 };
-                if (session?.access_token) {
-                    headers['Authorization'] = `Bearer ${session.access_token}`;
-                }
 
                 const response = await fetch(getApiUrl(`/api/session/${sessionId}/report_data`), { headers });
                 
@@ -305,11 +300,7 @@ export default function Report() {
 
     const handleDownload = async () => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             const headers: Record<string, string> = {};
-            if (session?.access_token) {
-                headers['Authorization'] = `Bearer ${session.access_token}`;
-            }
 
             const response = await fetch(getApiUrl(`/api/report/${sessionId}`), { headers })
             if (!response.ok) throw new Error("Failed to generate PDF")

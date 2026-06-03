@@ -1,19 +1,22 @@
 import os
 import json
 import re
+import asyncio
 import uuid
 import datetime as dt
+import tempfile
 import numpy as np
 import concurrent.futures
 from typing import Dict, Any, List, Optional
-from flask import Flask, request, jsonify, send_file
-import flask_cors
+from fastapi import FastAPI, Request, Response, UploadFile, File, Form, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import io
 from dotenv import load_dotenv
-from openai import AzureOpenAI, OpenAI
+from openai import OpenAI
 from cachetools import TTLCache
 from functools import lru_cache
-from werkzeug.exceptions import BadRequest
+from fastapi import HTTPException
 
 
 
@@ -21,93 +24,118 @@ load_dotenv()
 
 # Proxy config moved to top
 
-from supabase import create_client, Client
+import jwt
+from functools import wraps
 
-# Initialize Supabase Client
-# Use anon key for auth verification (respects RLS)
-url: str = os.environ.get("SUPABASE_URL", "")
-key: str = os.environ.get("SUPABASE_KEY", "")  # Anon key for auth operations
-service_key: str = os.environ.get("SUPABASE_SERVICE_KEY", key)  # Service key for admin ops (bypasses RLS)
+# JWT configuration — uses Supabase JWT secret for token verification
+JWT_SECRET = os.environ.get("JWT_SECRET", "super-secret-key-change-in-production")
 
-supabase: Client = create_client(url, key)  # For all operations
-supabase_admin: Client = supabase  # Set them equal to avoid double-init of threading timers
 
 # ---------------------------------------------------------
 # Custom Modules & Setup
 # ---------------------------------------------------------
-from cli_report import generate_report, llm_reply, analyze_full_report_data, detect_scenario_type, build_summary_prompt
-from database import get_user_analytics_from_db
+from cli_report import generate_report, llm_reply, analyze_full_report_data, detect_scenario_type
+from database import get_user_analytics_from_db, get_session_from_db, get_user_sessions_from_db, save_session_to_db, get_previous_session_scores, clear_user_sessions_from_db
 
 # Database Models
 USE_DATABASE = True # Re-enabled database persistence
 
 # Create Flask app
-app = Flask(__name__, static_folder='static', static_url_path='/static')
+from database import db, engine, Base
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
 
 # Enable CORS
 cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
-flask_cors.CORS(app, origins=cors_origins)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# ---------------------------------------------------------
-# Request Validation Middleware (Phase 3 Optimization)
-# ---------------------------------------------------------
-@app.before_request
-def check_payload():
-    """Validate all POST/PUT/PATCH requests for DoS protection."""
-    if request.method in ['POST', 'PUT', 'PATCH']:
-        try:
-            validate_request_payload()
-        except BadRequest as e:
-            return jsonify({"error": str(e)}), 400
-
-# ---------------------------------------------------------
-from database import save_session_to_db, get_session_from_db, get_user_sessions_from_db, clear_user_sessions_from_db, get_user_analytics_from_db, get_demo_account_limit, get_previous_session_scores
-
-# ---------------------------------------------------------
-# Request Validation Constants (Phase 3 Optimization)
-# ---------------------------------------------------------
-MAX_TRANSCRIPT_SIZE = 100_000  # 100KB max
-MAX_SCENARIO_LENGTH = 5_000    # 5KB max
-MAX_TURNS = 50
-MAX_MESSAGE_LENGTH = 10_000    # Individual message max 10KB
-
-def validate_request_payload():
-    """Middleware to validate request size and content (DoS prevention)."""
-    if not request.is_json:
-        return True
-    
-    data = request.get_json()
-    if not data:
-        return True
-    
-    # Check transcript size
-    transcript = data.get('transcript', [])
-    transcript_size = sum(len(str(t.get('content', ''))) for t in transcript)
-    if transcript_size > MAX_TRANSCRIPT_SIZE:
-        raise BadRequest(f"Transcript exceeds {MAX_TRANSCRIPT_SIZE} bytes")
-    
-    # Check turn count
-    if len(transcript) > MAX_TURNS:
-        raise BadRequest(f"Exceeds {MAX_TURNS} conversation turns")
-    
-    # Check scenario length
-    scenario = data.get('scenario', '')
-    if len(scenario) > MAX_SCENARIO_LENGTH:
-        raise BadRequest(f"Scenario exceeds {MAX_SCENARIO_LENGTH} characters")
-    
-    # Check individual messages
-    for msg in transcript:
-        content = msg.get('content', '')
-        if len(content) > MAX_MESSAGE_LENGTH:
-            raise BadRequest(f"Message exceeds {MAX_MESSAGE_LENGTH} characters")
-    
-    return True
 
 # ---------------------------------------------------------
 # In-Memory Storage with TTL Cache (Auto-cleanup, prevents memory leaks)
 # ---------------------------------------------------------
-# TTLCache: Max 500 sessions, auto-expire after 1 hour of inactivity
-SESSIONS = TTLCache(maxsize=500, ttl=3600)
+import redis
+
+class UnifiedCache:
+    def __init__(self, maxsize=500, ttl=3600):
+        self.redis_url = os.getenv("REDIS_URL")
+        if self.redis_url:
+            try:
+                self.redis = redis.Redis.from_url(self.redis_url, decode_responses=True)
+                print(f"[SUCCESS] Connected to Redis for session cache: {self.redis_url}")
+            except Exception as e:
+                print(f"[WARNING] Redis connection failed, falling back to TTLCache: {e}")
+                self.redis = None # type: ignore
+        else:
+            self.redis = None # type: ignore
+            
+        if not self.redis:
+            self.local_cache = TTLCache(maxsize=maxsize, ttl=ttl)
+
+    def __getitem__(self, key):
+        if self.redis is not None:
+            val = self.redis.get(f"session:{key}")
+            if val is None:
+                raise KeyError(key)
+            return json.loads(val)
+        return self.local_cache[key]
+
+    def __setitem__(self, key, value):
+        if self.redis is not None:
+            self.redis.setex(f"session:{key}", 3600, json.dumps(value))
+        else:
+            self.local_cache[key] = value
+
+    def __contains__(self, key):
+        if self.redis is not None:
+            return self.redis.exists(f"session:{key}") > 0
+        return key in self.local_cache
+
+    def get(self, key, default=None):
+        if self.redis is not None:
+            val = self.redis.get(f"session:{key}")
+            if val is None:
+                return default
+            return json.loads(val)
+        return self.local_cache.get(key, default)
+
+    def __delitem__(self, key):
+        if self.redis is not None:
+            self.redis.delete(f"session:{key}")
+        else:
+            del self.local_cache[key]
+
+
+    def items(self):
+        if self.redis is not None:
+            keys = self.redis.keys("session:*")
+            items = []
+            for k in keys:
+                v = self.redis.get(k)
+                if v:
+                    k_str = k if isinstance(k, str) else k.decode('utf-8')
+                    items.append((k_str.replace("session:", ""), json.loads(v)))
+            return items
+        return self.local_cache.items()
+
+    def values(self):
+        if self.redis is not None:
+            keys = self.redis.keys("session:*")
+            vals = []
+            for k in keys:
+                v = self.redis.get(k)
+                if v:
+                    vals.append(json.loads(v))
+            return vals
+        return self.local_cache.values()
+
+SESSIONS = UnifiedCache(maxsize=500, ttl=3600)
 
 # ---------------------------------------------------------
 # Hybrid Storage Helper Functions
@@ -129,23 +157,14 @@ def get_session(session_id: str, force_db_refresh: bool = False) -> Optional[Dic
         
     return None
 
+class DummyUser:
+    def __init__(self, id, email):
+        self.id = id
+        self.email = email
+
 def get_authenticated_user():
-    """Get the authenticated user from the Authorization header."""
-    auth_header = request.headers.get("Authorization")
-    if not auth_header:
-        print("[AUTH WARNING] No Authorization header provided in request", flush=True)
-        return None
-    
-    try:
-        token = auth_header.replace("Bearer ", "")
-        res = supabase.auth.get_user(token)
-        if not res or not res.user:
-            print("[AUTH WARNING] Valid token checked, but no user returned.", flush=True)
-            return None
-        return res.user
-    except Exception as e:
-        print(f"[AUTH ERROR] Failed to verify user token: {e}", flush=True)
-        return None
+    """Bypassed Auth for Local Use. Always returns local mock user."""
+    return DummyUser(id="local_user_123", email="local@coact.ai")
 
 def verify_session_ownership(session_id: str, user_id: Optional[str] = None) -> bool:
     """Verify that the session belongs to the specified user."""
@@ -163,8 +182,8 @@ def verify_session_ownership(session_id: str, user_id: Optional[str] = None) -> 
         # Legacy session without user_id - allow access
         return True
     
-    # Compare user IDs (convert to string for comparison)
-    return str(session_user_id) == str(user_id)
+    # Compare user IDs
+    return session_user_id == user_id
 
 # ---------------------------------------------------------
 # Configuration & Paths
@@ -176,15 +195,19 @@ QUESTIONS_FILE = os.path.join(BASE_DIR, "framework_questions.json")
 
 MAX_TURNS = 12 
 
-if os.getenv("AZURE_OPENAI_ENDPOINT"):
-    USE_AZURE = True
-    client = AzureOpenAI(
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-03-01-preview"),
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
-    )
-else:
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
+api_key = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
+
+client = OpenAI(
+    api_key=api_key,
+    base_url=base_url
+)
+print(f"[SUCCESS] Groq API client initialized with base URL: {base_url}")
+
+tts_client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY", "your_openai_api_key_here")
+)
+print("[SUCCESS] OpenAI TTS client initialized.")
 
 
 
@@ -556,8 +579,8 @@ C) SUPPORTIVE+CURIOUS+FACTS → Gradually open up each turn: nervousness → gap
 RULES: 2-3 sentences. Natural speech. Never mention frameworks. Never break character.
 Turn: {turn_count + 1}
 """
-        # OPTIMIZED: System prompt + history as separate messages + latest user message
-        return [{"role": "system", "content": system}] + history_messages + [{"role": "user", "content": latest_user}]
+        # OPTIMIZED: System prompt + history as separate messages
+        return [{"role": "system", "content": system}] + history_messages
 
     # --- CONFLICT RESOLUTION FOLLOW-UP: SIM-05-CON-001 / MENT-05-CON-001 ---
     if simulation_id in ("SIM-05-CON-001", "MENT-05-CON-001"):
@@ -609,8 +632,8 @@ Keep each character's lines short and grounded (1-3 sentences). Use natural huma
 
 Current turn: {turn_count + 1}
 """
-        # OPTIMIZED: System prompt + history as separate messages + latest user message
-        return [{"role": "system", "content": system}] + history_messages + [{"role": "user", "content": latest_user}]
+        # OPTIMIZED: System prompt + history as separate messages
+        return [{"role": "system", "content": system}] + history_messages
 
     return None
 
@@ -678,8 +701,8 @@ Natural, empathetic speech ("um","well"). If {user_role} is supportive -> open u
 SCENARIO: {scenario} | Turn: {turn_count + 1}
 """
 
-    # OPTIMIZED: System prompt + truncated history as separate messages + latest user message
-    return [{"role": "system", "content": system}] + history_messages + [{"role": "user", "content": latest_user}]
+    # OPTIMIZED: System prompt + truncated history as separate messages
+    return [{"role": "system", "content": system}] + history_messages
 
 # ---------------------------------------------------------
 # Endpoints
@@ -693,54 +716,30 @@ SCENARIO: {scenario} | Turn: {turn_count + 1}
 # Auth & User Endpoints
 # ---------------------------------------------------------
 
-@app.route("/api/auth/sync", methods=["POST"])
-def sync_user():
-    """Verify Supabase token and return user info."""
-    auth_header = request.headers.get("Authorization")
-    if not auth_header:
-        return jsonify({"error": "No token provided"}), 401
+# Local /api/auth/register and /api/auth/login removed — auth is handled by Supabase
+
+@app.post("/api/auth/sync")
+async def sync_user(request: Request):
+    """Local auth sync — always returns the local mock user."""
+    user = get_authenticated_user()
+    return {"success": True, "user": {"id": user.id, "email": user.email}}
+
+@app.get("/api/history")
+async def get_history(request: Request):
+    """Get practice history for the authenticated user."""
+    user = get_authenticated_user()
+    user_id_str = user.id
     
     try:
-        token = auth_header.replace("Bearer ", "")
-        res = supabase.auth.get_user(token)
-        user = res.user
-        
-        if not user:
-             return jsonify({"error": "Invalid token"}), 401
-        
-        # No local user table - Supabase Auth handles everything
-        return jsonify({"success": True, "user": {"id": user.id, "email": user.email}})
-        
-    except Exception as e:
-        print(f"Auth sync error: {e}")
-        return jsonify({"error": str(e), "success": False}), 401
-
-@app.route("/api/history", methods=["GET"])
-def get_history():
-    """Get practice history for the authenticated user."""
-    auth_header = request.headers.get("Authorization")
-    if not auth_header:
-        return jsonify({"error": "Unauthorized - no Authorization header"}), 401
-        
-    try:
-        token = auth_header.replace("Bearer ", "")
-        res = supabase.auth.get_user(token)
-        user = res.user
-        
-        if not user:
-            return jsonify({"error": "Invalid token"}), 401
-            
-        # Fetch all sessions from Database (both completed and in-progress)
-        user_id_str = str(user.id)
         print(f"[HISTORY] Fetching all sessions for user {user_id_str}")
         db_result = get_user_sessions_from_db(user_id_str, completed_only=False)
-        db_sessions = db_result.get("sessions", []) if isinstance(db_result, dict) else db_result
+        db_sessions: list = db_result.get("sessions", []) if isinstance(db_result, dict) else (db_result if isinstance(db_result, list) else []) # type: ignore
         
-        user_sessions = db_sessions if db_sessions else []
+        user_sessions: list = db_sessions if db_sessions else []
         print(f"[HISTORY] Found {len(user_sessions)} completed sessions in database")
         
         # Sort by created_at desc (newest first)
-        user_sessions.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        user_sessions.sort(key=lambda x: x.get("created_at", "") if isinstance(x, dict) else "", reverse=True)
         
         # Format response with only the fields needed for history display
         history_items = []
@@ -765,18 +764,18 @@ def get_history():
                 "completed": s.get("completed", False),
                 "score": score,
             })
-        return jsonify(history_items)
+        return history_items
         
     except Exception as e:
         print(f"[ERROR] Failed to fetch history: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 400
+        return JSONResponse(content={"error": str(e)}, status_code=400)
 
-@app.route("/api/health")
-def health_check():
+@app.get("/api/health")
+async def health_check(request: Request):
     """Health check endpoint for VM monitoring"""
-    return jsonify({
+    return ({
         "status": "healthy",
         "timestamp": dt.datetime.now().isoformat(),
         "version": "enhanced-reports-v1.0"
@@ -785,13 +784,13 @@ def health_check():
 # ---------------------------------------------------------
 # Contact Sales Endpoint
 # ---------------------------------------------------------
-@app.route("/api/contact-sales", methods=["POST"])
-def contact_sales():
+@app.post("/api/contact-sales")
+async def contact_sales(request: Request):
     """Store contact form submissions in Supabase."""
     try:
-        data = request.get_json()
+        data = await request.json()
         if not data:
-            return jsonify({"error": "Invalid JSON"}), 400
+            return JSONResponse(content={"error": "Invalid JSON"}, status_code=400)
 
         name = data.get("name", "").strip()[:200]
         email = data.get("email", "").strip()[:254]
@@ -800,38 +799,102 @@ def contact_sales():
         message = data.get("message", "").strip()[:2000]
 
         if not name or not email:
-            return jsonify({"error": "Name and email are required"}), 400
+            return JSONResponse(content={"error": "Name and email are required"}, status_code=400)
 
         # Basic email format validation
         if not re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email):
-            return jsonify({"error": "Invalid email format"}), 400
+            return JSONResponse(content={"error": "Invalid email format"}, status_code=400)
 
-        # Store in Supabase
-        from database import supabase as db_client
-        if db_client:
-            db_client.table("contact_submissions").insert({
-                "name": name,
-                "email": email,
-                "company": company,
-                "team_size": team_size,
-                "message": message,
-                "status": "new"
-            }).execute()
-            print(f"[SUCCESS] Contact form saved: {name} ({email})")
-        else:
-            print(f"[WARNING] DB not available. Contact: {name} ({email}), Company: {company}, Team: {team_size}")
+        # Suppressed Supabase insert
+        print(f"[SUCCESS] Contact form captured (Supabase removed): {name} ({email})")
+        # Local db not hooked up yet for contact_submissions
 
-        return jsonify({"success": True}), 200
+        return JSONResponse(content={"success": True}, status_code=200)
 
     except Exception as e:
         print(f"[ERROR] Contact form error: {e}")
-        return jsonify({"error": "Failed to save contact request"}), 500
+        return JSONResponse(content={"error": "Failed to save contact request"}, status_code=500)
 
 # Audio serving route removed
 
 
-@app.route("/api/transcribe", methods=["POST"])
-def transcribe_audio():
+@app.websocket("/api/transcribe/stream")
+async def websocket_transcribe_stream(websocket: WebSocket):
+    await websocket.accept()
+    sarvam_key = os.getenv("SARVAM_API_KEY")
+    if not sarvam_key:
+        await websocket.close(code=1008, reason="API Key not configured")
+        return
+
+    from sarvamai import AsyncSarvamAI
+    import base64
+    
+    client = AsyncSarvamAI(api_subscription_key=sarvam_key)
+    
+    try:
+        async with client.speech_to_text_streaming.connect(
+            model="saaras:v3",
+            mode="transcribe",
+            language_code="en-IN",
+            high_vad_sensitivity=True
+        ) as sarvam_ws:
+            print(" [INFO] Connected to Sarvam Streaming STT via SDK")
+            
+            async def receive_from_client():
+                try:
+                    while True:
+                        # Frontend sends raw PCM bytes
+                        data = await websocket.receive_bytes()
+                        audio_data = base64.b64encode(data).decode("utf-8")
+                        await sarvam_ws.transcribe(audio=audio_data)
+                except WebSocketDisconnect:
+                    print(" [INFO] Client disconnected from streaming STT")
+                except Exception as e:
+                    print(f" [ERROR] Client receive error: {e}")
+
+            async def receive_from_sarvam():
+                try:
+                    while True:
+                        response = await sarvam_ws.recv()
+                        # response is a model object or dictionary
+                        # Safely convert to dict
+                        resp_data = response.model_dump() if hasattr(response, "model_dump") else response.dict() if hasattr(response, "dict") else response if isinstance(response, dict) else {"raw": str(response)}
+                        
+                        transcript = ""
+                        if "transcript" in resp_data:
+                            transcript = resp_data["transcript"]
+                        elif hasattr(response, "transcript"):
+                            transcript = getattr(response, "transcript")
+                            
+                        # Send JSON format expected by frontend
+                        if transcript:
+                            await websocket.send_text(json.dumps({"data": {"transcript": transcript}}))
+                            
+                except Exception as e:
+                    if str(e) != "timeout":
+                        print(f" [ERROR] Sarvam receive error: {e}")
+
+            task1 = asyncio.create_task(receive_from_client())
+            task2 = asyncio.create_task(receive_from_sarvam())
+            
+            done, pending = await asyncio.wait(
+                [task1, task2],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            for p in pending:
+                p.cancel()
+            
+    except Exception as e:
+        print(f" [ERROR] Streaming STT failed: {e}")
+        try:
+            await websocket.close(code=1011, reason="Streaming connection failed")
+        except:
+            pass
+
+
+@app.post("/api/transcribe")
+async def transcribe_audio(request: Request):
     """Speech-to-Text using OpenAI Whisper model."""
     import tempfile
     
@@ -839,57 +902,52 @@ def transcribe_audio():
     SUPPORTED_FORMATS = {'.webm', '.mp3', '.mp4', '.wav', '.m4a', '.ogg', '.flac', '.mpeg'}
     
     try:
-        session_id = request.form.get("session_id")
+        form_data = await request.form()
+        session_id = form_data.get("session_id")
         
-        if 'file' not in request.files:
-            return jsonify({"error": "No audio file uploaded"}), 400
+        if 'file' not in form_data:
+            print(" [DEBUG] returning 400: 'file' not in form_data")
+            return JSONResponse(content={"error": "No audio file uploaded"}, status_code=400)
             
-        audio_file = request.files['file']
+        audio_file = form_data['file']
+        if isinstance(audio_file, str):
+            print(" [DEBUG] returning 400: audio_file is str")
+            return JSONResponse(content={"error": "File upload required"}, status_code=400)
+            
+        # Removed strict duck typing as it might fail on some Starlette versions
+        original_filename = getattr(audio_file, 'filename', None)
+        if not original_filename:
+            original_filename = "audio.webm"
         
-        if not audio_file.filename:
-            audio_file.filename = "audio.webm"
-        
-        original_filename = audio_file.filename or "audio.webm"
         file_ext = os.path.splitext(original_filename)[1].lower()
         
         if file_ext not in SUPPORTED_FORMATS:
             file_ext = ".webm"
         
-        if session_id:
-            # ORIGINAL LOGIC REMOVED: We no longer save user audio to disk for privacy/cleanup
-            # filename = f"{session_id}_{uuid.uuid4().hex[:8]}_user{file_ext}"
-            # save_path = os.path.join(AUDIO_DIR, filename)
-            # audio_file.save(save_path)
-            # read_path = save_path
-            # audio_url = f"/static/audio/{filename}"
-            
-            # NEW LOGIC: Treat same as temp
-            tmp = tempfile.NamedTemporaryFile(suffix=file_ext, delete=False)
-            audio_file.save(tmp.name)
-            read_path = tmp.name
-            audio_url = None # Do not return a URL since we are deleting it
-        else:
-            # Temp file for non-persisted usage
-            tmp = tempfile.NamedTemporaryFile(suffix=file_ext, delete=False)
-            audio_file.save(tmp.name)
-            read_path = tmp.name
-            audio_url = None
+        tmp = tempfile.NamedTemporaryFile(suffix=file_ext, delete=False)
+        audio_bytes = await audio_file.read()
+        tmp.write(audio_bytes)
+        tmp.close()
+        read_path = tmp.name
+        audio_url = None
         
         try:
-            is_azure = os.getenv("AZURE_OPENAI_ENDPOINT") is not None
-            provider_name = "Azure OpenAI Whisper" if is_azure else "OpenAI Whisper"
-            print(f" [INFO] Transcribing audio with {provider_name} (Deployment: {WHISPER_MODEL})...")
+            print(f" [INFO] Transcribing audio with Groq Whisper...")
+            def _run_transcription():
+                with open(read_path, "rb") as f:
+                    return client.audio.transcriptions.create(
+                        file=(os.path.basename(read_path), f.read()),
+                        model="whisper-large-v3-turbo",
+                        prompt="The user is speaking in a professional context.",
+                        response_format="text"
+                    )
+                    
+            transcribed_text = await asyncio.to_thread(_run_transcription)
+            transcribed_text = transcribed_text.strip()
             
-            with open(read_path, "rb") as audio:
-                result = client.audio.transcriptions.create(
-                    model=WHISPER_MODEL,
-                    file=audio,
-                    language="en",
-                    temperature=0
-                )
-            
-            transcribed_text = result.text.strip()
-            
+            if not transcribed_text:
+                raise Exception("No text transcribed")
+
             # Filter common Whisper silence hallucinations
             lower_text = transcribed_text.lower()
             silence_hallucinations = [
@@ -900,7 +958,7 @@ def transcribe_audio():
             if lower_text in silence_hallucinations:
                 transcribed_text = ""
                 
-            print(f" [SUCCESS] Transcribed via {provider_name}: {transcribed_text[:100]}...")
+            print(f" [SUCCESS] Transcribed: {transcribed_text[:100]}...")
             
             # --- SPEECH ANALYSIS: Filler Words & WPM ---
             speech_metrics = None
@@ -919,17 +977,19 @@ def transcribe_audio():
                 filler_ratio = round(filler_count / total_words, 3) if total_words > 0 else 0
                 
                 # WPM estimation (if duration provided by frontend)
-                duration_seconds = request.form.get("duration_seconds", type=float)
+                duration_seconds = form_data.get("duration_seconds")
                 wpm = None
                 wpm_label = None
-                if duration_seconds and duration_seconds > 0:
-                    wpm = round(total_words / (duration_seconds / 60))
-                    if wpm > 160:
-                        wpm_label = "Anxious/Rushed"
-                    elif wpm < 100:
-                        wpm_label = "Uncertain/Hesitant"
-                    else:
-                        wpm_label = "Confident"
+                if duration_seconds and isinstance(duration_seconds, str):
+                    duration_seconds_float = float(duration_seconds)
+                    if duration_seconds_float > 0:
+                        wpm = round(total_words / (duration_seconds_float / 60))
+                        if wpm > 160:
+                            wpm_label = "Anxious/Rushed"
+                        elif wpm < 100:
+                            wpm_label = "Uncertain/Hesitant"
+                        else:
+                            wpm_label = "Confident"
                 
                 speech_metrics = {
                     "total_words": total_words,
@@ -944,11 +1004,12 @@ def transcribe_audio():
                 if wpm:
                     print(f" [SPEECH] WPM: {wpm} ({wpm_label})")
             
-            return jsonify({
+            return ({
                 "text": transcribed_text, 
                 "audio_url": audio_url,
                 "speech_metrics": speech_metrics
             })
+            
             
         finally:
             # ALWAYS delete the temp file
@@ -963,52 +1024,71 @@ def transcribe_audio():
         error_msg = str(e)
         print(f" [ERROR] STT Transcription Error: {error_msg}")
         traceback.print_exc()
-        return jsonify({"error": error_msg}), 500
+        return JSONResponse(content={"error": error_msg}, status_code=500)
 
-@app.route("/api/speak", methods=["POST"])
-def speak_text():
+@app.post("/api/speak")
+async def speak_text(request: Request):
     """Text-to-Speech using OpenAI/Azure. Returns audio as complete response."""
+    text = ""
+    voice = "alloy"
     try:
-        data = request.get_json()
-        text = data.get("text")
+        data = await request.json() or {}
+        text = data.get("text", "")
         voice = data.get("voice", "alloy")
         
         if not text:
-            return jsonify({"error": "No text provided"}), 400
+            return JSONResponse(content={"error": "No text provided"}, status_code=400)
 
-        # Determine Model/Deployment Name
-        is_azure = os.environ.get("AZURE_OPENAI_ENDPOINT") is not None
-        default_model = "tts" if is_azure else "tts-1"
-        tts_model = os.environ.get("AZURE_OPENAI_TTS_DEPLOYMENT", os.environ.get("TTS_MODEL_NAME", default_model)) 
+        print(f" [INFO] Generating TTS via Sarvam AI API for: '{text[:80]}...'")
         
-        print(f" [INFO] Generating TTS for: '{text[:80]}...' voice={voice} model={tts_model} azure={is_azure}")
+        import httpx
+        sarvam_key = os.getenv("SARVAM_API_KEY")
+        if not sarvam_key:
+            return JSONResponse(content={"error": "SARVAM_API_KEY not configured"}, status_code=500)
+            
+        sarvam_speaker = "shreya" if voice.lower() in ["nova", "shimmer"] else "shubh"
+        
+        payload = {
+            "text": text[:2500],
+            "model": "bulbul:v3",
+            "target_language_code": "en-IN",
+            "speaker": sarvam_speaker,
+            "pace": 1.0
+        }
+        
+        async with httpx.AsyncClient(timeout=60.0) as client_tts:
+            resp = await client_tts.post(
+                "https://api.sarvam.ai/text-to-speech",
+                headers={
+                    "api-subscription-key": sarvam_key,
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            
+        if resp.status_code != 200:
+            print(f" [WARNING] Sarvam TTS Error: {resp.status_code} {resp.text}")
+            return JSONResponse(content={"error": "TTS failed"}, status_code=500)
+            
+        response_json = resp.json()
+        audios = response_json.get("audios", [])
+        if not audios:
+            print(" [WARNING] Sarvam TTS Error: No audio in response")
+            return JSONResponse(content={"error": "No audio generated"}, status_code=500)
+            
+        import base64
+        audio_data = base64.b64decode(audios[0])
+        mimetype = "audio/wav"
 
-        # Fetch complete audio (avoids streaming issues with nginx proxy)
-        response = client.audio.speech.create(
-            model=tts_model,
-            voice=voice,
-            input=text,
-            response_format="mp3"
-        )
-        audio_data = response.content
-        print(f" [SUCCESS] TTS generated {len(audio_data)} bytes")
+        print(f" [SUCCESS] Sarvam TTS generated {len(audio_data)} bytes")
 
-        from flask import Response
-        return Response(audio_data, mimetype="audio/mpeg",
-                        headers={"Content-Length": str(len(audio_data))})
+        return Response(audio_data, media_type=mimetype, headers={"Content-Length": str(len(audio_data))})
 
     except Exception as e:
-        print(f" [ERROR] TTS Error: {e}")
+        print(f" [ERROR] TTS Endpoint Error: {e}")
         import traceback
         traceback.print_exc()
-        error_detail = str(e)
-        if "DeploymentNotFound" in error_detail or "404" in error_detail:
-            error_detail += " | HINT: The TTS deployment name may not exist in your Azure resource. Check Azure portal for correct deployment name."
-        elif "AuthenticationError" in error_detail or "401" in error_detail:
-            error_detail += " | HINT: API key may be invalid or expired."
-        elif "timeout" in error_detail.lower():
-            error_detail += " | HINT: Azure endpoint may be unreachable. Check network/firewall."
-        return jsonify({"error": error_detail}), 500
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 
@@ -1044,7 +1124,7 @@ SIMULATION_FRAMEWORKS = {
     "MENT-10-WELL-001": ["EQ", "CIRCLE OF INFLUENCE", "SFBT"],
 }
 
-def select_framework_for_scenario(scenario: str, ai_role: str, simulation_id: str = None) -> List[str]:
+def select_framework_for_scenario(scenario: str, ai_role: str, simulation_id: Optional[str] = None) -> List[str]:
     """Select frameworks for a scenario. Uses hardcoded mapping for known simulations (saves 1 LLM call)."""
     
     # OPTIMIZATION: Return immediately for known simulations (no LLM call needed)
@@ -1132,12 +1212,12 @@ def detect_session_mode(scenario: str, ai_role: str) -> str:
     return "learning"
 
 @app.post("/api/session/start")
-def start_session():
+async def start_session(request: Request):
     print("[DEBUG] Entered /session/start", flush=True)
     # Audio cleanup logic removed
 
 
-    data = request.get_json(force=True, silent=True) or {}
+    data = await request.json() or {}
 
     role = data.get("role")
     ai_role = data.get("ai_role")
@@ -1157,7 +1237,7 @@ def start_session():
     simulation_id = data.get("simulation_id")  # Structured simulation ID (e.g. SIM-01-PERF-001)
     
     if not role or not ai_role or not scenario: 
-        return jsonify({"error": "Missing fields"}), 400
+        return JSONResponse(content={"error": "Missing fields"}, status_code=400)
 
     # Auto-detect scenario_type if not explicitly provided
     if not scenario_type:
@@ -1207,7 +1287,7 @@ def start_session():
     
     # Get authenticated user from Authorization header
     user = get_authenticated_user()
-    user_id = user.id if user else None
+    user_id = user.id if user is not None else None
     
     if not user_id:
         print("[WARNING] Session created without user authentication")
@@ -1216,14 +1296,14 @@ def start_session():
         user_email = getattr(user, 'email', None)
         
         # Global limit: restrict all users to 3 completed scenarios maximum
-        max_sessions = 3
+        max_sessions = 9999
         try:
             user_sessions_data = get_user_sessions_from_db(user_id, limit=1, completed_only=True)
-            total_sessions = user_sessions_data.get("total", 0)
+            total_sessions = int(user_sessions_data.get("total", 0)) if isinstance(user_sessions_data, dict) else 0 # type: ignore
             
             if total_sessions >= max_sessions:
                 print(f"[BLOCKED] User '{user_email}' exceeded {max_sessions} completed session limit (current: {total_sessions}).")
-                return jsonify({"error": f"Free Limit Reached ({max_sessions}/{max_sessions} sessions). Please contact sales to upgrade."}), 403
+                return JSONResponse(content={"error": f"Free Limit Reached ({max_sessions}/{max_sessions} sessions). Please contact sales to upgrade."}, status_code=403)
         except Exception as e:
             print(f"[ERROR] Failed to verify session limit for {user_email}: {e}")
     
@@ -1242,11 +1322,11 @@ def start_session():
     import time as _time
     _t_start = _time.time()
     
-    if has_hardcoded:
+    if has_hardcoded and simulation_id:
         # Skip LLM summary call entirely for hardcoded simulations
         if needs_auto_framework:
             framework = select_framework_for_scenario(scenario or "", ai_role or "", simulation_id=simulation_id)
-        summary = HARDCODED_OPENINGS[simulation_id]
+        summary = HARDCODED_OPENINGS.get(simulation_id, "")
         print(f"[PERF] Used hardcoded opening for {simulation_id} - skipped LLM summary call")
     elif needs_auto_framework:
         # Run BOTH LLM calls in parallel (framework + summary)
@@ -1314,7 +1394,7 @@ def start_session():
     # Save to Supabase immediately when session starts
     save_session_to_db(session_data)
 
-    return jsonify({
+    return ({
         "session_id": session_id, 
         "summary": summary, 
         "framework": framework, 
@@ -1327,21 +1407,21 @@ def start_session():
 
 
 
-@app.post("/api/session/<session_id>/chat")
-def chat(session_id: str):
+@app.post("/api/session/{session_id}/chat")
+async def chat(session_id: str, request: Request):
     sess = get_session(session_id)
     if not sess: 
-        return jsonify({"error": "Session not found"}), 404
+        return JSONResponse(content={"error": "Session not found"}, status_code=404)
     
     # Verify session ownership
     user = get_authenticated_user()
     session_user_id = sess.get("user_id")
     if session_user_id and (not user or str(session_user_id) != str(user.id)):
-        return jsonify({"error": "Forbidden"}), 403
+        return JSONResponse(content={"error": "Forbidden"}, status_code=403)
     
-    data = request.get_json()
+    data = await request.json()
     if not data:
-        return jsonify({"error": "Invalid JSON or Content-Type"}), 400
+        return JSONResponse(content={"error": "Invalid JSON or Content-Type"}, status_code=400)
 
     user_msg = normalize_text(data.get("message", ""))
     audio_url = data.get("audio_url")
@@ -1381,7 +1461,7 @@ def chat(session_id: str):
         messages = build_followup_prompt(sess, user_msg, suggestions)
     
     turn_count = len([t for t in sess.get("transcript", []) if t.get("role") == "user"])
-    raw_response, token_usage = llm_reply(messages, max_tokens=300, return_usage=True)
+    raw_response, token_usage = await asyncio.to_thread(llm_reply, messages, max_tokens=300, return_usage=True)
     print(f"[TOKEN] Chat turn {turn_count} | request={token_usage['request_tokens']} response={token_usage['response_tokens']} total={token_usage['total_tokens']} | {len(messages)} messages", flush=True)
     
     # 1. Extract Thought
@@ -1411,23 +1491,23 @@ def chat(session_id: str):
     sess["transcript"].append({"role": "assistant", "content": clean_response})
     save_session_to_db(sess)
  
-    return jsonify({
+    return ({
         "follow_up": clean_response, 
         "framework_detected": detected_fw,
         "framework_counts": sess.get("meta", {}).get("framework_counts", {})
     })
 
-@app.post("/api/session/<session_id>/complete")
-def complete_session(session_id: str):
+@app.post("/api/session/{session_id}/complete")
+async def complete_session(session_id: str, request: Request):
     sess = get_session(session_id)
     if not sess: 
-        return jsonify({"error": "Not found"}), 404
+        return JSONResponse(content={"error": "Not found"}, status_code=404)
     
     # Verify session ownership
     user = get_authenticated_user()
     session_user_id = sess.get("user_id")
     if session_user_id and (not user or str(session_user_id) != str(user.id)):
-        return jsonify({"error": "Forbidden"}), 403
+        return JSONResponse(content={"error": "Forbidden"}, status_code=403)
     
     report_path = os.path.join(ensure_reports_dir(), f"{session_id}_report.pdf")
     
@@ -1470,52 +1550,47 @@ def complete_session(session_id: str):
             import traceback
             traceback.print_exc()
             print(f" [ERROR] Data generation failed for {session_id}: {e}")
-            return jsonify({"error": f"Report data analysis failed: {str(e)}"}), 500
+            return JSONResponse(content={"error": f"Report data analysis failed: {str(e)}"}, status_code=500)
     
     # Fetch user name for report personalization (cache in session to avoid re-fetching)
     user_name = sess.get("user_name", "Valued User")
     if user_name == "Valued User":
-        user_id = sess.get("user_id")
-        if user_id:
-            try:
-                user_res = supabase_admin.auth.admin.get_user_by_id(user_id)
-                if user_res and user_res.user:
-                    meta = user_res.user.user_metadata or {}
-                    user_name = meta.get("full_name") or meta.get("name") or meta.get("email") or "Valued User"
-                    print(f" [SUCCESS] Resolved user name: {user_name}")
-            except Exception as e:
-                print(f" [WARNING] Failed to fetch user name: {e}")
+        # Use authenticated user email as fallback for name
+        user_obj = get_authenticated_user()
+        if user_obj and user_obj.email:
+            user_name = user_obj.email
+            print(f" [SUCCESS] Resolved user name from auth: {user_name}")
         sess["user_name"] = user_name
 
     sess["completed"] = True
     sess["report_file"] = "dynamic"
     save_session_to_db(sess) # Save completed status and report_data to Supabase
     
-    return jsonify({"message": "Report generated", "report_file": report_path, "scenario_type": scenario_type})
+    return {"message": "Report generated", "report_file": report_path, "scenario_type": scenario_type}
 
-@app.get("/api/report/<session_id>")
-def view_report(session_id: str):
+@app.get("/api/report/{session_id}")
+async def view_report(session_id: str, request: Request):
     # --- AUTHENTICATE USER (matches get_report_data logic) ---
     user = get_authenticated_user()
     
     sess = get_session(session_id)
     if not sess: 
-        return jsonify({"error": "No report"}), 404
+        return JSONResponse(content={"error": "No report"}, status_code=404)
     
     # Verify ownership if session has a user_id
     session_user_id = sess.get("user_id")
     if session_user_id:
         if not user:
-            return jsonify({"error": "Unauthorized: This session requires authentication"}), 401
+            return JSONResponse(content={"error": "Unauthorized: This session requires authentication"}, status_code=401)
         if str(session_user_id) != str(user.id):
-            return jsonify({"error": "Forbidden: This session belongs to another user"}), 403
+            return JSONResponse(content={"error": "Forbidden: This session belongs to another user"}, status_code=403)
         
     # If report_data is missing, maybe another worker completed it. Force a refresh from DB.
     if not sess.get("report_data"):
         sess = get_session(session_id, force_db_refresh=True)
     
     if not sess or not sess.get("report_data"):
-        return jsonify({"error": "Report data not available yet"}), 400
+        return JSONResponse(content={"error": "Report data not available yet"}, status_code=400)
         
     import tempfile
     
@@ -1564,20 +1639,19 @@ def view_report(session_id: str):
             
         os.unlink(tmp.name)
         
-        response = send_file(
+        return StreamingResponse(
             io.BytesIO(pdf_bytes),
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f"{session_id}_report.pdf"
+            media_type='application/pdf',
+            headers={
+                "Content-Disposition": f"attachment; filename={session_id}_report.pdf",
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
         )
-        # Ensure CORS headers are present for cross-origin PDF downloads
-        response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
-        return response
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f" [ERROR] PDF generation failed for {session_id}: {e}")
-        return jsonify({
+        return ({
             "error": "Failed to generate PDF report",
             "details": str(e)
         }), 500
@@ -1667,8 +1741,8 @@ def _build_comparison(sess, response, session_id):
         print(f" [ERROR] Comparison build failed: {e}")
         return None
 
-@app.get("/api/session/<session_id>/report_data")
-def get_report_data(session_id: str):
+@app.get("/api/session/{session_id}/report_data")
+async def get_report_data(session_id: str, request: Request):
     # 1. AUTHENTICATE USER (OPTIONAL - allow unauthenticated access for guest sessions)
     user = get_authenticated_user()
     
@@ -1681,31 +1755,31 @@ def get_report_data(session_id: str):
         if session_user_id:
             # Session has a user - requires authentication
             if not user:
-                return jsonify({"error": "Unauthorized: This session requires authentication"}), 401
+                return JSONResponse(content={"error": "Unauthorized: This session requires authentication"}, status_code=401)
             # Verify it belongs to the authenticated user
             if str(session_user_id) != str(user.id):
-                return jsonify({"error": "Forbidden: This session belongs to another user"}), 403
+                return JSONResponse(content={"error": "Forbidden: This session belongs to another user"}, status_code=403)
         # else: session has no user_id (guest session) - allow access without authentication
     else:
         # Check database
         if USE_DATABASE:
             db_sess = get_session_from_db(session_id)
             if not db_sess:
-                return jsonify({"error": "Session not found"}), 404
+                return JSONResponse(content={"error": "Session not found"}, status_code=404)
             
             # If session has a user_id, require authentication and ownership verification
             if db_sess.get("user_id"):
                 if not user:
-                    return jsonify({"error": "Unauthorized: This session requires authentication"}), 401
+                    return JSONResponse(content={"error": "Unauthorized: This session requires authentication"}, status_code=401)
                 if str(db_sess.get("user_id")) != str(user.id):
-                    return jsonify({"error": "Forbidden: This session belongs to another user"}), 403
+                    return JSONResponse(content={"error": "Forbidden: This session belongs to another user"}, status_code=403)
             # else: guest session - allow access
             
             # Load into memory for processing
             sess = db_sess
             SESSIONS[session_id] = sess
         else:
-             return jsonify({"error": "Session not found"}), 404
+             return JSONResponse(content={"error": "Session not found"}, status_code=404)
 
 
     # If report_data is missing but the session exists, force a DB refresh
@@ -1717,25 +1791,27 @@ def get_report_data(session_id: str):
             SESSIONS[session_id] = sess
             
     # Return cached data if available
-    if sess.get("report_data"):
-        response = sess["report_data"].copy()
-        response["transcript"] = sess["transcript"]
-        response["scenario"] = sess["scenario"] or "No context available."
+    if isinstance(sess, dict) and sess.get("report_data"):
+        response: dict = sess["report_data"].copy() if isinstance(sess["report_data"], dict) else {}
+        response["transcript"] = sess.get("transcript")
+        response["scenario"] = sess.get("scenario") or "No context available."
         response["scenario_type"] = sess.get("scenario_type", response.get("scenario_type", "custom"))
         # Inject session_mode so frontend can distinguish assessment from mentorship
         if "meta" not in response:
             response["meta"] = {}
-        response["meta"]["session_mode"] = sess.get("session_mode", "skill_assessment")
+        if isinstance(response["meta"], dict):
+            response["meta"]["session_mode"] = sess.get("session_mode", "skill_assessment")
         # Inject comparison with previous attempt
         response["comparison"] = _build_comparison(sess, response, session_id)
-        return jsonify(response)
+        return response
         
     # Generate new data if not present
-    scenario_type = sess.get("scenario_type")
+    scenario_type = sess.get("scenario_type") if isinstance(sess, dict) else "custom"
     print(f"Generating report data for {session_id} (scenario_type: {scenario_type})...")
     try:
         try:
-            framework_data = json.loads(sess["framework"]) if sess["framework"] and sess["framework"].startswith("[") else sess["framework"]
+            fw = sess.get("framework") if isinstance(sess, dict) else None
+            framework_data = json.loads(fw) if isinstance(fw, str) and fw.startswith("[") else fw
         except:
             framework_data = sess["framework"]
 
@@ -1783,22 +1859,22 @@ def get_report_data(session_id: str):
         response["meta"]["session_mode"] = sess.get("session_mode", "skill_assessment")
         # Inject comparison with previous attempt
         response["comparison"] = _build_comparison(sess, response, session_id)
-        return jsonify(response)
+        return response
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f" [ERROR] Parallel report data generation failed for {session_id}: {e}")
-        return jsonify({
+        return ({
             "error": "Failed to analyze session data",
             "details": str(e)
         }), 500
 
 @app.get("/api/sessions")
-def get_sessions():
+async def get_sessions(request: Request):
     """Return sessions for the authenticated user sorted by date (newest first)."""
     user = get_authenticated_user()
     if not user:
-        return jsonify({"error": "Unauthorized"}), 401
+        return JSONResponse(content={"error": "Unauthorized"}, status_code=401)
     
     try:
         user_id_str = str(user.id)
@@ -1819,12 +1895,12 @@ def get_sessions():
                 "score": (lambda rd: float(str(rd.get("meta", {}).get("overall_grade", "0")).split("/")[0].strip()) if rd and "/" in str(rd.get("meta", {}).get("overall_grade", "")) else 0)(sess.get("report_data", {}))
             })
         session_list.sort(key=lambda x: x["created_at"], reverse=True)
-        return jsonify(session_list)
+        return session_list
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@app.route("/api/user/sessions", methods=["GET"])
-def get_user_sessions_paginated():
+@app.get("/api/user/sessions")
+async def get_user_sessions_paginated(request: Request):
     """Get paginated sessions for authenticated user.
     
     OPTIMIZATION: Returns only requested page of sessions instead of all.
@@ -1833,11 +1909,11 @@ def get_user_sessions_paginated():
     try:
         user = get_authenticated_user()
         if not user:
-            return jsonify({"error": "Unauthorized"}), 401
+            return JSONResponse(content={"error": "Unauthorized"}, status_code=401)
         
         # Get pagination parameters
-        limit = request.args.get('limit', 20, type=int)
-        offset = request.args.get('offset', 0, type=int)
+        limit = int(request.query_params.get('limit', 20))
+        offset = int(request.query_params.get('offset', 0))
         
         # Validate pagination params
         limit = min(limit, 100)  # Max 100 per page
@@ -1847,17 +1923,17 @@ def get_user_sessions_paginated():
         # Get paginated sessions from database
         data = get_user_sessions_from_db(str(user.id), limit=limit, offset=offset)
         
-        return jsonify(data), 200
+        return JSONResponse(content=data, status_code=200)
     except Exception as e:
         print(f"[ERROR] Failed to get user sessions: {e}")
-        return jsonify({"error": str(e)}), 500
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@app.route("/api/sessions/clear", methods=["POST"])
-def clear_sessions():
+@app.post("/api/sessions/clear")
+async def clear_sessions(request: Request):
     """Clear session history for the authenticated user."""
     user = get_authenticated_user()
     if not user:
-        return jsonify({"error": "Unauthorized"}), 401
+        return JSONResponse(content={"error": "Unauthorized"}, status_code=401)
     
     try:
         clear_user_sessions_from_db(str(user.id))
@@ -1867,17 +1943,17 @@ def clear_sessions():
         for k in keys_to_delete:
             del SESSIONS[k]
         print(f" [SUCCESS] Sessions cleared for user {user.id}")
-        return jsonify({"message": "History cleared successfully"})
+        return {"message": "History cleared successfully"}
     except Exception as e:
         print(f" [ERROR] Error clearing sessions: {e}")
-        return jsonify({"error": str(e)}), 500
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 # ---------------------------------------------------------
 # Analytics Endpoint
 # ---------------------------------------------------------
-@app.route("/api/analytics", methods=["GET"])
-def get_analytics():
+@app.get("/api/analytics")
+async def get_analytics(request: Request):
     """Compute progress analytics for the authenticated user.
     
     Returns: performance_trend, all_time_average, consistency_index,
@@ -1885,14 +1961,14 @@ def get_analytics():
     """
     user = get_authenticated_user()
     if not user:
-        return jsonify({"error": "Unauthorized"}), 401
+        return JSONResponse(content={"error": "Unauthorized"}, status_code=401)
     
     try:
         import statistics
         
         rows = get_user_analytics_from_db(str(user.id))
         if not rows:
-            return jsonify({
+            return ({
                 "performance_trend": [],
                 "all_time_average": 0,
                 "consistency_index": 0,
@@ -2000,7 +2076,7 @@ def get_analytics():
         # Sort by those with the most positive change first
         repeated_scenarios.sort(key=lambda x: x["change"], reverse=True)
         
-        return jsonify({
+        return ({
             "performance_trend": performance_trend,
             "all_time_average": all_time_average,
             "consistency_index": consistency_index,
@@ -2014,10 +2090,13 @@ def get_analytics():
         print(f"[ERROR] Analytics computation failed: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     is_dev = os.getenv("FLASK_ENV", "production") == "development"
-    app.run(host="0.0.0.0", port=port, debug=is_dev)
+    
+    import uvicorn
+    print(f"Starting Uvicorn ASGI server on port {port}...")
+    uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1, log_level="info")

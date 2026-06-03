@@ -5,7 +5,7 @@ import re
 import unicodedata
 import datetime as dt
 from fpdf import FPDF
-from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
@@ -23,32 +23,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tempfile
 
-USE_AZURE = os.getenv("AZURE_OPENAI_ENDPOINT") is not None
-# ... imports ... 
 def setup_langchain_model():
-    # Force httpx to ignore system proxies which cause hangs on Azure VMs
+    # Force httpx to ignore system proxies
     http_client = httpx.Client(trust_env=False, timeout=120.0)
-    
-    if USE_AZURE:
-        return AzureChatOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", os.getenv("MODEL_NAME", "gpt-4o-mini")),
-            http_client=http_client,
-            temperature=0.1  # REDUCED from 0.4 to prevent hallucinations
-        )
+    base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
+    api_key = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
     return ChatOpenAI(
-        api_key=os.getenv("OPENAI_API_KEY"), 
-        model=os.getenv("MODEL_NAME", "gpt-4o-mini"),
+        api_key=api_key,
+        base_url=base_url,
+        model=os.getenv("MODEL_NAME", "llama-3.3-70b-versatile"),
         http_client=http_client,
-        temperature=0.1  # REDUCED from 0.4 to prevent hallucinations
+        temperature=0.1
     )
 
 llm = setup_langchain_model()
 prompt_template = PromptTemplate(template="{prompt}", input_variables=["prompt"])
 
-MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", os.getenv("MODEL_NAME", "gpt-4o-mini"))
+MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
 
 
 def count_request_tokens(messages, model=MODEL_NAME):
@@ -195,10 +186,16 @@ def llm_reply(messages, max_tokens=4000, max_retries=3, delay=1, return_usage=Fa
         try:
             print(f" [DEBUG] llm_reply attempt {attempt + 1}", flush=True)
             response = llm.invoke(messages)
-            text = response.content.strip()
+            content = response.content
+            if isinstance(content, list):
+                text = "".join(str(x) for x in content).strip()
+            else:
+                text = content.strip()
             if return_usage:
                 response_tokens = count_response_tokens(text)
-                total_tokens = request_tokens + response_tokens
+                req_t = request_tokens or 0
+                res_t = response_tokens or 0
+                total_tokens = req_t + res_t
                 print(f"[TOKEN] request={request_tokens} response={response_tokens} total={total_tokens}", flush=True)
                 return text, {
                     "request_tokens": request_tokens,
@@ -335,7 +332,7 @@ def analyze_character_traits(transcript, role, ai_role, scenario, scenario_type)
 You are providing a professional assessment of a human player's character and personality fit for a {scenario_type} simulation.
 
 Note: In the transcript, the human player is labeled '[HUMAN LEARNER]' (Role: '{role}').
-The AI assistant is labeled '[AI COACH]' (Role: '{ai_role}').
+The AI assistant is labeled '[AI CHARACTER]' (Role: '{ai_role}').
 Evaluate the [HUMAN LEARNER] ONLY based on their participation.
 
 (Scenario details are in report metadata; do not rely on it in the prompt.)
@@ -415,7 +412,7 @@ def analyze_questions_missed(transcript, role, ai_role, scenario, scenario_type)
         return {}
     
     conversation = "\n".join([
-        f"[HUMAN LEARNER ({role})]: {t['content']}" if t['role'] == 'user' else f"[AI COACH ({ai_role})]: {t['content']}"
+        f"[HUMAN LEARNER ({role})]: {t['content']}" if t['role'] == 'user' else f"[AI CHARACTER ({ai_role})]: {t['content']}"
         for t in transcript
     ])
     
@@ -426,7 +423,7 @@ def analyze_questions_missed(transcript, role, ai_role, scenario, scenario_type)
 You are providing a professional assessment of questioning quality in a {scenario_type} simulation.
 
 Note: In the transcript, the human player is labeled '[HUMAN LEARNER]' (Role: '{role}').
-The AI assistant is labeled '[AI COACH]' (Role: '{ai_role}').
+The AI assistant is labeled '[AI CHARACTER]' (Role: '{ai_role}').
 Evaluate the [HUMAN LEARNER] ONLY based on their questioning approach.
 
 (Scenario details are in report metadata; do not rely on it in the prompt.)
@@ -595,8 +592,8 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
         unified_instruction = f"""
 === CRITICAL EVALUATION TARGET ===
 You MUST evaluate ONLY the [HUMAN LEARNER]'s performance (the person playing "{role}").
-Do NOT evaluate the [AI COACH]'s performance (the AI playing "{ai_role}").
-The [AI COACH]'s responses are ONLY context for understanding how the [HUMAN LEARNER] reacted.
+Do NOT evaluate the [AI CHARACTER]'s performance (the AI playing "{ai_role}").
+The [AI CHARACTER]'s responses are ONLY context for understanding how the [HUMAN LEARNER] reacted.
 Every score, quote, and insight MUST be about the [HUMAN LEARNER]'s words and actions ONLY.
 ===
 
@@ -632,7 +629,7 @@ RULES:
 - ideal_questions must have 3-5 NEW questions (not repeats) that the [HUMAN LEARNER] could have asked.
 - character_assessment and question_analysis are REQUIRED.
 - questions_missed: Include 3-5 questions IF the learner genuinely missed them. If they performed well, include fewer. Do NOT invent missed questions.
-- ALL quotes MUST come from [HUMAN LEARNER] lines. NEVER quote [AI COACH] lines as evidence.
+- ALL quotes MUST come from [HUMAN LEARNER] lines. NEVER quote [AI CHARACTER] lines as evidence.
 - TONE: Use balanced, objective, and constructive language. Do NOT use overly harsh, dramatic, or exaggerated phrasing in summaries (e.g., avoid "completely failed").
 """
 
@@ -651,7 +648,7 @@ RULES:
         f"\n"
         f"=== WHO TO EVALUATE ===\n"
         f"[HUMAN LEARNER] = The real human user, playing the role of \"{role}\". EVALUATE THIS PERSON ONLY.\n"
-        f"[AI COACH] = The AI system, playing the role of \"{ai_role}\". Do NOT evaluate this. Use only as context.\n"
+        f"[AI CHARACTER] = The AI system, playing the role of \"{ai_role}\". Do NOT evaluate this. Use only as context.\n"
         f"===\n"
         f"\n"
         f"{analyst_persona}\n"
@@ -663,7 +660,7 @@ RULES:
 
     try:
         # Create conversation text for analysis — explicit labels to prevent role confusion
-        full_conversation = "\n".join([f"[HUMAN LEARNER ({role})]: {t['content']}" if t['role'] == 'user' else f"[AI COACH ({ai_role})]: {t['content']}" for t in transcript])
+        full_conversation = "\n".join([f"[HUMAN LEARNER ({role})]: {t['content']}" if t['role'] == 'user' else f"[AI CHARACTER ({ai_role})]: {t['content']}" for t in transcript])
         
         # Setup LangChain Parser
         parser = JsonOutputParser()
@@ -713,7 +710,7 @@ RULES:
             }
         
         # Robust JSON parsing
-        json_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+        json_text = str(raw_response.content) if hasattr(raw_response, 'content') else str(raw_response)
         data = parse_json_robustly(json_text)
         
         if data is None:
@@ -753,14 +750,18 @@ RULES:
 
 
 class DashboardPDF(FPDF):
-    def cell(self, w, h=0, txt='', border=0, ln=0, align='', fill=False, link=''):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._session_mode = None
+    def cell(self, w=None, h=None, text='', border=0, ln='DEPRECATED', align='', fill=False, link='', **kwargs): # type: ignore
         # Auto-sanitize all text going into cells
-        txt = sanitize_text(txt) if txt else ''
-        super().cell(w, h, txt, border, ln, align, fill, link)
+        txt = sanitize_text(text) if text else ''
+        # Forward compatible call to parent
+        super().cell(w=w, h=h, txt=txt, border=border, ln=ln, align=align, fill=fill, link=link) # type: ignore
     
-    def multi_cell(self, w, h, txt, border=0, align='J', fill=False):
+    def multi_cell(self, w, h=None, text='', border=0, align='J', fill=False, **kwargs): # type: ignore
         # Auto-sanitize all text going into multi_cells  
-        txt = sanitize_text(txt) if txt else ''
+        txt = sanitize_text(text) if text else ''
         
         # Save original left margin
         original_l_margin = self.l_margin
@@ -771,7 +772,7 @@ class DashboardPDF(FPDF):
             self.set_left_margin(self.get_x())
             
         # Use provided align, default to Justified if not specified for long text
-        super().multi_cell(w, h, txt, border, align, fill)
+        super().multi_cell(w=w, h=h, txt=txt, border=border, align=align, fill=fill) # type: ignore
         
         # Restore original left margin
         self.set_left_margin(original_l_margin)
@@ -1893,7 +1894,7 @@ class DashboardPDF(FPDF):
             plt.xticks(angles[:-1], labels, color='grey', size=8)
             
             # Draw ylabels
-            ax.set_rlabel_position(0)
+            ax.set_rlabel_position(0) # type: ignore
             plt.yticks([2, 4, 6, 8, 10], ["2", "4", "6", "8", "10"], color="grey", size=7)
             plt.ylim(0, 10)
             
@@ -2056,7 +2057,35 @@ class DashboardPDF(FPDF):
         
         for msg in transcript:
             role = msg.get('role', 'user')
-            content = sanitize_text(msg.get('content', ''))
+            raw_content = msg.get('content', '')
+            
+            # 1. Eliminate prompt leaks by separating raw dialogue from backend hints
+            is_hint_only = False
+            try:
+                if raw_content.strip().startswith('{') and raw_content.strip().endswith('}'):
+                    parsed = json.loads(raw_content)
+                    if isinstance(parsed, dict):
+                        # Extract raw dialogue, dropping hints/instructions
+                        content_str = parsed.get('text', parsed.get('content', parsed.get('dialogue', '')))
+                        if not content_str and ('instruction' in parsed or 'hint' in parsed):
+                            is_hint_only = True
+                        else:
+                            raw_content = str(content_str)
+            except Exception:
+                pass
+                
+            if is_hint_only or role == 'system':
+                continue
+                
+            content = sanitize_text(raw_content)
+            if not content.strip():
+                continue
+            
+            # 2. Bind the label and bubble together to fix trailing layout gaps
+            bubble_w = 140
+            approx_lines = max(1, math.ceil(len(content) / 70))
+            approx_height = 5 + (approx_lines * 6) + 5
+            self.check_space(approx_height)
             
             self.set_font('helvetica', 'B', 8)
             
@@ -2069,10 +2098,6 @@ class DashboardPDF(FPDF):
                 self.set_text_color(255, 255, 255)
                 self.set_fill_color(*COLORS['accent']) # Blue bubble
                 
-                # Calculate height
-                # FPDF multi_cell doesn't return height easily, so estimating
-                # We'll use a fixed width for the bubble
-                bubble_w = 140
                 x_pos = 200 - bubble_w - 10 # Right align
                 
                 self.set_x(x_pos)
@@ -2081,7 +2106,8 @@ class DashboardPDF(FPDF):
             else:
                 # Assistant (Left side)
                 self.set_text_color(*COLORS['text_light'])
-                self.cell(0, 5, "COACH", 0, 1, 'L')
+                ai_label = "AI ROLE"
+                self.cell(0, 5, ai_label, 0, 1, 'L')
                 
                 self.set_font('helvetica', '', 9)
                 self.set_text_color(*COLORS['text_main'])
@@ -2166,26 +2192,26 @@ class DashboardPDF(FPDF):
 
                 # Row 1
                 self.set_xy(15, card_y + 3)
-                self.set_font('helvetica', 'B', 7.5)
+                self.set_font('helvetica', 'B', 8)
                 self.set_text_color(*TEXT_LIGHT)
                 self.cell(90, 4, "YOUR ROLE", 0, 0)
                 self.cell(0, 4, "AI ROLE", 0, 1)
 
                 self.set_xy(15, card_y + 8)
-                self.set_font('helvetica', '', 9.5)
+                self.set_font('helvetica', '', 10)
                 self.set_text_color(*TEXT_MAIN)
                 self.cell(90, 5, sanitize_text(str(sim.get("your_role", "-"))), 0, 0)
                 self.cell(0, 5, sanitize_text(str(sim.get("ai_role", "-"))), 0, 1)
 
                 # Row 2
                 self.set_xy(15, card_y + 17)
-                self.set_font('helvetica', 'B', 7.5)
+                self.set_font('helvetica', 'B', 8)
                 self.set_text_color(*TEXT_LIGHT)
                 self.cell(90, 4, "SCENARIO TYPE", 0, 0)
                 self.cell(0, 4, "PRIMARY SKILL FOCUS", 0, 1)
 
                 self.set_xy(15, card_y + 22)
-                self.set_font('helvetica', 'B', 9.5)
+                self.set_font('helvetica', 'B', 10)
                 self.set_text_color(*PURPLE)
                 self.cell(90, 5, sanitize_text(str(sim.get("scenario_type", "-"))), 0, 0)
                 self.cell(0, 5, sanitize_text(str(sim.get("primary_skill_focus", "-"))), 0, 1)

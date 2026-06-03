@@ -1,7 +1,7 @@
 import json
 import faiss
 import numpy as np
-from openai import AzureOpenAI
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
 
@@ -10,17 +10,12 @@ load_dotenv()
 # -------------------
 # 1. Setup
 # -------------------
-endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-api_key = os.getenv("AZURE_OPENAI_API_KEY")
-api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
+api_key = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
 
-if not endpoint or not api_key:
-    raise ValueError("Please set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY environment variables.")
-
-client = AzureOpenAI(
+client = OpenAI(
     api_key=api_key,
-    api_version=api_version,
-    azure_endpoint=endpoint
+    base_url=base_url
 )
 
 # Use absolute paths
@@ -63,7 +58,7 @@ for i, item in enumerate(data):
     # Get embedding
     try:
         emb = client.embeddings.create(
-            model=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002"),
+            model=os.getenv("MODEL_NAME", "nomic-embed-text"),
             input=q
         ).data[0].embedding
         

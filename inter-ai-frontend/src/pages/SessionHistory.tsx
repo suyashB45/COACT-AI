@@ -7,7 +7,6 @@ import { motion } from "framer-motion"
 
 import Navigation from "../components/landing/Navigation"
 import { getApiUrl } from "../lib/api"
-import { supabase } from "../lib/supabase"
 
 interface SessionItem {
     id: string
@@ -30,14 +29,11 @@ export default function SessionHistory() {
     useEffect(() => {
         const fetchSessions = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) { navigate('/login'); return; }
-
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) { navigate('/login'); return; }
+                const userStr = localStorage.getItem('user');
+                if (!userStr) { navigate('/login'); return; }
 
                 const res = await fetch(getApiUrl('/api/history'), {
-                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                    headers: {}
                 });
 
                 if (!res.ok) {

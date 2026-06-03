@@ -112,12 +112,11 @@ cd COACTAI
 
 ## ⚙️ Part 3: Configuration
 
-### Step 1: Create Environment Files
+### Step 1: Create Environment File
 
 ```bash
-# Copy example environment files
+# Copy example environment file
 cp .env.example .env
-cp inter-ai-backend/.env.example inter-ai-backend/.env
 ```
 
 ### Step 2: Configure Root `.env`
@@ -131,32 +130,27 @@ sudo nano .env
 Update these values:
 
 ```env
-# Azure OpenAI
-AZURE_OPENAI_API_KEY=your-azure-openai-key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-12-01-preview
+# Self-Hosted LLM (Ollama)
+MODEL_NAME=qwen3.5:0.8b
+OLLAMA_API_URL=http://host.docker.internal:11434
 
-# Model Deployments
-GPT_DEPLOYMENT_NAME=gpt-4o-mini
-TTS_DEPLOYMENT=tts
-STT_DEPLOYMENT=whisper
-EMBEDDINGS_DEPLOYMENT=text-embedding-ada-002
-
-# Supabase
+# Supabase (optional)
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_KEY=your-anon-key
 SUPABASE_SERVICE_KEY=your-service-role-key
-DATABASE_URL=postgresql://postgres:your-password@your-project-ref.supabase.co:6543/postgres?sslmode=require
 
 # Vite Frontend
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_KEY=your-anon-key
 VITE_API_URL=https://coact-ai.com
 
-# Azure Blob Storage (optional)
-AZURE_STORAGE_CONNECTION_STRING=your-connection-string
+# Piper TTS Models
+PIPER_MODEL_PATH=/app/models/en_US-lessac-medium.onnx
+PIPER_MODEL_PATH_BOY=/app/models/en_US-lessac-medium.onnx
+PIPER_MODEL_PATH_GIRL=/app/models/en_US-lessac-medium.onnx
 
-# CORS
+# Auth & Security
+JWT_SECRET=your-secure-jwt-secret
 CORS_ORIGINS=https://coact-ai.com,https://www.coact-ai.com
 
 # Domain
@@ -165,13 +159,30 @@ DOMAIN=coact-ai.com
 
 **Save**: Press `Ctrl+X`, then `Y`, then `Enter`
 
-### Step 3: Configure Backend `.env`
+### Step 3: Install Ollama & Pull Model
 
 ```bash
-sudo nano inter-ai-backend/.env
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull your LLM model
+ollama pull qwen3.5:0.8b
+
+# Verify Ollama is running
+curl http://localhost:11434/api/version
 ```
 
-Copy the same values from root `.env` (they should match).
+### Step 4: Setup Piper TTS Models
+
+```bash
+# Create models directory
+mkdir -p piper_models
+
+# Download a Piper voice model (example: en_US-lessac-medium)
+curl -L https://github.com/rhasspy/piper/releases/download/v0.0.2/voice-en-us-lessac-medium.tar.gz \
+  -o /tmp/piper-voice.tar.gz
+tar -xzf /tmp/piper-voice.tar.gz -C piper_models/
+```
 
 ---
 
@@ -204,9 +215,8 @@ sudo docker-compose up -d --build
 ```
 
 This will build and start:
-- **Frontend** (React/Vite)
-- **Backend** (Flask/Python)
-- **Nginx** (Reverse proxy with SSL)
+- **Frontend** (React/Vite + Nginx reverse proxy with SSL)
+- **Backend** (Go/Fiber with bundled Whisper & Piper)
 
 ### Step 2: Check Container Status
 
@@ -327,14 +337,15 @@ sudo docker-compose logs backend
 # 3. Check port conflicts (5001, 3000, 80, 443)
 ```
 
-### Azure OpenAI Errors
+### Ollama / LLM Errors
 
-**Problem**: `DeploymentNotFound` error
+**Problem**: Backend can't reach Ollama
 
 **Solution**:
-1. Verify endpoint URL ends with `.openai.azure.com/`
-2. Check deployment names match exactly
-3. Verify API version is `2024-12-01-preview`
+1. Verify Ollama is running: `curl http://localhost:11434/api/version`
+2. Check `OLLAMA_API_URL` in `.env` (use `http://host.docker.internal:11434` for Docker)
+3. Verify the model is pulled: `ollama list`
+4. Check the model name in `MODEL_NAME` matches exactly
 
 ---
 

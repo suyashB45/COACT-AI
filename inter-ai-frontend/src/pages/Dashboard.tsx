@@ -15,7 +15,6 @@ import {
 
 import Navigation from "../components/landing/Navigation"
 import { getApiUrl } from "@/lib/api"
-import { supabase } from "@/lib/supabase"
 
 // --- TYPES ---
 interface AnalyticsData {
@@ -79,11 +78,8 @@ export default function Dashboard() {
     useEffect(() => {
         const fetchAnalytics = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession()
-                if (!session) { navigate("/login"); return }
-
                 const res = await fetch(getApiUrl("/api/analytics"), {
-                    headers: { Authorization: `Bearer ${session.access_token}` }
+                    headers: {}
                 })
                 if (!res.ok) throw new Error(`Server error (${res.status})`)
                 const json: AnalyticsData = await res.json()
@@ -98,11 +94,8 @@ export default function Dashboard() {
 
         const fetchSessions = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession()
-                if (!session) return
-
                 const res = await fetch(getApiUrl("/api/user/sessions?limit=5"), {
-                    headers: { Authorization: `Bearer ${session.access_token}` }
+                    headers: {}
                 })
                 if (res.ok) {
                     const json = await res.json()

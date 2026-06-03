@@ -14,7 +14,6 @@ import {
 } from "lucide-react"
 import Navigation from "../components/landing/Navigation"
 import { getApiUrl } from "../lib/api"
-import { supabase } from "../lib/supabase"
 
 const ICON_MAP: any = {
     Users, ShoppingCart, GraduationCap, AlertTriangle, DollarSign, UserCog
@@ -30,7 +29,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Coach a sincere employee who keeps missing targets. Improve performance without demotivating the employee.",
                 ai_role: "Sales Associate",
                 user_role: "Store Manager",
-                scenario: `CONTEXT: The employee is sincere and well-liked, but their results have been consistently below target for the last 3 months. You need to coach them to understand the gap, identify root causes, and agree on a clear improvement plan.\n\nYOUR OBJECTIVES:\n1. Create a safe, respectful tone\n2. Use facts to discuss the performance gap\n3. Explore reasons behind the gap\n4. Agree on 2-3 actions and a follow-up plan`,
+                scenario: `The employee is sincere and well-liked, but their results have been consistently below target for the last 3 months. You need to coach them to understand the gap, identify root causes, and agree on a clear improvement plan.\n\nYOUR OBJECTIVES:\n1. Create a safe, respectful tone\n2. Use facts to discuss the performance gap\n3. Explore reasons behind the gap\n4. Agree on 2-3 actions and a follow-up plan`,
                 icon: "Users",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -43,7 +42,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Address behavior issues with a top performer without losing performance momentum.",
                 ai_role: "Top Sales Performer",
                 user_role: "Team Leader",
-                scenario: `CONTEXT: The employee is a top performer whose sales numbers consistently exceed target. However, multiple team members report they are sarcastic, dismissive, and undermine colleagues in front of customers. You must address the behavior without losing performance momentum.\n\nYOUR OBJECTIVES:\n1. Maintain psychological safety\n2. Address behavior clearly using examples\n3. Separate performance from behavior\n4. Create ownership and behavior shift commitment`,
+                scenario: `The employee is a top performer whose sales numbers consistently exceed target. However, multiple team members report they are sarcastic, dismissive, and undermine colleagues in front of customers. You must address the behavior without losing performance momentum.\n\nYOUR OBJECTIVES:\n1. Maintain psychological safety\n2. Address behavior clearly using examples\n3. Separate performance from behavior\n4. Create ownership and behavior shift commitment`,
                 icon: "AlertTriangle",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -56,7 +55,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Re-engage a once-dependable team member who has shown a decline in initiative.",
                 ai_role: "Disengaged Team Member",
                 user_role: "Manager",
-                scenario: `CONTEXT: The team member was once dependable, but over the last 6-8 weeks, their energy has dropped. They complete tasks but show no initiative and avoid extra responsibilities. There are no performance complaints—just a decline in engagement.\n\nYOUR OBJECTIVES:\n1. Create psychological safety\n2. Explore underlying causes without assumptions\n3. Avoid an accusatory tone\n4. Help the team member reconnect to purpose or ownership`,
+                scenario: `The team member was once dependable, but over the last 6-8 weeks, their energy has dropped. They complete tasks but show no initiative and avoid extra responsibilities. There are no performance complaints—just a decline in engagement.\n\nYOUR OBJECTIVES:\n1. Create psychological safety\n2. Explore underlying causes without assumptions\n3. Avoid an accusatory tone\n4. Help the team member reconnect to purpose or ownership`,
                 icon: "Users",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -69,7 +68,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Communicate concerns about unrealistic targets to a Regional Director professionally.",
                 ai_role: "Regional Director",
                 user_role: "Sales Manager",
-                scenario: `CONTEXT: Your Regional Director set a new quarterly sales target 35% higher than last quarter, which you believe is unrealistic due to staffing, market, and inventory constraints. You need to communicate concerns without appearing resistant or negative.\n\nYOUR OBJECTIVES:\n1. Remain professional and composed\n2. Use data to support your position\n3. Avoid an emotional or defensive tone\n4. Offer alternative solutions`,
+                scenario: `Your Regional Director set a new quarterly sales target 35% higher than last quarter, which you believe is unrealistic due to staffing, market, and inventory constraints. You need to communicate concerns without appearing resistant or negative.\n\nYOUR OBJECTIVES:\n1. Remain professional and composed\n2. Use data to support your position\n3. Avoid an emotional or defensive tone\n4. Offer alternative solutions`,
                 icon: "UserCog",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -82,7 +81,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Resolve visible tension and breakdown in communication between two team members.",
                 ai_role: "Conflicted Team Members",
                 user_role: "Team Manager",
-                scenario: `CONTEXT: Two team members' communication has broken down; each claims the other is causing delays and mistakes. Tension is now visible to other team members, and you have called both into a joint meeting to resolve it.\n\nYOUR OBJECTIVES:\n1. Establish neutrality\n2. Prevent blame escalation\n3. Identify the root cause\n4. Create a practical working agreement`,
+                scenario: `Two team members' communication has broken down; each claims the other is causing delays and mistakes. Tension is now visible to other team members, and you have called both into a joint meeting to resolve it.\n\nYOUR OBJECTIVES:\n1. Establish neutrality\n2. Prevent blame escalation\n3. Identify the root cause\n4. Create a practical working agreement`,
                 icon: "Users",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -95,7 +94,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Manage a frustrated key client threatening to escalate a delivery issue.",
                 ai_role: "Frustrated Key Client",
                 user_role: "Account Manager",
-                scenario: `CONTEXT: A key client is frustrated over a delivery issue and believes your team failed to meet expectations. They are threatening to escalate to senior leadership and reconsider future business.\n\nYOUR OBJECTIVES:\n1. Stay composed under pressure\n2. Acknowledge concerns without over-admitting liability\n3. Clarify facts\n4. Offer a structured path forward`,
+                scenario: `A key client is frustrated over a delivery issue and believes your team failed to meet expectations. They are threatening to escalate to senior leadership and reconsider future business.\n\nYOUR OBJECTIVES:\n1. Stay composed under pressure\n2. Acknowledge concerns without over-admitting liability\n3. Clarify facts\n4. Offer a structured path forward`,
                 icon: "ShoppingCart",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -108,7 +107,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Address a pattern of poor ownership with a capable team member.",
                 ai_role: "Team Member",
                 user_role: "Manager",
-                scenario: `CONTEXT: You are overwhelmed as critical tasks often end up back on your desk because a capable team member rarely takes full ownership. You need to address this pattern and redistribute responsibility.\n\nYOUR OBJECTIVES:\n1. Clarify expectations\n2. Avoid blame\n3. Define ownership boundaries\n4. Establish an accountability structure`,
+                scenario: `You are overwhelmed as critical tasks often end up back on your desk because a capable team member rarely takes full ownership. You need to address this pattern and redistribute responsibility.\n\nYOUR OBJECTIVES:\n1. Clarify expectations\n2. Avoid blame\n3. Define ownership boundaries\n4. Establish an accountability structure`,
                 icon: "GraduationCap",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -121,7 +120,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Understand and manage subtle resistance to organizational change.",
                 ai_role: "Experienced Team Member",
                 user_role: "Team Lead",
-                scenario: `CONTEXT: An experienced team member is subtly resisting a new organizational system, frequently calling it unnecessary. Their attitude is beginning to influence others.\n\nYOUR OBJECTIVES:\n1. Avoid confrontation\n2. Understand resistance drivers\n3. Reinforce the purpose of the change\n4. Encourage ownership in adaptation`,
+                scenario: `An experienced team member is subtly resisting a new organizational system, frequently calling it unnecessary. Their attitude is beginning to influence others.\n\nYOUR OBJECTIVES:\n1. Avoid confrontation\n2. Understand resistance drivers\n3. Reinforce the purpose of the change\n4. Encourage ownership in adaptation`,
                 icon: "AlertTriangle",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -134,7 +133,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Provide developmental feedback to a high performer not selected for promotion.",
                 ai_role: "High Performer",
                 user_role: "Manager",
-                scenario: `CONTEXT: A high performer applied for a promotion but was not selected. They have requested a meeting to understand why they were not chosen.\n\nYOUR OBJECTIVES:\n1. Acknowledge the emotional impact\n2. Provide specific developmental feedback\n3. Avoid vague generalizations\n4. Offer a forward-looking growth plan`,
+                scenario: `A high performer applied for a promotion but was not selected. They have requested a meeting to understand why they were not chosen.\n\nYOUR OBJECTIVES:\n1. Acknowledge the emotional impact\n2. Provide specific developmental feedback\n3. Avoid vague generalizations\n4. Offer a forward-looking growth plan`,
                 icon: "GraduationCap",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -147,7 +146,7 @@ const DEFAULT_SCENARIOS = [
                 description: "Sustainably explore signs of exhaustion and burnout with a high performer.",
                 ai_role: "Exhausted Performer",
                 user_role: "Manager",
-                scenario: `CONTEXT: The employee remains high-performing, but you have noticed signs of exhaustion, such as shorter responses and avoiding extra tasks. You suspect early signs of burnout.\n\nYOUR OBJECTIVES:\n1. Observe without accusing\n2. Create psychological safety\n3. Explore wellbeing sensitively\n4. Protect sustainable performance`,
+                scenario: `The employee remains high-performing, but you have noticed signs of exhaustion, such as shorter responses and avoiding extra tasks. You suspect early signs of burnout.\n\nYOUR OBJECTIVES:\n1. Observe without accusing\n2. Create psychological safety\n3. Explore wellbeing sensitively\n4. Protect sustainable performance`,
                 icon: "Users",
                 output_type: "scored_report",
                 mode: "evaluation",
@@ -425,12 +424,8 @@ export default function Practice() {
             setStartingScenarioTitle(data.title || 'custom')
             // Call backend to create session
             // Get auth token for session persistence
-            const { data: { session: authSession } } = await supabase.auth.getSession()
             const authHeaders: Record<string, string> = {
                 'Content-Type': 'application/json'
-            }
-            if (authSession?.access_token) {
-                authHeaders['Authorization'] = `Bearer ${authSession.access_token}`
             }
 
             const response = await fetch(getApiUrl('/api/session/start'), {
@@ -483,8 +478,7 @@ export default function Practice() {
                     characters: result.characters || null
                 }),
             )
-
-            navigate(`/conversation/${session_id}`)
+            navigate(`/system-check/${session_id}`)
 
         } catch (error) {
             console.error("Error starting session:", error)

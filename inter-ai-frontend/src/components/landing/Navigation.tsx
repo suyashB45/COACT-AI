@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Menu, X, User, LogOut } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
 import { ModeToggle } from '../mode-toggle';
 import ContactSalesModal from './ContactSalesModal';
 
@@ -16,32 +15,17 @@ const Navigation = () => {
 
     // Check auth state
     useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const { data: { session }, error } = await supabase.auth.getSession();
-                if (error) {
-                    console.error("Auth session error:", error);
-                }
-                setUser(session?.user ?? null);
-            } catch (err) {
-                console.error("Failed to get session:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        checkAuth();
-
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null);
-        });
-
-        return () => subscription.unsubscribe();
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            setUser(JSON.parse(userStr));
+        } else {
+            setUser(null);
+        }
+        setLoading(false);
     }, []);
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
+        localStorage.removeItem('user');
         setUser(null);
         setIsMobileMenuOpen(false);
         navigate('/login');

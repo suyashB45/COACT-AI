@@ -4,8 +4,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { getApiUrl } from '../lib/api';
-import { supabase } from '../lib/supabase';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -14,45 +12,39 @@ const Login: React.FC = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
+    const handleSignUp = async () => {
+        if (!email.trim() || !password.trim()) {
+            toast.error('Please enter your email and password.');
+            return;
+        }
+
+        setLoading(true);
+        setTimeout(() => {
+            localStorage.setItem('user', JSON.stringify({
+                id: 'local_user_123',
+                email: email.trim(),
+            }));
+
+            toast.success('Local account created! Welcome to CoAct.');
+            navigate('/practice');
+            setLoading(false);
+        }, 500);
+    };
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
-        try {
+        setTimeout(() => {
+            localStorage.setItem('user', JSON.stringify({
+                id: 'local_user_123',
+                email: email.trim(),
+            }));
 
-
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-
-            if (error) throw error;
-
-            if (data.session) {
-                const user = data.user;
-                localStorage.setItem('user', JSON.stringify({
-                    id: user?.id,
-                    email: user?.email,
-                }));
-
-                // Sync user with backend (non-blocking — don't fail login if backend is slow/down)
-                fetch(getApiUrl('/api/auth/sync'), {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${data.session.access_token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }).catch(err => console.warn('Backend sync skipped:', err));
-
-                toast.success(`Welcome back!`);
-                navigate('/practice');
-            }
-        } catch (err: any) {
-            console.error(err);
-            toast.error(err.message || "Login failed");
-        } finally {
+            toast.success(`Welcome back, ${email.trim()}!`);
+            navigate('/practice');
             setLoading(false);
-        }
+        }, 500);
     };
 
     return (
@@ -135,6 +127,15 @@ const Login: React.FC = () => {
                                 </>
                             )}
                         </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleSignUp}
+                        disabled={loading}
+                        className="w-full bg-transparent border border-primary/50 text-primary rounded-xl py-3 flex items-center justify-center hover:bg-primary/10 transition-colors font-medium mt-3"
+                    >
+                        Create Account
                     </button>
                 </form>
 
