@@ -536,7 +536,19 @@ export default function Conversation() {
             })
 
 
-            if (!response.ok) throw new Error("Failed to get AI response")
+            if (!response.ok) {
+                if (response.status === 429 || response.status === 403) {
+                    let errorMsg = undefined
+                    try {
+                        const errorData = await response.json()
+                        if (errorData.error) errorMsg = errorData.error
+                    } catch (e) {}
+                    
+                    navigate('/limit-reached', { state: { message: errorMsg } })
+                    return
+                }
+                throw new Error("Failed to get AI response")
+            }
 
             const data = await response.json()
             const aiResponse = data.follow_up

@@ -1,9 +1,14 @@
 import { motion } from 'framer-motion'
 import { AlertCircle, ArrowLeft, Sparkles } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 export default function LimitReached() {
     const navigate = useNavigate()
+    const location = useLocation()
+    
+    // Fallback message if one isn't provided by the backend
+    const defaultMessage = "You've experienced all the sessions available in your current plan. Upgrade to unlock unlimited scenarios, advanced coaching analytics, and Custom Scenario Builders."
+    const customMessage = location.state?.message || defaultMessage
 
     return (
         <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 relative overflow-hidden">
@@ -29,7 +34,7 @@ export default function LimitReached() {
                 </h1>
                 
                 <p className="text-muted-foreground mb-8 text-lg leading-relaxed">
-                    You've experienced all the sessions available in your current plan. Upgrade to unlock unlimited scenarios, advanced coaching analytics, and Custom Scenario Builders.
+                    {customMessage}
                 </p>
                 
                 <div className="space-y-4">

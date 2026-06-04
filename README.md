@@ -1,155 +1,62 @@
-# CoAct.AI
+# CoAct.AI - Implementation Guide
 
 **Version:** 1.0
-**Focus:** AI-Driven Behavioral Simulation & Coaching Analytics
-**Objective:** Transforming high-stakes human interactions into measurable data.
+
+This document outlines the technical implementation, architecture, and setup instructions for the CoAct.AI interactive roleplay simulator.
 
 ---
 
-## 1. System Architecture Overview
+## 1. Implementation & Architecture
 
-COACT.AI operates as a **Tri-Layer System** that manages the transition from live dialogue to structured coaching intelligence.
+The platform is built on a modern, high-performance stack prioritizing speed and cloud-based AI processing.
 
-### A. The Interaction Layer (Roleplay)
-- **Persona Engine:** Utilizes LLMs (GPT-4.1-Mini) with strictly defined personas to mhttps://coact-ai.comhavior (hesitation, defensiveness, or excitement).
-- **Context Manager:** Injects scenario-specific data (e.g., store sales targets, customer budget) into the prompt window.
+### Technology Stack
+| **Category**        | **Tools**                                                              |
+| ------------------- | ---------------------------------------------------------------------- |
+| **Frontend**        | React (Vite), TypeScript, TailwindCSS                                  |
+| **Backend**         | Python (FastAPI)                                                       |
+| **Database**        | SQLite (SQLAlchemy) for local dev, Supabase (PostgreSQL) for cloud     |
+| **LLM (Reasoning)** | Groq API (`llama-3.3-70b-versatile`)                                   |
+| **STT (Speech-to-Text)**| Groq API (`whisper-large-v3-turbo`)                                |
+| **TTS (Text-to-Speech)**| Sarvam AI (`bulbul:v3` for Indian accents) or OpenAI (`tts-1`)     |
 
-### B. The Intelligence Layer (The Orchestrator)
-- **Turn-by-Turn Analysis:** Monitors the conversation for "Trigger Phrases" or "Communication Errors" in real-time.
-- **Sentiment Tracker:** Measures the emotional distance between the AI and the Human.
-
-### C. The Reporting Layer (Data Output)
-- **Dynamic Report Engine:** Converts the transcript into structured feedback reports.
-- **The Blueprint Generator:** Uses "Chain-of-Thought" reasoning to suggest specific alternative scripts for the human.
-
----
-
-## 2. Standard Operating Procedures (SOP) by Scenario
-
-|**Phase**|**Scenario 1 (Staff)**|**Scenario 2 (Sales)**|**Scenario 3 (Coach)**|
-|---|---|---|---|
-|**Initialization**|Focus on _Performance Gap_|Focus on _Price Resistance_|Focus on _Self-Reflection_|
-|**AI Stance**|Defensive $\rightarrow$ Open|Sceptical $\rightarrow$ Sold|Curious $\rightarrow$ Guiding|
-|**Constraint**|Must show "Ego"|Must compare competitors|**No numerical scoring**|
-|**Success Metric**|Improvement Commitment|Value Articulation|Depth of Insight|
+### Data Flow Logic
+1. **Input:** Human user selects a scenario and speaks their response via the browser microphone (MediaRecorder API).
+2. **STT:** Audio is sentx to the FastAPI backend and forwarded to Groq's Whisper API for near-instant transcription.
+3. **Reasoning:** The transcription is added to the conversation history. The backend constructs a highly optimized prompt (using truncated history) and calls Groq's Llama 3.3.
+4. **TTS:** The AI's text response is sent to Sarvam AI (or OpenAI) to generate a realistic voice payload, which is streamed back to the frontend.
+5. **Report Generation:** Upon completion (up to 12 turns), a consolidated LLM call analyzes the full transcript and generates a detailed performance PDF report.
 
 ---
 
-## 3. Data Flow & Logic
-
-The platform follows a linear data pipeline to ensure accuracy:
-
-1.  **Input:** Human user selects/creates a scenario.
-2.  **Processing:**
-    *   **Orchestrator (Flask):** Manages the conversation flow and state.
-    *   **LLM (Azure OpenAI):** Generates responses and evaluates performance.
-3.  **Synthesis:** The **Report Engine** (Python) populates the metrics and generates PDF reports.
-4.  **Persistence:** Data is stored in **Supabase** (PostgreSQL) for long-term progress tracking and user history.
-
----
-
-## 4. Technical Performance Standards
-
-To maintain the "Realism" of COACT.AI, the following standards are targeted:
-
--   **Latency:** AI response time optimized for natural conversation flow.
--   **Persona Integrity:** The AI maintains character and does not break the "fourth wall".
--   **Hallucination Guardrails:** Strict system prompts prevent the AI from inventing facts outside the scenario context.
-
----
-
-## 5. Security & Ethics
-
--   **Anonymization:** User data is handled securely via Supabase Auth.
--   **Bias Mitigation:** The AI is tuned to avoid discriminatory biases in retail/managerial settings.
-
----
-
-## 6. High-Level Architecture Diagram
-
-### 1. Client Layer (Frontend)
--   **Interface:** React (Vite) application providing a chat-based UI.
--   **State Management:** Tracks the session state and visual feedback.
--   **Communication:** REST APIs for communication with the Go backend.
-
-### 2. Service Layer (Backend)
--   **API Server:** Go (Fiber) server handling authentication, scenario routing, and report generation.
--   **AI Integration:** Connects to self-hosted LLM via Ollama for chat capabilities.
--   **Report Generation:** Uses `go-pdf/fpdf` to generate detailed PDF reports.
--   **Speech-to-Text:** Local OpenAI Whisper CLI for audio transcription.
--   **Text-to-Speech:** Piper TTS for local speech synthesis.
-
-### 3. Data Layer (Persistence)
--   **SQLite (via GORM):** Local database for session history, user data, and reports.
--   **Supabase (optional):**
-    -   **Auth:** Handles user sign-up, login, and session management.
-    -   **Database:** PostgreSQL database storing user profiles and session history.
-
----
-
-## 7. Technology Stack Summary
-
-| **Category**        | **Tools**                        |
-| ------------------- | -------------------------------- |
-| **LLMs**            | Self-hosted via Ollama           |
-| **Backend**         | Go (Fiber)                       |
-| **Frontend**        | React (Vite), TailwindCSS        |
-| **Database**        | SQLite (GORM) / Supabase         |
-| **STT**             | OpenAI Whisper (local)           |
-| **TTS**             | Piper TTS (local)                |
-| **Deployment**      | Docker, Azure VM                 |
-
----
-
-## 8. Getting Started
+## 2. Getting Started
 
 ### Prerequisites
--   **Docker & Docker Compose**: For containerized deployment.
--   **Node.js**: If running frontend locally.
--   **Go 1.23+**: If running backend locally.
--   **Ollama**: Self-hosted LLM server (install from https://ollama.com).
--   **FFmpeg**: Required for Whisper audio transcription.
+-   **Node.js 18+**
+-   **Python 3.10+**
 
 ### Configuration
-Create a `.env` file in the root directory (based on `.env.example`) with the following:
-
+Create a `.env` file in the `inter-ai-backend` directory with the following minimum API keys to run the backend:
 ```env
-# Ollama / LLM
-MODEL_NAME=qwen3.5:0.8b
-OLLAMA_API_URL=http://localhost:11434
-
-# Supabase (optional)
-SUPABASE_URL=...
-SUPABASE_KEY=...
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_KEY=...
-
-# Piper TTS Models
-PIPER_MODEL_PATH=./piper_models/en_US-lessac-medium.onnx
+GROQ_API_KEY=your_groq_key
+OPENAI_API_KEY=your_openai_key
+SARVAM_API_KEY=your_sarvam_key
 ```
-
-### Running with Docker (Recommended)
-```bash
-docker-compose up --build
-```
-The frontend will be available at `http://localhost` (or configured domain) and backend at `http://localhost:8000`.
 
 ### Running Locally (Dev Mode)
-**Backend (Go):**
+
+**Backend (Python FastAPI):**
 ```bash
-cd inter-ai-backend-go
-go run ./cmd/server
+cd inter-ai-backend
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+python app.py
 ```
 
-**Frontend:**
+**Frontend (React/Vite):**
 ```bash
 cd inter-ai-frontend
 npm install
 npm run dev
-```
-
-**Both (concurrent):**
-```bash
-cd inter-ai-frontend
-npm run dev:all
 ```

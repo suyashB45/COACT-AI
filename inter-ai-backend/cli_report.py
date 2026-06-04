@@ -17,6 +17,45 @@ import time
 
 load_dotenv()
 
+# ---------------------------------------------------------
+# LangSmith Tracing Configuration
+# ---------------------------------------------------------
+def configure_langsmith():
+    """Configure LangSmith tracing for all LangChain LLM calls.
+    
+    Supports both naming conventions:
+        LANGSMITH_API_KEY  / LANGCHAIN_API_KEY
+        LANGSMITH_PROJECT  / LANGCHAIN_PROJECT
+        LANGSMITH_ENDPOINT / LANGCHAIN_ENDPOINT
+        LANGSMITH_TRACING  / LANGCHAIN_TRACING_V2
+    """
+    # Check both naming conventions (LANGSMITH_* is newer, LANGCHAIN_* is legacy)
+    api_key = os.getenv("LANGSMITH_API_KEY") or os.getenv("LANGCHAIN_API_KEY")
+    if api_key:
+        # Set both naming conventions for full SDK compatibility
+        os.environ["LANGCHAIN_API_KEY"] = api_key
+        os.environ["LANGSMITH_API_KEY"] = api_key
+        
+        tracing = os.getenv("LANGSMITH_TRACING") or os.getenv("LANGCHAIN_TRACING_V2", "true")
+        os.environ["LANGCHAIN_TRACING_V2"] = tracing
+        os.environ["LANGSMITH_TRACING"] = tracing
+        
+        project = os.getenv("LANGSMITH_PROJECT") or os.getenv("LANGCHAIN_PROJECT", "CoAct-AI")
+        os.environ["LANGCHAIN_PROJECT"] = project
+        os.environ["LANGSMITH_PROJECT"] = project
+        
+        endpoint = os.getenv("LANGSMITH_ENDPOINT") or os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
+        os.environ["LANGCHAIN_ENDPOINT"] = endpoint
+        os.environ["LANGSMITH_ENDPOINT"] = endpoint
+        
+        print(f"[SUCCESS] LangSmith tracing enabled for project: {project}")
+    else:
+        os.environ["LANGCHAIN_TRACING_V2"] = "false"
+        os.environ["LANGSMITH_TRACING"] = "false"
+        print("[INFO] LangSmith tracing disabled (no LANGSMITH_API_KEY found)")
+
+configure_langsmith()
+
 import matplotlib
 matplotlib.use('Agg') # Non-interactive backend
 import matplotlib.pyplot as plt
@@ -180,12 +219,26 @@ def get_bar_color(score):
     if s > 0.0: return COLORS['danger']
     return COLORS['grey_text']
 
-def llm_reply(messages, max_tokens=4000, max_retries=3, delay=1, return_usage=False):
+def llm_reply(messages, max_tokens=4000, max_retries=3, delay=1, return_usage=False, run_name=None, run_tags=None):
+    """Call the LLM with retry logic and optional LangSmith tracing metadata.
+    
+    Args:
+        run_name: Optional name for this run in LangSmith (e.g., 'chat_reply', 'report_generation')
+        run_tags: Optional list of tags for filtering in LangSmith (e.g., ['session', 'turn-5'])
+    """
     request_tokens = count_request_tokens(messages) if return_usage else None
+    
+    # Build LangChain config for LangSmith tracing
+    langchain_config = {}
+    if run_name:
+        langchain_config["run_name"] = run_name
+    if run_tags:
+        langchain_config["tags"] = run_tags
+    
     for attempt in range(max_retries):
         try:
             print(f" [DEBUG] llm_reply attempt {attempt + 1}", flush=True)
-            response = llm.invoke(messages)
+            response = llm.invoke(messages, config=langchain_config if langchain_config else None)  # type: ignore
             content = response.content
             if isinstance(content, list):
                 text = "".join(str(x) for x in content).strip()
@@ -373,7 +426,7 @@ Be SPECIFIC. Quote EXACT words. No generic advice.
     
     try:
         chain = prompt_template | llm
-        response = chain.invoke({"prompt": prompt})
+        response = chain.invoke({"prompt": prompt}, config={"run_name": "character_analysis", "tags": ["report", "analysis"]})
         
         # Robust parsing
         json_text = response.content if hasattr(response, 'content') else str(response)
@@ -465,7 +518,7 @@ Categorize each question and specify optimal timing in the conversation.
     
     try:
         chain = prompt_template | llm
-        response = chain.invoke({"prompt": prompt})
+        response = chain.invoke({"prompt": prompt}, config={"run_name": "question_analysis", "tags": ["report", "analysis"]})
         
         # Robust parsing
         json_text = response.content if hasattr(response, 'content') else str(response)
@@ -684,10 +737,16 @@ RULES:
         t1 = dt.datetime.now()
         
         try:
-            raw_response = chain_raw.invoke({
-                "system_prompt": system_prompt,
-                "conversation": full_conversation
-            })
+            raw_response = chain_raw.invoke(
+                {
+                    "system_prompt": system_prompt,
+                    "conversation": full_conversation
+                },
+                config={
+                    "run_name": "report_generation",
+                    "tags": ["report", scenario_type or "unknown"]
+                }
+            )
         except Exception as invoke_error:
             print(f" [ERROR] Report LLM call failed: {invoke_error}", flush=True)
             raw_response = None

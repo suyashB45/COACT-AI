@@ -3,7 +3,7 @@ import json
 import gzip
 import base64
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Text, Float, Boolean, JSON
+from sqlalchemy import create_engine, Column, String, Text, Float, Boolean, JSON, Integer
 from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
@@ -37,6 +37,13 @@ class PracticeHistory(Base):
     completed = Column(Boolean, default=False)
     score = Column(Float)
     created_at = Column(String(255))
+    updated_at = Column(String(255))
+
+class UserTokenUsage(Base):
+    __tablename__ = 'user_token_usage'
+    user_id = Column(String(255), primary_key=True)
+    date = Column(String(255), primary_key=True)  # YYYY-MM-DD
+    tokens_used = Column(Integer, default=0)
     updated_at = Column(String(255))
 
 # ---------------------------------------------------------
@@ -273,3 +280,48 @@ def get_previous_session_scores(user_id, title, current_session_id):
     except Exception as e:
         print(f"[ERROR] Failed to fetch previous session for comparison: {e}")
         return None
+
+def get_current_date_str():
+    return datetime.now().strftime('%Y-%m-%d')
+
+def check_monthly_session_limit(user_id, limit=3):
+    try:
+        current_month = datetime.now().strftime('%Y-%m-')
+        count = db.session.query(PracticeHistory).filter(
+            PracticeHistory.user_id == str(user_id),
+            PracticeHistory.created_at.like(f"{current_month}%")
+        ).count()
+        print(f"[SESSION_LIMIT] User {user_id} has created {count} sessions this month.")
+        return count < limit
+    except Exception as e:
+        print(f"[ERROR] DB Check Monthly Limit failed for user {user_id}: {e}")
+        return True # Default to True on DB error so we don't block the user
+
+def check_token_limit(user_id, limit=50000):
+    try:
+        today = get_current_date_str()
+        record = db.session.query(UserTokenUsage).filter_by(user_id=str(user_id), date=today).first()
+        if not record:
+            return True
+        return record.tokens_used < limit
+    except Exception as e:
+        print(f"[ERROR] DB Check Token Limit failed for user {user_id}: {e}")
+        return True # Default to True on DB error so we don't break the app
+
+def add_token_usage(user_id, tokens):
+    try:
+        today = get_current_date_str()
+        record = db.session.query(UserTokenUsage).filter_by(user_id=str(user_id), date=today).first()
+        if not record:
+            record = UserTokenUsage(user_id=str(user_id), date=today, tokens_used=0) # type: ignore
+            db.session.add(record)
+            
+        record.tokens_used += tokens
+        record.updated_at = datetime.now().isoformat()
+        db.session.commit()
+        print(f"[TOKEN_USAGE] Added {tokens} tokens for user {user_id}. Total today: {record.tokens_used}")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print(f"[ERROR] DB Add Token Usage failed for user {user_id}: {e}")
+        return False

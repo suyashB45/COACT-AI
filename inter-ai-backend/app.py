@@ -35,7 +35,7 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "super-secret-key-change-in-production
 # Custom Modules & Setup
 # ---------------------------------------------------------
 from cli_report import generate_report, llm_reply, analyze_full_report_data, detect_scenario_type
-from database import get_user_analytics_from_db, get_session_from_db, get_user_sessions_from_db, save_session_to_db, get_previous_session_scores, clear_user_sessions_from_db
+from database import get_user_analytics_from_db, get_session_from_db, get_user_sessions_from_db, save_session_to_db, get_previous_session_scores, clear_user_sessions_from_db, check_token_limit, add_token_usage, check_monthly_session_limit
 
 # Database Models
 USE_DATABASE = True # Re-enabled database persistence
@@ -56,6 +56,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Default max tokens per user per day
+DAILY_TOKEN_LIMIT = 50000
 
 # ---------------------------------------------------------
 # In-Memory Storage with TTL Cache (Auto-cleanup, prevents memory leaks)
@@ -932,18 +935,34 @@ async def transcribe_audio(request: Request):
         audio_url = None
         
         try:
-            print(f" [INFO] Transcribing audio with Groq Whisper...")
-            def _run_transcription():
+            print(f" [INFO] Transcribing audio with Sarvam AI STT-Translate...")
+            import httpx
+            sarvam_key = os.getenv("SARVAM_API_KEY")
+            if not sarvam_key:
+                return JSONResponse(content={"error": "SARVAM_API_KEY not configured"}, status_code=500)
+                
+            async with httpx.AsyncClient(timeout=60.0) as stt_client:
                 with open(read_path, "rb") as f:
-                    return client.audio.transcriptions.create(
-                        file=(os.path.basename(read_path), f.read()),
-                        model="whisper-large-v3-turbo",
-                        prompt="The user is speaking in a professional context.",
-                        response_format="text"
+                    files = {
+                        "file": (os.path.basename(read_path), f, "audio/webm")
+                    }
+                    data = {
+                        "prompt": "The user is speaking in a professional context."
+                    }
+                    resp = await stt_client.post(
+                        "https://api.sarvam.ai/speech-to-text-translate",
+                        headers={"api-subscription-key": sarvam_key},
+                        files=files,
+                        data=data
                     )
                     
-            transcribed_text = await asyncio.to_thread(_run_transcription)
-            transcribed_text = transcribed_text.strip()
+            if resp.status_code != 200:
+                print(f" [ERROR] Sarvam STT Error: {resp.status_code} {resp.text}")
+                return JSONResponse(content={"error": "Sarvam STT failed"}, status_code=500)
+                
+            response_json = resp.json()
+            # The API returns {"transcript": "translated text"}
+            transcribed_text = response_json.get("transcript", "").strip()
             
             if not transcribed_text:
                 raise Exception("No text transcribed")
@@ -1163,7 +1182,7 @@ AVAILABLE FRAMEWORKS:
 Based on the scenario, respond with ONLY the framework names separated by commas (e.g., "EQ, BOUNDARY, GROW"). No explanations."""
 
     try:
-        response = llm_reply([{"role": "user", "content": prompt}], max_tokens=50)
+        response = llm_reply([{"role": "user", "content": prompt}], max_tokens=50, run_name="framework_selection", run_tags=["setup"])
         # Parse the response
         frameworks = [fw.strip().upper() for fw in response.split(",")]
         # Filter to only valid frameworks
@@ -1218,6 +1237,13 @@ async def start_session(request: Request):
 
 
     data = await request.json() or {}
+
+    user = get_authenticated_user()
+    if user is not None:
+        if not check_monthly_session_limit(user.id, limit=3):
+            return JSONResponse(content={"error": "Monthly limit reached. You have already created 3 sessions this month."}, status_code=429)
+        if not check_token_limit(user.id, DAILY_TOKEN_LIMIT):
+            return JSONResponse(content={"error": f"Daily token limit ({DAILY_TOKEN_LIMIT}) exceeded. Please try again tomorrow."}, status_code=429)
 
     role = data.get("role")
     ai_role = data.get("ai_role")
@@ -1336,20 +1362,31 @@ async def start_session(request: Request):
             future_summary = executor.submit(
                 lambda: llm_reply(
                     build_summary_prompt(role, ai_role, scenario, ["GROW", "EQ"], mode=mode, ai_character=ai_character, simulation_id=simulation_id),
-                    max_tokens=150
+                    max_tokens=150,
+                    return_usage=True,
+                    run_name="session_opening_parallel",
+                    run_tags=["session_start", mode or "coaching"]
                 )
             )
             framework = future_fw.result(timeout=15)
-            summary = sanitize_llm_output(future_summary.result(timeout=30))
+            summary_tuple = future_summary.result(timeout=30)
+            if isinstance(summary_tuple, tuple):
+                summary = sanitize_llm_output(summary_tuple[0])
+                if user is not None: add_token_usage(user.id, summary_tuple[1].get('total_tokens', 0))
+            else:
+                summary = sanitize_llm_output(summary_tuple)
         print(f"[PERF] Parallel framework+summary completed in {_time.time()-_t_start:.2f}s")
     else:
         summary, summary_usage = llm_reply(
             build_summary_prompt(role, ai_role, scenario, framework, mode=mode, ai_character=ai_character, simulation_id=simulation_id),
             max_tokens=150,
-            return_usage=True
+            return_usage=True,
+            run_name="session_opening",
+            run_tags=["session_start", mode or "coaching"]
         )
         summary = sanitize_llm_output(summary)
         print(f"[TOKEN] Summary call | request={summary_usage['request_tokens']} response={summary_usage['response_tokens']} total={summary_usage['total_tokens']}", flush=True)
+        if user is not None: add_token_usage(user.id, summary_usage.get('total_tokens', 0))
         print(f"[PERF] Sequential summary completed in {_time.time()-_t_start:.2f}s")
     
     # Determine if this is a multi-character scenario
@@ -1418,6 +1455,9 @@ async def chat(session_id: str, request: Request):
     session_user_id = sess.get("user_id")
     if session_user_id and (not user or str(session_user_id) != str(user.id)):
         return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+        
+    if user is not None and not check_token_limit(user.id, DAILY_TOKEN_LIMIT):
+        return JSONResponse(content={"error": f"Daily token limit ({DAILY_TOKEN_LIMIT}) exceeded. Please try again tomorrow."}, status_code=429)
     
     data = await request.json()
     if not data:
@@ -1461,8 +1501,31 @@ async def chat(session_id: str, request: Request):
         messages = build_followup_prompt(sess, user_msg, suggestions)
     
     turn_count = len([t for t in sess.get("transcript", []) if t.get("role") == "user"])
-    raw_response, token_usage = await asyncio.to_thread(llm_reply, messages, max_tokens=300, return_usage=True)
+    
+    # -------------------------------------------------------------
+    # LANGGRAPH MIGRATION: Invoke the state graph instead of llm_reply
+    # -------------------------------------------------------------
+    from graph import app_graph
+    
+    graph_state = await asyncio.to_thread(
+        app_graph.invoke,
+        {
+            "messages": messages,
+            "turn_count": turn_count,
+            "mode": sess.get('mode', 'coaching'),
+            "session_id": session_id
+        },
+        config={
+            "run_name": f"CoAct_Chat_Turn_{turn_count}",
+            "tags": ["langgraph", f"session:{session_id}"]
+        }
+    )
+    
+    raw_response = graph_state["raw_response"]
+    token_usage = graph_state["token_usage"]
     print(f"[TOKEN] Chat turn {turn_count} | request={token_usage['request_tokens']} response={token_usage['response_tokens']} total={token_usage['total_tokens']} | {len(messages)} messages", flush=True)
+    
+    if user is not None: add_token_usage(user.id, token_usage.get('total_tokens', 0))
     
     # 1. Extract Thought
     thought_match = re.search(r"\[THOUGHT\](.*?)\[/THOUGHT\]", raw_response, re.DOTALL)
@@ -1508,6 +1571,9 @@ async def complete_session(session_id: str, request: Request):
     session_user_id = sess.get("user_id")
     if session_user_id and (not user or str(session_user_id) != str(user.id)):
         return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+        
+    if user is not None and not check_token_limit(user.id, DAILY_TOKEN_LIMIT):
+        return JSONResponse(content={"error": f"Daily token limit ({DAILY_TOKEN_LIMIT}) exceeded. Please try again tomorrow."}, status_code=429)
     
     report_path = os.path.join(ensure_reports_dir(), f"{session_id}_report.pdf")
     

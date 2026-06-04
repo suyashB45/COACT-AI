@@ -200,10 +200,16 @@ def analyze_mentorship_report_data(transcript, role, ai_role, scenario,
 
     try:
         chain_raw = prompt | llm
-        raw_response = chain_raw.invoke({
-            "system_prompt": system_prompt,
-            "conversation": full_conversation,
-        })
+        raw_response = chain_raw.invoke(
+            {
+                "system_prompt": system_prompt,
+                "conversation": full_conversation,
+            },
+            config={
+                "run_name": "mentorship_report_generation",
+                "tags": ["report", "mentorship"]
+            }
+        )
 
         json_text = raw_response.content if hasattr(raw_response, "content") else str(raw_response)
         data = parse_json_robustly(json_text)
