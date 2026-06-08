@@ -1,19 +1,31 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
-import Home from './pages/Home'
-import Practice from './pages/Practice'
-import Conversation from './pages/Conversation'
-import Report from './pages/Report'
-import SessionHistory from './pages/SessionHistory'
-import Dashboard from './pages/Dashboard'
-import Profile from './pages/Profile'
-import LimitReached from './pages/LimitReached'
 import ProtectedRoute from './components/ProtectedRoute'
 import ScrollProgress from './components/ui/ScrollProgress'
+import ErrorBoundary from './components/ErrorBoundary'
+import { Loader2 } from 'lucide-react'
 
-import SystemCheck from './pages/SystemCheck'
-import Login from './pages/Login'
+// Lazy loaded pages
+const Home = lazy(() => import('./pages/Home'))
+const Practice = lazy(() => import('./pages/Practice'))
+const Conversation = lazy(() => import('./pages/Conversation'))
+const Report = lazy(() => import('./pages/Report'))
+const SessionHistory = lazy(() => import('./pages/SessionHistory'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Profile = lazy(() => import('./pages/Profile'))
+const LimitReached = lazy(() => import('./pages/LimitReached'))
+const SystemCheck = lazy(() => import('./pages/SystemCheck'))
+const Login = lazy(() => import('./pages/Login'))
+
+// Simple page loader for Suspense fallback
+const PageLoader = () => (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+        <p className="text-muted-foreground font-medium">Loading...</p>
+    </div>
+)
 function AppContent() {
     const location = useLocation()
 
@@ -27,18 +39,20 @@ function AppContent() {
                 transition={{ duration: 0.3 }}
                 className="w-full"
             >
-                <Routes location={location} key={location.pathname}>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
-                    <Route path="/limit-reached" element={<ProtectedRoute><LimitReached /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                    <Route path="/history" element={<ProtectedRoute><SessionHistory /></ProtectedRoute>} />
-                    <Route path="/system-check/:sessionId" element={<ProtectedRoute><SystemCheck /></ProtectedRoute>} />
-                    <Route path="/conversation/:sessionId" element={<ProtectedRoute><Conversation /></ProtectedRoute>} />
-                    <Route path="/report/:sessionId" element={<ProtectedRoute><Report /></ProtectedRoute>} />
-                </Routes>
+                <Suspense fallback={<PageLoader />}>
+                    <Routes location={location} key={location.pathname}>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
+                        <Route path="/limit-reached" element={<ProtectedRoute><LimitReached /></ProtectedRoute>} />
+                        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                        <Route path="/history" element={<ProtectedRoute><SessionHistory /></ProtectedRoute>} />
+                        <Route path="/system-check/:sessionId" element={<ProtectedRoute><SystemCheck /></ProtectedRoute>} />
+                        <Route path="/conversation/:sessionId" element={<ProtectedRoute><Conversation /></ProtectedRoute>} />
+                        <Route path="/report/:sessionId" element={<ProtectedRoute><Report /></ProtectedRoute>} />
+                    </Routes>
+                </Suspense>
             </motion.div>
         </AnimatePresence>
     )
@@ -46,11 +60,13 @@ function AppContent() {
 
 function App() {
     return (
-        <BrowserRouter>
-            <ScrollProgress />
-            <Toaster position="top-center" theme="dark" richColors />
-            <AppContent />
-        </BrowserRouter>
+        <ErrorBoundary>
+            <BrowserRouter>
+                <ScrollProgress />
+                <Toaster position="top-center" theme="dark" richColors />
+                <AppContent />
+            </BrowserRouter>
+        </ErrorBoundary>
     )
 }
 

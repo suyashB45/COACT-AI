@@ -26,7 +26,8 @@ def chat_node(state: AgentState):
         delay=1, 
         return_usage=True,
         run_name=f"chat_turn_{turn_count}",
-        run_tags=["chat", f"session:{session_id}", f"turn:{turn_count}", mode]
+        run_tags=["chat", f"session:{session_id}", f"turn:{turn_count}", mode],
+        use_chat_model=True
     )
     
     return {

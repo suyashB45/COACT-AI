@@ -10,7 +10,7 @@ Handles both:
 import datetime as dt
 from cli_report import (
     COLORS, DashboardPDF, sanitize_text, parse_json_robustly,
-    detect_scenario_type, setup_langchain_model, llm,
+    detect_scenario_type, setup_langchain_model, report_llm,
 )
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
@@ -199,7 +199,7 @@ def analyze_mentorship_report_data(transcript, role, ai_role, scenario,
     )
 
     try:
-        chain_raw = prompt | llm
+        chain_raw = prompt | report_llm
         raw_response = chain_raw.invoke(
             {
                 "system_prompt": system_prompt,
@@ -211,7 +211,13 @@ def analyze_mentorship_report_data(transcript, role, ai_role, scenario,
             }
         )
 
-        json_text = raw_response.content if hasattr(raw_response, "content") else str(raw_response)
+        content = raw_response.content if hasattr(raw_response, "content") else str(raw_response)
+        if isinstance(content, str):
+            json_text = content.strip()
+        elif isinstance(content, list):
+            json_text = "".join(str(x) for x in content).strip()
+        else:
+            json_text = str(content).strip()
         data = parse_json_robustly(json_text)
 
         if data is None:

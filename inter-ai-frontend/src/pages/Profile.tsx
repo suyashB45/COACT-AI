@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Clock, Trophy, Calendar, ArrowRight, LogOut, PlayCircle } from 'lucide-react';
 import Navigation from '../components/landing/Navigation';
-import { getApiUrl } from '../lib/api';
+import { getApiUrl, getAuthHeaders } from '../lib/api';
 
 interface Session {
     session_id: string;
@@ -39,9 +39,7 @@ const Profile: React.FC = () => {
 
             // Fetch practice history
             const res = await fetch(getApiUrl('/api/history'), {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: { ...getAuthHeaders() }
             });
 
             if (res.ok) {
@@ -81,14 +79,14 @@ const Profile: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen hero-ultra-modern flex items-center justify-center">
-                <div className="animate-spin w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"></div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen hero-ultra-modern font-sans">
+        <div className="min-h-screen bg-background font-sans">
             <Navigation />
 
             <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 pb-16 sm:pb-32">
@@ -96,7 +94,7 @@ const Profile: React.FC = () => {
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="card-ultra-glass p-4 sm:p-8 mb-8"
+                    className="bg-card border border-border shadow-sm rounded-xl p-4 sm:p-8 mb-8"
                 >
                     <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-6">
                         <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
@@ -129,7 +127,7 @@ const Profile: React.FC = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="card-ultra-glass p-4 sm:p-6 text-center"
+                        className="bg-card border border-border shadow-sm rounded-xl p-4 sm:p-6 text-center"
                     >
                         <PlayCircle className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 mx-auto mb-2" />
                         <div className="text-2xl sm:text-3xl font-bold text-foreground">{stats.total}</div>
@@ -140,7 +138,7 @@ const Profile: React.FC = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
-                        className="card-ultra-glass p-4 sm:p-6 text-center flex flex-col items-center justify-center"
+                        className="bg-card border border-border shadow-sm rounded-xl p-4 sm:p-6 text-center flex flex-col items-center justify-center"
                     >
                         <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-green-400 mx-auto mb-2" />
                         <div className="text-2xl sm:text-3xl font-bold text-foreground">{stats.completed}</div>
@@ -151,7 +149,7 @@ const Profile: React.FC = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="card-ultra-glass p-4 sm:p-6 text-center"
+                        className="bg-card border border-border shadow-sm rounded-xl p-4 sm:p-6 text-center"
                     >
                         <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 mx-auto mb-2" />
                         <div className="text-2xl sm:text-3xl font-bold text-foreground">{stats.avgScore || '-'}</div>
@@ -164,7 +162,7 @@ const Profile: React.FC = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="card-ultra-glass p-4 sm:p-6"
+                    className="bg-card border border-border shadow-sm rounded-xl p-4 sm:p-6"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold text-foreground">Practice History</h2>
@@ -182,7 +180,7 @@ const Profile: React.FC = () => {
                             <p className="text-muted-foreground">No practice sessions yet.</p>
                             <Link
                                 to="/practice"
-                                className="inline-block mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                                className="inline-block mt-4 px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                             >
                                 Start Your First Session
                             </Link>

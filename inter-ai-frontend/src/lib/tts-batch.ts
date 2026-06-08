@@ -1,3 +1,5 @@
+import { getAuthHeaders } from "./api"
+
 /**
  * Batch TTS Utility - PHASE 2 OPTIMIZATION
  * 
@@ -45,7 +47,7 @@ export async function batchSpeakCharacters(
         const ttsRequests = parsedLines.map((line, index) =>
             fetch(getApiUrl('/api/speak'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { ...getAuthHeaders() },
                 body: JSON.stringify({
                     text: line.text,
                     voice: line.voice
@@ -154,7 +156,7 @@ export async function speakTextSequential(
 
         const response = await fetch(getApiUrl('/api/speak'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { ...getAuthHeaders() },
             body: JSON.stringify({ text, voice })
         })
 

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { Camera, Mic, CheckCircle2, AlertCircle, Loader2, Server } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
-import { getApiUrl } from "@/lib/api"
+import { getApiUrl, getAuthHeaders } from "@/lib/api"
 
 export default function SystemCheck() {
     const { sessionId } = useParams()
@@ -107,9 +107,7 @@ export default function SystemCheck() {
         try {
             const response = await fetch(getApiUrl('/api/health'), {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: { ...getAuthHeaders() }
             })
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`)
@@ -137,7 +135,7 @@ export default function SystemCheck() {
                 animate={{ opacity: 1, y: 0 }}
                 className="max-w-xl w-full bg-card/40 border border-white/10 rounded-3xl p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden"
             >
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-purple-500 to-pink-500 opacity-80" />
+                <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
                 
                 <div className="text-center mb-10">
                     <h1 className="text-3xl font-bold mb-3 tracking-tight">System Permissions Setup</h1>
@@ -298,7 +296,7 @@ export default function SystemCheck() {
                         onClick={handleNext}
                         className={`w-full sm:w-auto px-12 rounded-full font-bold h-12 text-base transition-all duration-300 ${
                             allPassed 
-                                ? 'bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]' 
+                                ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
                                 : 'bg-white/5 text-white/40 cursor-not-allowed'
                         }`}
                     >

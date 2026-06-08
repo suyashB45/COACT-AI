@@ -10,64 +10,28 @@ Before you begin, ensure you have:
 
 - [ ] A Linux server (Ubuntu 20.04+ recommended) with root/sudo access
 - [ ] Domain name pointed to your server IP (e.g., `coact-ai.com`)
-- [ ] Azure OpenAI API access with deployments configured
+- [ ] API keys for Groq, OpenAI, and Sarvam AI
 - [ ] Supabase project created
-- [ ] Azure Blob Storage (optional, for file storage)
 
 ---
 
-## 🚀 Part 1: Database Setup (Supabase)
+## 🚀 Part 1: Database Setup (MongoDB Atlas)
 
-### Step 1: Access Supabase SQL Editor
+### Step 1: Create a MongoDB Cluster
 
-1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
-2. Select your project
-3. Navigate to **SQL Editor** in the left sidebar
-4. Click **New Query**
+1. Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) and sign in/register.
+2. Create a new cluster (the free M0 tier works fine for starting out).
+3. Under **Database Access**, create a new database user and save the password securely.
+4. Under **Network Access**, allow IP access (you can whitelist `0.0.0.0/0` if your server IP changes, or specify your server's exact static IP for better security).
 
-### Step 2: Run the Database Schema
+### Step 2: Get Connection String
 
-Copy the **entire contents** of `supabase_schema.sql` from this repository and paste it into the SQL Editor.
+1. Go back to your Cluster overview.
+2. Click **Connect** → **Connect your application**.
+3. Copy the provided connection string.
+4. Replace `<password>` with the password you created in Step 1. You will need this string for your `.env` file!
 
-```sql
--- The schema creates these tables:
--- 1. practice_history - Main sessions table
--- 2. coaching_reports - Coaching scenario reports
--- 3. sales_reports - Sales scenario reports
--- 4. mentorship_reports - Mentorship scenario reports (NEW!)
--- 5. learning_plans - Learning and reflection reports
--- 6. user_profiles - User profile information
-```
-
-Click **Run** to execute the schema.
-
-### Step 3: Verify Tables Created
-
-In the Supabase dashboard, go to **Table Editor** and verify these tables exist:
-- ✅ practice_history
-- ✅ coaching_reports
-- ✅ sales_reports
-- ✅ mentorship_reports
-- ✅ learning_plans
-- ✅ user_profiles
-
-### Step 4: Configure Authentication
-
-1. Go to **Authentication** → **Settings**
-2. Enable **Email** provider
-3. (Optional) Configure OAuth providers (Google, GitHub, etc.)
-4. Go to **Security** → Enable **Leaked password protection**
-
-### Step 5: Get Database Credentials
-
-Go to **Settings** → **Database** and copy:
-- Connection string (replace `[YOUR-PASSWORD]` with actual password)
-
-Go to **Settings** → **API** and copy:
-- Project URL
-- `anon/public` key
-- `service_role` key (keep this secret!)
-
+*Note: The application will automatically create the necessary collections (`practice_history`, `users`, etc.) upon first startup.*
 ---
 
 ## 🖥️ Part 2: Server Setup
@@ -130,24 +94,16 @@ sudo nano .env
 Update these values:
 
 ```env
-# Self-Hosted LLM (Ollama)
-MODEL_NAME=qwen3.5:0.8b
-OLLAMA_API_URL=http://host.docker.internal:11434
+# Groq, OpenAI, and Sarvam API Keys
+GROQ_API_KEY=your_groq_api_key
+OPENAI_API_KEY=your_openai_api_key
+SARVAM_API_KEY=your_sarvam_api_key
 
-# Supabase (optional)
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=your-anon-key
-SUPABASE_SERVICE_KEY=your-service-role-key
+# MongoDB Database
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/coact?retryWrites=true&w=majority
 
 # Vite Frontend
-VITE_SUPABASE_URL=https://your-project-ref.supabase.co
-VITE_SUPABASE_KEY=your-anon-key
 VITE_API_URL=https://coact-ai.com
-
-# Piper TTS Models
-PIPER_MODEL_PATH=/app/models/en_US-lessac-medium.onnx
-PIPER_MODEL_PATH_BOY=/app/models/en_US-lessac-medium.onnx
-PIPER_MODEL_PATH_GIRL=/app/models/en_US-lessac-medium.onnx
 
 # Auth & Security
 JWT_SECRET=your-secure-jwt-secret
@@ -159,30 +115,7 @@ DOMAIN=coact-ai.com
 
 **Save**: Press `Ctrl+X`, then `Y`, then `Enter`
 
-### Step 3: Install Ollama & Pull Model
 
-```bash
-# Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Pull your LLM model
-ollama pull qwen3.5:0.8b
-
-# Verify Ollama is running
-curl http://localhost:11434/api/version
-```
-
-### Step 4: Setup Piper TTS Models
-
-```bash
-# Create models directory
-mkdir -p piper_models
-
-# Download a Piper voice model (example: en_US-lessac-medium)
-curl -L https://github.com/rhasspy/piper/releases/download/v0.0.2/voice-en-us-lessac-medium.tar.gz \
-  -o /tmp/piper-voice.tar.gz
-tar -xzf /tmp/piper-voice.tar.gz -C piper_models/
-```
 
 ---
 
@@ -216,7 +149,7 @@ sudo docker-compose up -d --build
 
 This will build and start:
 - **Frontend** (React/Vite + Nginx reverse proxy with SSL)
-- **Backend** (Go/Fiber with bundled Whisper & Piper)
+- **Backend** (Python FastAPI)
 
 ### Step 2: Check Container Status
 
@@ -295,13 +228,12 @@ sudo docker system prune -a
 
 ### Database Connection Issues
 
-**Problem**: Backend can't connect to Supabase
+**Problem**: Backend can't connect to MongoDB
 
 **Solution**:
-1. Verify `DATABASE_URL` is correct
-2. Check Supabase project is not paused
-3. Ensure password is URL-encoded (e.g., `@` → `%40`)
-4. Verify IP allowlist in Supabase dashboard
+1. Verify `MONGODB_URI` is correct in your `.env` file.
+2. Ensure you've replaced `<password>` with the actual MongoDB user password.
+3. Verify your server's IP address is whitelisted in MongoDB Atlas under Network Access.
 
 ### SSL Certificate Issues
 
@@ -337,15 +269,14 @@ sudo docker-compose logs backend
 # 3. Check port conflicts (5001, 3000, 80, 443)
 ```
 
-### Ollama / LLM Errors
+### External API Errors
 
-**Problem**: Backend can't reach Ollama
+**Problem**: Backend returns 500 when responding to user speech.
 
 **Solution**:
-1. Verify Ollama is running: `curl http://localhost:11434/api/version`
-2. Check `OLLAMA_API_URL` in `.env` (use `http://host.docker.internal:11434` for Docker)
-3. Verify the model is pulled: `ollama list`
-4. Check the model name in `MODEL_NAME` matches exactly
+1. Verify that `GROQ_API_KEY`, `OPENAI_API_KEY`, and `SARVAM_API_KEY` are correct in the `.env` file.
+2. Check the docker logs (`sudo docker-compose logs backend`) for specific errors from the Groq or Sarvam endpoints.
+3. Ensure you have available credits on these platforms.
 
 ---
 
@@ -377,8 +308,7 @@ sudo ./renew-ssl.sh
 ## 🔒 Security Checklist
 
 - [ ] `.env` files are NOT committed to git
-- [ ] Supabase Row Level Security (RLS) is enabled on all tables
-- [ ] `SUPABASE_SERVICE_KEY` is kept secure (backend only)
+- [ ] MongoDB Atlas Network Access is restricted to your server's IP
 - [ ] CORS origins are configured correctly
 - [ ] SSL certificates are active and auto-renewing
 - [ ] Firewall rules allow only necessary ports (80, 443, 22)
@@ -391,11 +321,12 @@ sudo ./renew-ssl.sh
 
 ### Database Backup
 
-Supabase provides automatic backups. To manually backup:
+MongoDB Atlas provides automated backups depending on your cluster tier. To manually backup:
 
-1. Go to Supabase Dashboard → **Database** → **Backups**
-2. Click **Create backup**
-3. Download backup file for safekeeping
+1. Use `mongodump` to backup your cluster:
+```bash
+mongodump --uri="mongodb+srv://<username>:<password>@cluster0.mongodb.net/coact" --out=/path/to/backup
+```
 
 ### Application Backup
 
@@ -442,7 +373,8 @@ sudo docker system prune -a --volumes
 - **Documentation**: See [README.md](./README.md) and [ENV_SETUP.md](./ENV_SETUP.md)
 - **Issues**: Create an issue on GitHub
 - **Database**: [Supabase Docs](https://supabase.com/docs)
-- **Azure OpenAI**: [Azure Docs](https://learn.microsoft.com/azure/ai-services/openai/)
+- **Groq API**: [Groq Docs](https://console.groq.com/docs/quickstart)
+- **Sarvam AI**: [Sarvam Docs](https://sarvam.ai/docs)
 
 ---
 

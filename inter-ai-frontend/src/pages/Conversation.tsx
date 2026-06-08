@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Square, ArrowLeft, Clock, User, History, X, Loader2, Video, VideoOff, Phone, Mic, MicOff } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { getApiUrl } from "@/lib/api"
+import { getApiUrl, getAuthHeaders } from "@/lib/api"
 
 interface TranscriptMessage {
     role: "user" | "assistant"
@@ -268,7 +268,7 @@ export default function Conversation() {
             console.log("[TTS] Fetching audio...", { voice, textLen: text.length })
             const response = await fetch(getApiUrl('/api/speak'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { ...getAuthHeaders() },
                 body: JSON.stringify({ text, voice }),
                 signal: ttsController.signal
             })
@@ -339,7 +339,7 @@ export default function Conversation() {
                 const voice = part.voice || 'fable'
                 const response = await fetch(getApiUrl('/api/speak'), {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { ...getAuthHeaders() },
                     body: JSON.stringify({ text: part.text, voice }),
                     signal: ttsController.signal
                 })
@@ -525,9 +525,9 @@ export default function Conversation() {
                 'Content-Type': 'application/json'
             }
 
-            const response = await fetch(getApiUrl(`/api/session/${sessionId}/chat`), {
+            const response = await fetch(getApiUrl(`/api/session/${sessionId}/chat?stream=true`), {
                 method: 'POST',
-                headers: authHeaders,
+                headers: { ...authHeaders, ...getAuthHeaders() },
                 body: JSON.stringify({
                     message,
                     audio_url: audioUrl
@@ -550,16 +550,60 @@ export default function Conversation() {
                 throw new Error("Failed to get AI response")
             }
 
-            const data = await response.json()
-            const aiResponse = data.follow_up
+            if (!response.body) throw new Error("No response body")
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder("utf-8")
+            let done = false
+            let aiResponse = ""
+            
+            // Add a temporary assistant message to the transcript that we will update
+            setState((prev) => ({
+                ...prev,
+                transcript: [...prev.transcript, { role: "assistant", content: "" }]
+            }))
+
+            while (!done) {
+                const { value, done: readerDone } = await reader.read()
+                done = readerDone
+                if (value) {
+                    const chunk = decoder.decode(value, { stream: true })
+                    const lines = chunk.split("\n")
+                    for (const line of lines) {
+                        if (line.startsWith("data: ")) {
+                            try {
+                                const data = JSON.parse(line.slice(6))
+                                if (data.token) {
+                                    aiResponse += data.token
+                                    // Update the last message in the transcript with the new token
+                                    setState((prev) => {
+                                        const newTranscript = [...prev.transcript]
+                                        newTranscript[newTranscript.length - 1] = { role: "assistant", content: aiResponse }
+                                        return { ...prev, transcript: newTranscript }
+                                    })
+                                }
+                                if (data.done) {
+                                    aiResponse = data.follow_up
+                                }
+                                if (data.error) {
+                                    console.error("Stream error:", data.error)
+                                }
+                            } catch (e) {
+                                console.error("Error parsing SSE:", e, line)
+                            }
+                        }
+                    }
+                }
+            }
 
             setState((prev) => ({
                 ...prev,
-                transcript: [...prev.transcript, { role: "assistant", content: aiResponse }],
                 turnCount: prev.turnCount + 1,
                 isProcessing: false,
             }))
 
+            // NOTE: Early TTS sentence buffering can be added here inside the stream loop.
+            // For now, we wait for the full response to play TTS.
             if (multiCharacters) {
                 speakMultiCharacter(aiResponse, characters)
             } else {
@@ -674,7 +718,7 @@ export default function Conversation() {
                     } else {
                         setState(prev => ({ ...prev, interimText: "" }))
                     }
-                }, 700) // 700ms silence triggers send for ultra-low latency
+                }, 1500) // 1500ms silence triggers send for more natural pauses
             }
             
             animationFrameRef.current = requestAnimationFrame(checkAudio)
@@ -781,15 +825,10 @@ export default function Conversation() {
         stopVideo()
 
         try {
-            const authHeaders: Record<string, string> = {}
-
             // Call backend to complete session and generate report
             const completeRes = await fetch(getApiUrl(`/api/session/${sessionId}/complete`), {
                 method: 'POST',
-                headers: {
-                    ...authHeaders,
-                    'Content-Type': 'application/json'
-                },
+                headers: { ...getAuthHeaders() },
                 body: JSON.stringify({})
             })
 
@@ -806,7 +845,7 @@ export default function Conversation() {
                 localStorage.setItem(`session_${sessionId}`, JSON.stringify(updated))
             }
 
-            // Navigate ONLY after the report generation is complete
+            // Backend handles report generation async. Navigate immediately.
             navigate(`/report/${sessionId}`)
 
         } catch (error) {
@@ -822,13 +861,7 @@ export default function Conversation() {
     const lastMessage = state.transcript.length > 0 ? state.transcript[state.transcript.length - 1] : null
 
     return (
-        <div className="h-screen bg-[#05050A] relative overflow-hidden flex flex-col font-sans">
-            {/* ===== AMBIENT MESH BACKGROUND ===== */}
-            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-                <div className="ambient-mesh"></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/60" />
-                <div className="absolute inset-0 vignette" />
-            </div>
+        <div className="h-screen bg-background relative overflow-hidden flex flex-col font-sans">
 
             {/* ===== DYNAMIC ISLAND (TOP BAR) ===== */}
             <header className="relative z-30 pt-6 sm:pt-8 flex justify-center w-full pointer-events-none">
@@ -895,7 +928,7 @@ export default function Conversation() {
                                     )}
                                 </AnimatePresence>
                                 
-                                <div className={`w-full h-full rounded-full bg-gradient-to-br ${char.color === 'pink' ? 'from-pink-600 to-rose-600' : 'from-purple-600 to-indigo-600'} flex items-center justify-center relative z-10 shadow-[0_0_50px_rgba(147,51,234,0.3)] border-2 border-white/20`}>
+                                <div className={`w-full h-full rounded-full bg-primary flex items-center justify-center relative z-10 shadow-sm border border-border`}>
                                     <span className="text-5xl md:text-7xl font-black text-white shadow-sm">
                                         {char.name.charAt(0)}
                                     </span>
@@ -957,7 +990,7 @@ export default function Conversation() {
                                 )}
                             </AnimatePresence>
                             
-                            <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center relative z-10 shadow-[0_0_50px_rgba(147,51,234,0.3)] border-2 border-white/20">
+                            <div className="w-full h-full rounded-full bg-primary flex items-center justify-center relative z-10 shadow-sm border border-border">
                                 <span className="text-5xl md:text-7xl font-black text-white shadow-sm">
                                     {state.sessionData?.ai_character === 'sarah' ? 'S' : 'A'}
                                 </span>
@@ -998,8 +1031,8 @@ export default function Conversation() {
                 )}
 
                 {/* Right Panel: User */}
-                <div className={`flex-1 rounded-3xl overflow-hidden bg-black/40 backdrop-blur-sm border border-white/10 relative shadow-2xl transition-all duration-300 ${
-                    isUserSpeaking ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : ''
+                <div className={`flex-1 rounded-3xl overflow-hidden bg-card backdrop-blur-sm border border-border relative shadow-sm transition-all duration-300 ${
+                    isUserSpeaking ? 'ring-2 ring-primary border-primary' : ''
                 }`}>
                     {isVideoOn ? (
                         <video ref={userVideoRef} autoPlay muted playsInline className="w-full h-full object-cover mirror" />
@@ -1101,13 +1134,14 @@ export default function Conversation() {
 
             {/* ===== BOTTOM CONTROL BAR (Glass Dock) ===== */}
             <div className="relative z-30 px-4 pb-6 sm:pb-8 w-full flex justify-center">
-                <div className="glass-dock rounded-[2rem] px-4 py-3 sm:px-6 sm:py-4 flex items-center gap-3 sm:gap-5 transition-all">
+                <div className="bg-card border border-border shadow-md rounded-[2rem] px-4 py-3 sm:px-6 sm:py-4 flex items-center gap-3 sm:gap-5 transition-all">
                     
                     {/* Transcript Toggle */}
                     <button
                         onClick={() => setState(prev => ({ ...prev, showTranscript: true }))}
                         className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-all group"
                         title="View Transcript"
+                        aria-label="View Transcript"
                     >
                         <History className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
                     </button>
@@ -1121,6 +1155,7 @@ export default function Conversation() {
                                 : 'bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30'
                         }`}
                         title={isLiveMode ? "Mute Microphone" : "Unmute Microphone"}
+                        aria-label={isLiveMode ? "Mute Microphone" : "Unmute Microphone"}
                     >
                         {isLiveMode
                             ? <Mic className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
@@ -1137,6 +1172,7 @@ export default function Conversation() {
                                 : 'bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30'
                         }`}
                         title={isVideoOn ? "Turn off camera" : "Turn on camera"}
+                        aria-label={isVideoOn ? "Turn off camera" : "Turn on camera"}
                     >
                         {isVideoOn
                             ? <Video className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
@@ -1150,6 +1186,7 @@ export default function Conversation() {
                         disabled={isEnding}
                         className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-red-500/80 hover:bg-red-500 flex items-center justify-center transition-all disabled:opacity-40 hover:scale-105"
                         title="End Session"
+                        aria-label="End Session"
                     >
                         <Phone className="w-5 h-5 text-white rotate-[135deg]" />
                     </button>

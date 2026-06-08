@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, CheckCircle2, Building2, Users, Mail, User, MessageSquare } from 'lucide-react';
-import { getApiUrl } from "@/lib/api";
+import { getApiUrl, getAuthHeaders } from "@/lib/api";
 
 interface ContactSalesModalProps {
     isOpen: boolean;
@@ -25,7 +25,7 @@ export default function ContactSalesModal({ isOpen, onClose }: ContactSalesModal
         try {
             const res = await fetch(getApiUrl('/api/contact-sales'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { ...getAuthHeaders() },
                 body: JSON.stringify(formData)
             });
 

@@ -5,16 +5,18 @@ import { useNavigate } from "react-router-dom"
 import {
     TrendingUp, TrendingDown, Minus, Award, Target, Activity,
     BarChart3, Zap, ArrowRight, Sparkles, Shield, AlertTriangle,
-    Clock, Calendar, User, Bot, Trophy, BookOpen
+    Clock, Calendar, User, Bot, Trophy, BookOpen, Flame, Lightbulb
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
     XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Area, AreaChart
+    ResponsiveContainer, Area, AreaChart,
+    Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from "recharts"
 
 import Navigation from "../components/landing/Navigation"
-import { getApiUrl } from "@/lib/api"
+import { getApiUrl, getAuthHeaders } from "@/lib/api"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // --- TYPES ---
 interface AnalyticsData {
@@ -32,6 +34,10 @@ interface AnalyticsData {
         latest_score: number
         change: number
     }[]
+    activity_heatmap: Record<string, number>
+    current_streak: number
+    best_streak: number
+    next_best_action: string | null
 }
 
 export interface SessionItem {
@@ -79,7 +85,7 @@ export default function Dashboard() {
         const fetchAnalytics = async () => {
             try {
                 const res = await fetch(getApiUrl("/api/analytics"), {
-                    headers: {}
+                    headers: { ...getAuthHeaders() }
                 })
                 if (!res.ok) throw new Error(`Server error (${res.status})`)
                 const json: AnalyticsData = await res.json()
@@ -95,7 +101,7 @@ export default function Dashboard() {
         const fetchSessions = async () => {
             try {
                 const res = await fetch(getApiUrl("/api/user/sessions?limit=5"), {
-                    headers: {}
+                    headers: { ...getAuthHeaders() }
                 })
                 if (res.ok) {
                     const json = await res.json()
@@ -115,14 +121,30 @@ export default function Dashboard() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6 font-sans">
-                <div className="relative">
-                    <div className="w-16 h-16 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <BarChart3 className="w-6 h-6 text-primary animate-pulse" />
+            <div className="min-h-screen bg-background text-foreground font-sans">
+                <Navigation />
+                <main className="container mx-auto px-4 sm:px-6 pt-24 sm:pt-32 pb-16 sm:pb-32 space-y-10">
+                    <div>
+                        <Skeleton className="h-10 w-64 mb-4" />
+                        <Skeleton className="h-6 w-96" />
                     </div>
-                </div>
-                <p className="text-muted-foreground animate-pulse font-medium tracking-wide">LOADING ANALYTICS...</p>
+                    
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <Skeleton key={i} className="h-32 w-full rounded-2xl" />
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+                        <div className="lg:col-span-2 space-y-6">
+                            <Skeleton className="h-[400px] w-full rounded-2xl" />
+                        </div>
+                        <div className="space-y-6">
+                            <Skeleton className="h-[200px] w-full rounded-2xl" />
+                            <Skeleton className="h-[200px] w-full rounded-2xl" />
+                        </div>
+                    </div>
+                </main>
             </div>
         )
     }
@@ -133,17 +155,13 @@ export default function Dashboard() {
         <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30">
             <Navigation />
 
-            {/* Background blurs */}
-            <div className="fixed inset-0 pointer-events-none -z-10">
-                <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px]" />
-                <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-purple-600/5 rounded-full blur-[120px]" />
-            </div>
+
 
             <main className="container mx-auto px-4 sm:px-6 pt-24 sm:pt-32 pb-16 sm:pb-32 space-y-10">
                 {/* Header */}
                 <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-                    <h1 className="text-4xl md:text-5xl font-black text-foreground mb-2">Progress Dashboard</h1>
-                    <p className="text-lg text-muted-foreground">Track your learning curve, consistency, and skill development over time.</p>
+                    <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight">Progress Dashboard</h1>
+                    <p className="text-lg text-muted-foreground font-medium">Track your learning curve, consistency, and skill development over time.</p>
                 </motion.div>
 
                 {noData ? (
@@ -201,7 +219,7 @@ export default function Dashboard() {
                         )}
 
                         {/* Stats Cards */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
                             <StatCard
                                 label="Total Sessions"
                                 value={data.session_counts.total.toString()}
@@ -234,7 +252,41 @@ export default function Dashboard() {
                                 bgClass={data.improvement_status === "improving" ? "bg-emerald-500/10 border-emerald-500/20" : data.improvement_status === "declining" ? "bg-rose-500/10 border-rose-500/20" : "bg-blue-500/10 border-blue-500/20"}
                                 delay={0.3}
                             />
+                            <StatCard
+                                label="Current Streak"
+                                value={`${data.current_streak} Days`}
+                                icon={Flame}
+                                colorClass="text-orange-500"
+                                bgClass="bg-orange-500/10 border-orange-500/20"
+                                delay={0.4}
+                            />
                         </div>
+
+                        {/* AI Recommendation Banner */}
+                        {data.next_best_action && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.15 }}
+                                className="bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-5 p-6 md:p-8 shadow-sm"
+                            >
+                                <div className="p-4 rounded-full bg-primary/20 ring-1 ring-primary/30 hidden sm:block">
+                                    <Lightbulb className="w-8 h-8 text-primary drop-shadow-md" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-black text-xl text-foreground mb-1 flex items-center gap-2">
+                                        Next Best Action <Sparkles className="w-4 h-4 text-purple-400" />
+                                    </h3>
+                                    <p className="text-muted-foreground font-medium">{data.next_best_action}</p>
+                                </div>
+                                <button 
+                                    onClick={() => navigate("/practice")}
+                                    className="hidden md:flex px-6 py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
+                                >
+                                    Practice Now <ArrowRight className="w-4 h-4" />
+                                </button>
+                            </motion.div>
+                        )}
 
                         {/* Performance Trend Chart */}
                         {data.performance_trend.length > 0 && (
@@ -242,7 +294,7 @@ export default function Dashboard() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.2 }}
-                                className="bg-card rounded-2xl border border-border p-6 md:p-8 shadow-sm"
+                                className="bg-card border border-border shadow-sm rounded-xl p-6 md:p-8"
                             >
                                 <div className="flex items-center gap-4 mb-6">
                                     <div className="p-3 rounded-xl bg-primary/10 ring-1 ring-border/50">
@@ -258,9 +310,13 @@ export default function Dashboard() {
                                         <AreaChart data={data.performance_trend} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                                             <defs>
                                                 <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} />
+                                                    <stop offset="95%" stopColor="#d946ef" stopOpacity={0.1} />
                                                 </linearGradient>
+                                                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                                                    <feGaussianBlur stdDeviation="4" result="blur" />
+                                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                                </filter>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-muted-foreground/10" />
                                             <XAxis
@@ -280,11 +336,13 @@ export default function Dashboard() {
                                             />
                                             <Tooltip
                                                 contentStyle={{
-                                                    backgroundColor: "hsl(var(--card))",
-                                                    border: "1px solid hsl(var(--border))",
-                                                    borderRadius: "12px",
+                                                    backgroundColor: "rgba(10, 10, 15, 0.7)",
+                                                    backdropFilter: "blur(12px)",
+                                                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                                                    borderRadius: "16px",
                                                     fontSize: "13px",
-                                                    boxShadow: "0 4px 20px rgba(0,0,0,0.15)"
+                                                    boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                                                    color: "white"
                                                 }}
                                                 labelFormatter={formatDate}
                                                 formatter={(value: number | undefined) => [`${value ?? 0}/10`, "Score"]}
@@ -304,6 +362,68 @@ export default function Dashboard() {
                             </motion.div>
                         )}
 
+                        {/* Skill Radar Chart */}
+                        {(data.strongest_skills.length > 0 || data.weakest_skills.length > 0) && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.25 }}
+                                className="bg-card border border-border shadow-sm rounded-xl p-6 md:p-8"
+                            >
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div className="p-3 rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20">
+                                        <Target className="w-6 h-6 text-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-foreground tracking-wide uppercase">Skill Profile</h2>
+                                        <p className="text-sm text-muted-foreground">Your proficiency across core coaching dimensions</p>
+                                    </div>
+                                </div>
+                                <div className="w-full h-[350px]">
+                                    <ResponsiveContainer width="99%" height="99%" minWidth={10} minHeight={10}>
+                                        <RadarChart
+                                            data={[
+                                                ...data.strongest_skills.map(s => ({ skill: s.dimension.length > 18 ? s.dimension.slice(0, 16) + '…' : s.dimension, score: parseFloat(s.average.toFixed(1)), fullMark: 10 })),
+                                                ...data.weakest_skills.map(s => ({ skill: s.dimension.length > 18 ? s.dimension.slice(0, 16) + '…' : s.dimension, score: parseFloat(s.average.toFixed(1)), fullMark: 10 }))
+                                            ].slice(0, 8)}
+                                        >
+                                            <PolarGrid stroke="hsl(var(--border))" />
+                                            <PolarAngleAxis
+                                                dataKey="skill"
+                                                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11, fontWeight: 600 }}
+                                            />
+                                            <PolarRadiusAxis
+                                                angle={90}
+                                                domain={[0, 10]}
+                                                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                                                axisLine={false}
+                                            />
+                                            <Radar
+                                                name="Score"
+                                                dataKey="score"
+                                                stroke="#6366f1"
+                                                fill="#6366f1"
+                                                fillOpacity={0.2}
+                                                strokeWidth={2}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{
+                                                    backgroundColor: "rgba(10, 10, 15, 0.7)",
+                                                    backdropFilter: "blur(12px)",
+                                                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                                                    borderRadius: "16px",
+                                                    fontSize: "13px",
+                                                    boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                                                    color: "white"
+                                                }}
+                                                formatter={(value: number | undefined) => [`${value ?? 0}/10`, "Score"]}
+                                            />
+                                        </RadarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </motion.div>
+                        )}
+
                         {/* Strongest & Weakest Skills */}
                         <div className="grid lg:grid-cols-2 gap-6">
                             {data.strongest_skills.length > 0 && (
@@ -311,7 +431,7 @@ export default function Dashboard() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.3 }}
-                                    className="bg-card rounded-2xl border border-border p-6 shadow-sm"
+                                    className="bg-card border border-border shadow-sm rounded-xl p-6"
                                 >
                                     <div className="flex items-center gap-3 mb-6">
                                         <div className="p-2.5 rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
@@ -332,7 +452,7 @@ export default function Dashboard() {
                                                             initial={{ width: 0 }}
                                                             animate={{ width: `${(skill.average / 10) * 100}%` }}
                                                             transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
-                                                            className="h-full bg-emerald-500 rounded-full"
+                                                            className="h-full bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)]"
                                                         />
                                                     </div>
                                                     <span className="font-mono font-black text-emerald-500 w-12 text-right">{skill.average.toFixed(1)}</span>
@@ -348,7 +468,7 @@ export default function Dashboard() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.4 }}
-                                    className="bg-card rounded-2xl border border-border p-6 shadow-sm"
+                                    className="bg-card border border-border shadow-sm rounded-xl p-6"
                                 >
                                     <div className="flex items-center gap-3 mb-6">
                                         <div className="p-2.5 rounded-xl bg-rose-500/10 ring-1 ring-rose-500/20">
@@ -369,7 +489,7 @@ export default function Dashboard() {
                                                             initial={{ width: 0 }}
                                                             animate={{ width: `${(skill.average / 10) * 100}%` }}
                                                             transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
-                                                            className="h-full bg-rose-500 rounded-full"
+                                                            className="h-full bg-rose-500 rounded-full shadow-[0_0_10px_rgba(244,63,94,0.8)]"
                                                         />
                                                     </div>
                                                     <span className="font-mono font-black text-rose-500 w-12 text-right">{skill.average.toFixed(1)}</span>
@@ -387,7 +507,7 @@ export default function Dashboard() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.45 }}
-                                className="bg-card rounded-2xl border border-border p-6 shadow-sm"
+                                className="bg-card border border-border shadow-sm rounded-xl p-6"
                             >
                                 <div className="flex items-center gap-3 mb-6">
                                     <div className="p-2.5 rounded-xl bg-purple-500/10 ring-1 ring-purple-500/20">
@@ -397,7 +517,7 @@ export default function Dashboard() {
                                 </div>
                                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {data.repeated_scenarios.map((scenario, i) => (
-                                        <div key={i} className="p-4 rounded-xl bg-muted/40 border border-border/50 flex flex-col justify-between">
+                                        <div key={i} className="p-5 rounded-xl bg-card/40 border border-white/5 hover:border-purple-500/30 hover:bg-purple-500/5 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between shadow-sm hover:shadow-purple-500/10">
                                             <div className="mb-4">
                                                 <h3 className="font-bold text-foreground text-sm line-clamp-2" title={scenario.title}>{scenario.title || "Untitled Scenario"}</h3>
                                                 <span className="text-xs text-muted-foreground font-semibold">{scenario.attempts} attempts</span>
@@ -441,7 +561,7 @@ export default function Dashboard() {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.5 }}
                                 onClick={() => navigate("/practice")}
-                                className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/30 transition-all duration-300 text-left flex items-center justify-between"
+                                className="group p-6 bg-primary/5 hover:bg-primary/10 border border-border shadow-sm rounded-xl text-left flex items-center justify-between"
                             >
                                 <div>
                                     <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">Start New Session</h3>
@@ -454,7 +574,7 @@ export default function Dashboard() {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.6 }}
                                 onClick={() => navigate("/history")}
-                                className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/30 transition-all duration-300 text-left flex items-center justify-between"
+                                className="group p-6 bg-purple-500/5 hover:bg-purple-500/10 border border-border shadow-sm rounded-xl text-left flex items-center justify-between"
                             >
                                 <div>
                                     <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">View All Sessions</h3>
@@ -470,7 +590,7 @@ export default function Dashboard() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.6 }}
-                                className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm"
+                                className="bg-card border border-border shadow-sm rounded-xl p-0 overflow-hidden"
                             >
                                 <div className="p-6 md:p-8 border-b border-border/50 flex items-center justify-between">
                                     <div className="flex items-center gap-4">
@@ -496,7 +616,7 @@ export default function Dashboard() {
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}
                                             transition={{ delay: 0.7 + (idx * 0.05) }}
-                                            className="group relative p-6 flex flex-col md:flex-row gap-6 md:items-center justify-between hover:bg-muted/30 transition-colors duration-300"
+                                            className="group relative p-6 flex flex-col md:flex-row gap-6 md:items-center justify-between hover:bg-muted/50 border-b border-border/50 last:border-0 transition-colors duration-200"
                                         >
                                             <div className="flex-1 space-y-3">
                                                 <div className="flex items-center gap-3 text-xs font-bold tracking-wider text-muted-foreground uppercase">
@@ -538,6 +658,7 @@ export default function Dashboard() {
                                                 <button
                                                     onClick={() => navigate(`/report/${session.id || session.session_id}`)}
                                                     className="px-5 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all btn-press bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border border-primary/20"
+                                                    aria-label={`View full report for ${session.title || 'session'}`}
                                                 >
                                                     <Trophy className="w-4 h-4" /> Report
                                                 </button>
@@ -559,19 +680,29 @@ const StatCard = ({
     label, value, icon: Icon, colorClass, bgClass, delay
 }: {
     label: string; value: string; icon: any; colorClass: string; bgClass: string; delay: number
-}) => (
-    <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay }}
-        className={`p-5 rounded-2xl border ${bgClass} flex flex-col gap-3 group hover:shadow-lg transition-all duration-300`}
-    >
-        <div className={`p-2.5 rounded-xl ${bgClass} w-fit`}>
-            <Icon className={`w-5 h-5 ${colorClass}`} />
-        </div>
-        <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-1">{label}</div>
-            <div className={`text-2xl md:text-3xl font-black ${colorClass} tracking-tight`}>{value}</div>
-        </div>
-    </motion.div>
-)
+}) => {
+    const glowClass = bgClass.includes("emerald") ? "hover:shadow-emerald-500/10 hover:border-emerald-500/30" 
+                  : bgClass.includes("amber") ? "hover:shadow-amber-500/10 hover:border-amber-500/30"
+                  : bgClass.includes("rose") ? "hover:shadow-rose-500/10 hover:border-rose-500/30"
+                  : "hover:shadow-primary/10 hover:border-primary/30";
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay }}
+            className={`bg-card border border-border shadow-sm rounded-xl flex flex-col gap-3 group ${glowClass} relative overflow-hidden`}
+        >
+            <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full blur-[40px] opacity-20 ${bgClass.split(' ')[0]}`} />
+            
+            <div className={`p-3 rounded-2xl ${bgClass} w-fit ring-1 ring-inset ring-white/10 z-10`}>
+                <Icon className={`w-6 h-6 ${colorClass} drop-shadow-md`} />
+            </div>
+            <div className="z-10 mt-1">
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/80 mb-1.5">{label}</div>
+                <div className={`text-3xl md:text-4xl font-black ${colorClass} tracking-tight drop-shadow-sm`}>{value}</div>
+            </div>
+        </motion.div>
+    )
+}
+

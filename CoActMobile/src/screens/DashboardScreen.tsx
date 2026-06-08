@@ -13,6 +13,7 @@ import {
   RefreshControl,
   StatusBar,
   Animated,
+  Image,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -170,7 +171,11 @@ export default function DashboardScreen() {
       {/* Top App Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
-          <Ionicons name="grid-outline" size={22} color={Colors.primary} />
+          <Image
+            source={require('../assets/images/coact-logo.png')}
+            style={styles.topBarLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.topBarTitle}>CoAct.AI</Text>
         </View>
         <TouchableOpacity
@@ -493,6 +498,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
+  },
+  topBarLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   topBarTitle: {
     fontSize: 26,

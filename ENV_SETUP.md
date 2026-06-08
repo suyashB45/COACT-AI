@@ -19,57 +19,64 @@ This guide will help you configure the environment variables needed to run the C
 
 ## Required Services
 
-### Azure OpenAI
+### Groq API (LLM & STT)
 
-You'll need an Azure OpenAI resource with the following deployments:
-
-- **GPT Model**: `gpt-4.1-mini` (or your preferred model)
-- **Text-to-Speech**: `tts`
-- **Speech-to-Text**: `whisper`
-- **Embeddings**: `text-embedding-ada-002`
+You'll need a Groq API key for both the LLM reasoning (`llama-3.3-70b-versatile`) and Speech-to-Text transcription (`whisper-large-v3-turbo`).
 
 **How to obtain credentials**:
-1. Go to [Azure Portal](https://portal.azure.com)
-2. Navigate to your Azure OpenAI resource
-3. Go to **Keys and Endpoint**
-4. Copy `KEY 1` and the `Endpoint` URL
+1. Go to [Groq Console](https://console.groq.com/)
+2. Navigate to **API Keys**
+3. Create a new API key and copy it.
 
 **Update in `.env`**:
 ```env
-AZURE_OPENAI_API_KEY=<your-key-here>
-AZURE_OPENAI_ENDPOINT=https://<your-resource-name>.openai.azure.com/
+GROQ_API_KEY=<your-key-here>
 ```
 
-### Azure Blob Storage
+### Sarvam AI (Text-to-Speech)
 
-Used for storing audio recordings and practice session data.
+You'll need a Sarvam API key for the Text-to-Speech generation (`bulbul:v3`).
 
 **How to obtain credentials**:
-1. Go to [Azure Portal](https://portal.azure.com)
-2. Navigate to your Storage Account
-3. Go to **Access Keys**
-4. Copy the **Connection String**
+1. Go to [Sarvam Dashboard](https://sarvam.ai/dashboard)
+2. Navigate to **API Keys**
+3. Create a new key and copy it.
 
 **Update in `.env`**:
 ```env
-AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=<account>;AccountKey=<key>;EndpointSuffix=core.windows.net
+SARVAM_API_KEY=<your-key-here>
 ```
 
-### Supabase (PostgreSQL Database)
+### OpenAI (Optional Fallback TTS)
 
-CoAct.AI uses Supabase for user authentication and data persistence.
-
-**How to obtain credentials**:
-1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
-2. Select your project
-3. Go to **Settings** > **Database**
-4. Copy the **Connection String** (make sure to replace `[YOUR-PASSWORD]` with your actual password)
-5. Go to **Settings** > **API**
-6. Copy the `URL`, `anon/public` key, and `service_role` key
+OpenAI is used as an optional fallback for Text-to-Speech.
 
 **Update in `.env`**:
 ```env
-DATABASE_URL=postgresql://postgres:<password>@<project-ref>.supabase.co:6543/postgres?sslmode=require
+OPENAI_API_KEY=<your-key-here>
+```
+
+### MongoDB Atlas (NoSQL Database)
+
+CoAct.AI uses MongoDB Atlas for session and practice history data persistence.
+
+**How to obtain credentials**:
+1. Go to [MongoDB Atlas Dashboard](https://cloud.mongodb.com/)
+2. Select your project and navigate to **Database** under Deployment.
+3. Click on **Connect** for your cluster, choose **Drivers**, and copy the connection string.
+4. Replace `<password>` with your database user password, and set your cluster host.
+
+**Update in `.env`**:
+```env
+MONGODB_URI=mongodb+srv://suyashbalasubramaniam_db_user:RZmQbu4TeqBO8MLN@<cluster-address>/coact?retryWrites=true&w=majority
+```
+
+### Supabase (Auth and Storage)
+
+CoAct.AI uses Supabase for user authentication and optionally other services.
+
+**Update in `.env`**:
+```env
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_KEY=<anon-key>
 SUPABASE_SERVICE_KEY=<service-role-key>
@@ -106,11 +113,11 @@ python app.py
 
 Visit `http://localhost:5001/health` (or your configured port) to verify the backend is running.
 
-### Test Azure OpenAI Connection
+### Test Groq API Connection
 
 ```powershell
 # In the backend directory
-python -c "import os; from openai import AzureOpenAI; client = AzureOpenAI(api_key=os.getenv('AZURE_OPENAI_API_KEY'), api_version='2024-12-01-preview', azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT')); print('✅ Azure OpenAI connection successful')"
+python -c "import os; from groq import Groq; client = Groq(api_key=os.getenv('GROQ_API_KEY')); print('✅ Groq connection successful')"
 ```
 
 ### Test Database Connection
@@ -134,14 +141,13 @@ git status
 ### 🔄 Rotate Credentials Regularly
 
 - Change API keys every 90 days
-- Use Azure Key Vault for production secrets
-- Enable Azure AD authentication where possible
+- Use secure environment variable managers in production (e.g. AWS Parameter Store, Azure Key Vault)
 
 ### 🌍 Environment-Specific Configurations
 
 For production deployments:
-- Use separate Azure resources (OpenAI, Storage, Database) for dev/staging/prod
-- Configure environment variables via deployment platform (Azure App Service, Docker secrets, etc.)
+- Use separate Supabase databases for dev/staging/prod
+- Configure environment variables via deployment platform
 - Never store production credentials in local `.env` files
 
 ### 🔍 Audit Access
@@ -153,24 +159,23 @@ Regularly review:
 
 ## Troubleshooting
 
-### `DeploymentNotFound` Error
+### Authentication Error from Groq or Sarvam
 
-**Symptom**: Error when calling Azure OpenAI API mentioning deployment not found.
+**Symptom**: `401 Unauthorized` or `Invalid API Key` error from APIs.
 
 **Solution**:
-1. Verify the endpoint URL is correct (should end with `.openai.azure.com/`)
-2. Check deployment names match exactly in Azure Portal and `.env`
-3. Ensure API version is compatible: `2024-12-01-preview`
+1. Verify the `GROQ_API_KEY` or `SARVAM_API_KEY` is exactly as copied from the dashboard.
+2. Check that the `.env` file is loaded correctly by the FastAPI server.
 
 ### Database Connection Issues
 
-**Symptom**: `psycopg2.OperationalError` or connection timeout.
+**Symptom**: Connection timeout or DNS/Server Selection errors when connecting to MongoDB Atlas.
 
 **Solution**:
-1. Verify the `DATABASE_URL` password is URL-encoded (e.g., `@` becomes `%40`)
-2. Check Supabase project is not paused
-3. Verify IP restrictions in Supabase dashboard
-4. Ensure `sslmode=require` is included
+1. Verify the `MONGODB_URI` contains the correct password and cluster domain name.
+2. Check that the password does not contain special characters that require URL-encoding (or URL-encode them, e.g., `@` becomes `%40`).
+3. Verify the IP Access List in the MongoDB Atlas console allows your current IP address (or set it to `0.0.0.0/0` to allow all IP addresses for development/testing).
+4. Ensure you have installed the required dependencies (`pymongo[srv]`).
 
 ### CORS Errors
 
@@ -183,7 +188,8 @@ Regularly review:
 
 ## Getting Help
 
-- **Azure OpenAI**: [Documentation](https://learn.microsoft.com/azure/ai-services/openai/)
+- **Groq API**: [Documentation](https://console.groq.com/docs/quickstart)
+- **Sarvam AI**: [Documentation](https://sarvam.ai/docs)
 - **Supabase**: [Documentation](https://supabase.com/docs)
 - **Project Issues**: Create an issue in the repository
 

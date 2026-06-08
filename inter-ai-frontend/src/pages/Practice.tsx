@@ -13,7 +13,7 @@ import {
     Type, User, MessageSquare, BrainCircuit, Loader2
 } from "lucide-react"
 import Navigation from "../components/landing/Navigation"
-import { getApiUrl } from "../lib/api"
+import { getApiUrl, getAuthHeaders } from "../lib/api"
 
 const ICON_MAP: any = {
     Users, ShoppingCart, GraduationCap, AlertTriangle, DollarSign, UserCog
@@ -430,7 +430,7 @@ export default function Practice() {
 
             const response = await fetch(getApiUrl('/api/session/start'), {
                 method: 'POST',
-                headers: authHeaders,
+                headers: { ...authHeaders, ...getAuthHeaders() },
                 body: JSON.stringify({
                     role: data.role,
                     ai_role: data.ai_role,
@@ -503,10 +503,6 @@ export default function Practice() {
             <Navigation />
 
             {/* Ambient Background */}
-            <div className="fixed inset-0 pointer-events-none -z-10">
-                <div className="absolute top-[10%] right-[5%] w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] animate-pulse-glow" />
-                <div className="absolute bottom-[10%] left-[5%] w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-[100px] animate-pulse-glow" style={{ animationDelay: '2s' }} />
-            </div>
 
             <main className="container mx-auto px-4 sm:px-6 pt-24 sm:pt-32 pb-16 sm:pb-32">
                 {/* Hero Section */}
@@ -519,9 +515,9 @@ export default function Practice() {
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-bold uppercase tracking-wider mb-6 animate-fade-in-up">
                         <Sparkles className="w-4 h-4" /> AI Training Arena
                     </div>
-                    <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 tracking-tight leading-none">
+                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 tracking-tight text-foreground">
                         Practice Conversations <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-purple-500 to-pink-500 animate-gradient">
+                        <span className="text-primary">
                             That Matter
                         </span>
                     </h1>
@@ -532,9 +528,8 @@ export default function Practice() {
 
                 {/* Character Selection */}
                 <div className="flex flex-col items-center mb-20 relative">
-                    <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-border to-transparent -z-10" />
                     <div className="bg-background px-4 relative z-10 mb-8">
-                        <span className="text-xs font-black text-primary tracking-[0.2em] uppercase border border-primary/50 bg-primary/10 px-3 py-1 rounded-full">Step 01</span>
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Step 01</span>
                     </div>
                     <h3 className="text-2xl font-bold text-foreground mb-8 tracking-tight">Select Your Partner</h3>
 
@@ -566,13 +561,13 @@ export default function Practice() {
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => setSelectedCharacter(char.id as any)}
-                                className={`relative group overflow-hidden rounded-3xl border-2 transition-all duration-300 text-left h-full flex flex-col ${selectedCharacter === char.id
-                                    ? `border-${char.color}-500 bg-gradient-to-b from-${char.color}-900/40 to-card shadow-[0_0_40px_rgba(${char.color === 'blue' ? '59,130,246' : '168,85,247'},0.3)]`
-                                    : "border-border bg-card/40 hover:bg-card/60 hover:border-primary/50"
+                                className={`relative group overflow-hidden rounded-xl border transition-all duration-300 text-left h-full flex flex-col ${selectedCharacter === char.id
+                                    ? `border-primary bg-primary/5 shadow-sm ring-1 ring-primary`
+                                    : "border-border bg-card hover:bg-muted"
                                     }`}
                             >
                                 <div className="relative h-48 sm:h-64 overflow-hidden w-full">
-                                    <div className={`absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent z-10`} />
+                                    <div className={`absolute inset-0 bg-card/10 z-10`} />
                                     <img
                                         src={char.img}
                                         alt={char.name}
@@ -622,9 +617,8 @@ export default function Practice() {
 
                         {/* Step 2 Header */}
                         <div className="flex flex-col items-center mb-8 relative">
-                            <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-border to-transparent -z-10" />
                             <div className="bg-background px-4 relative z-10 mb-8">
-                                <span className="text-xs font-black text-indigo-500 tracking-[0.2em] uppercase border border-indigo-900/50 bg-indigo-900/20 px-3 py-1 rounded-full">Step 02</span>
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Step 02</span>
                             </div>
                             <h3 className="text-2xl font-bold text-foreground tracking-tight mb-6">Choose Your Challenge</h3>
 
@@ -654,7 +648,7 @@ export default function Practice() {
                         {(globalMode === "assessment" ? DEFAULT_SCENARIOS : MENTORSHIP_SCENARIOS).map((category, idx) => (
                             <div key={idx} className="space-y-6">
                                 <div className="flex items-center gap-4">
-                                    <div className={`h-8 w-1 bg-gradient-to-b ${category.color} rounded-full`} />
+                                    <div className={`h-8 w-1 bg-primary rounded-full`} />
                                     <h3 className="text-2xl font-bold text-foreground tracking-tight">{category.name}</h3>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -702,8 +696,11 @@ export default function Practice() {
                                         }
 
                                         return (
-                                            <div
+                                            <motion.div
                                                 key={sIdx}
+                                                initial={{ opacity: 0, y: 24 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ duration: 0.4, delay: 0.08 * sIdx, ease: "easeOut" }}
                                                 onClick={() => handleStartSession({
                                                     role: scenario.user_role,
                                                     ai_role: displayAiRole,
@@ -715,7 +712,7 @@ export default function Practice() {
                                                     mode: scenario.mode,
                                                     simulation_id: scenario.simulation_id
                                                 })}
-                                                className={`group relative p-6 bg-card/40 hover:bg-card/60 border border-border/50 hover:border-primary/30 rounded-2xl transition-all duration-300 cursor-pointer overflow-hidden ${isStartingSession ? 'opacity-70 pointer-events-none' : ''}`}
+                                                className={`group relative p-6 bg-card hover:bg-muted border border-border rounded-xl transition-all duration-200 cursor-pointer overflow-hidden shadow-sm hover:shadow-md ${isStartingSession ? 'opacity-70 pointer-events-none' : ''}`}
                                             >
                                                 {isStartingSession && startingScenarioTitle === scenario.title && (
                                                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -723,7 +720,6 @@ export default function Practice() {
                                                         <span className="text-sm font-bold text-primary">Starting...</span>
                                                     </div>
                                                 )}
-                                                <div className={`absolute top-0 right-0 p-16 rounded-full blur-2xl opacity-0 group-hover:opacity-10 bg-gradient-to-br ${category.color} transition-opacity duration-500`} />
 
                                                 <div className="relative z-10">
                                                     <div className="flex justify-between items-start mb-4">
@@ -795,7 +791,7 @@ export default function Practice() {
                                                         <Swords className="w-3 h-3" />
                                                     </div>
                                                 </div>
-                                            </div>
+                                            </motion.div>
                                         )
                                     })}
                                 </div>
@@ -805,7 +801,7 @@ export default function Practice() {
                         {/* Custom Scenario Builder */}
                         <div className="relative mt-24">
                             <div className="flex flex-col items-center mb-10 relative">
-                                <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-border to-transparent -z-10" />
+                                <div className="absolute top-1/2 left-0 w-full h-px bg-border -z-10" />
                                 <div className="bg-background px-6 relative z-10 mb-6">
                                     <span className="text-xs font-black text-amber-500 tracking-[0.2em] uppercase border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.2)]">Create Your Own</span>
                                 </div>
@@ -938,7 +934,7 @@ export default function Practice() {
                                                 })
                                             }}
                                             disabled={isStartingSession}
-                                            className="w-full sm:w-auto px-10 py-4 rounded-full bg-gradient-to-r from-primary to-purple-600 text-white font-bold tracking-wide shadow-xl shadow-primary/20 hover:shadow-primary/40 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2.5"
+                                            className="w-full sm:w-auto px-8 py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2.5 shadow-sm"
                                         >
                                             {isStartingSession && startingScenarioTitle === customForm.title ? (
                                                 <>

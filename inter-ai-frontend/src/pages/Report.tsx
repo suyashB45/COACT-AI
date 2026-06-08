@@ -7,8 +7,9 @@ import { motion, Variants } from "framer-motion"
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from "recharts"
 
 import Navigation from "../components/landing/Navigation"
-import { getApiUrl } from "@/lib/api"
+import { getApiUrl, getAuthHeaders } from "@/lib/api"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // --- TYPES & INTERFACES (UPDATED TO MATCH BACKEND) ---
 
@@ -266,7 +267,7 @@ export default function Report() {
                     'Content-Type': 'application/json'
                 };
 
-                const response = await fetch(getApiUrl(`/api/session/${sessionId}/report_data`), { headers });
+                const response = await fetch(getApiUrl(`/api/session/${sessionId}/report_data`), { headers: { ...headers, ...getAuthHeaders() } });
                 
                 // If the report is still generating, wait and retry!
                 if (response.status === 400 || response.status === 404) {
@@ -302,7 +303,7 @@ export default function Report() {
         try {
             const headers: Record<string, string> = {};
 
-            const response = await fetch(getApiUrl(`/api/report/${sessionId}`), { headers })
+            const response = await fetch(getApiUrl(`/api/report/${sessionId}`), { headers: { ...headers, ...getAuthHeaders() } })
             if (!response.ok) throw new Error("Failed to generate PDF")
 
             const contentType = response.headers.get('content-type') || ''
@@ -335,14 +336,33 @@ export default function Report() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6 font-sans">
-                <div className="relative">
-                    <div className="w-16 h-16 rounded-full border-4 border-primary/30 border-t-primary animate-spin"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <Zap className="w-6 h-6 text-primary animate-pulse" />
+            <div className="min-h-screen bg-background text-foreground font-sans">
+                <Navigation />
+                <main className="container mx-auto px-4 sm:px-6 pt-24 pb-16 space-y-10">
+                    <div className="flex flex-col items-center justify-center mb-12">
+                        <Skeleton className="h-10 w-64 mb-4" />
+                        <Skeleton className="h-6 w-96 mb-6" />
+                        <div className="flex gap-4">
+                            <Skeleton className="h-10 w-32 rounded-lg" />
+                            <Skeleton className="h-10 w-32 rounded-lg" />
+                        </div>
                     </div>
-                </div>
-                <p className="text-muted-foreground animate-pulse font-medium tracking-wide">GENERATING ANALYSIS...</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Skeleton className="h-32 w-full rounded-2xl" />
+                        <Skeleton className="h-32 w-full rounded-2xl" />
+                        <Skeleton className="h-32 w-full rounded-2xl" />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
+                        <Skeleton className="h-[400px] w-full rounded-2xl" />
+                        <div className="space-y-6">
+                            <Skeleton className="h-[120px] w-full rounded-2xl" />
+                            <Skeleton className="h-[120px] w-full rounded-2xl" />
+                            <Skeleton className="h-[120px] w-full rounded-2xl" />
+                        </div>
+                    </div>
+                </main>
             </div>
         )
     }
@@ -424,7 +444,7 @@ export default function Report() {
                                     <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-1">
                                         Overall Grade
                                     </div>
-                                    <div className="text-7xl font-black text-transparent bg-clip-text leading-none bg-gradient-to-br from-blue-400 to-indigo-500">
+                                    <div className="text-7xl font-black text-primary leading-none">
                                         {data.meta.overall_grade}
                                     </div>
                                 </div>
@@ -518,10 +538,10 @@ const ComparisonBanner = ({ comparison }: { comparison: ComparisonData }) => {
             transition={{ delay: 0.15 }}
             className={`rounded-2xl border p-6 md:p-8 ${
                 isImproved
-                    ? 'bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20'
+                    ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20'
                     : isDeclined
-                        ? 'bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent border-rose-500/20'
-                        : 'bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-blue-500/20'
+                        ? 'bg-rose-50 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/20'
+                        : 'bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20'
             }`}
         >
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -774,7 +794,7 @@ const CompetencyHeatMap = ({ items }: { items: { dimension: string; score: numbe
 
 const ScorecardSection = ({ items }: { items: ScorecardItem[] }) => (
     <GlassCard>
-        <SectionHeader icon={Target} title="Performance Scorecard" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
+        <SectionHeader icon={Target} title="AI Assessment Scorecard" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
 
         {/* Radar Chart Visualization */}
         <SkillRadarChart items={items} />
@@ -1032,7 +1052,7 @@ const MentorshipReflectionView = ({ data }: { data: MentorshipReflectionData }) 
 
             {/* SECTION 6: Alternative Pathways */}
             {data.alternative_pathways && data.alternative_pathways.alternatives && data.alternative_pathways.alternatives.length > 0 && (
-                <GlassCard className="bg-gradient-to-br from-purple-500/5 to-indigo-500/5">
+                <GlassCard className="bg-card">
                     <SectionHeader icon={TrendingUp} title="Alternative Pathways" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
                     {(() => {
                         const altNote = data.alternative_pathways.note || 'Based on this scenario, other effective approaches could include:'
@@ -1054,7 +1074,7 @@ const MentorshipReflectionView = ({ data }: { data: MentorshipReflectionData }) 
 
             {/* SECTION 7: Closing Reflection Prompt */}
             {reflectionPrompts.length > 0 && (
-                <GlassCard className="bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
+                <GlassCard className="bg-card">
                     <SectionHeader icon={Brain} title="Closing Reflection Prompt" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
                     <p className="text-sm text-muted-foreground mb-4">Reflect on these questions to deepen your learning:</p>
                     <div className="space-y-4">
@@ -1110,7 +1130,7 @@ const SimulationView = ({ data }: { data: SimulationReportData }) => {
 
             {/* 3) Coaching Efficacy */}
             {data.coaching_style && (
-                <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/5 rounded-3xl p-1 shadow-sm">
+                <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden p-1">
                     <GlassCard className="border-none shadow-none m-0 bg-background/60 backdrop-blur-sm">
                         <SectionHeader icon={Award} title="Coaching Efficacy" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
                         <div className="flex flex-col md:flex-row gap-6 items-center">

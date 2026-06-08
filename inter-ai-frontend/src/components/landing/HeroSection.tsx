@@ -1,202 +1,65 @@
-import { motion } from 'framer-motion';
-import { ArrowRight, Star } from 'lucide-react';
-import Scene3D from './Scene3D';
+import { ArrowRight, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Scene3D from './Scene3D';
 
 const HeroSection = () => {
     const navigate = useNavigate();
 
-    // Generate random particles
-    const particles = Array.from({ length: 20 }, (_, i) => ({
-        id: i,
-        left: `${Math.random() * 100}%`,
-        top: `${Math.random() * 100}%`,
-        delay: `${Math.random() * 5}s`,
-        size: 3 + Math.random() * 4,
-    }));
-
     return (
-        <section className="hero-ultra-modern section-lg overflow-x-hidden pt-24 pb-8 min-h-[70vh] flex items-center">
+        <section className="relative pt-20 pb-20 lg:pt-28 lg:pb-32 overflow-hidden bg-background">
+            {/* Subtle Grid Background */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+            
+            {/* Subtle Gradient Glows */}
+            <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[800px] h-[400px] opacity-30 bg-primary/20 blur-[120px] rounded-full pointer-events-none"></div>
 
-            {/* Floating Particles */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                {particles.map((p) => (
-                    <div
-                        key={p.id}
-                        className="particle bg-foreground/20"
-                        style={{
-                            left: p.left,
-                            top: p.top,
-                            width: `${p.size}px`,
-                            height: `${p.size}px`,
-                            animationDelay: p.delay,
-                        }}
-                    />
-                ))}
-            </div>
-
-            {/* Animated Background Elements */}
-            <div className="absolute inset-0 overflow-hidden">
-                <motion.div
-                    className="absolute morph-blob"
-                    style={{ top: '5rem', left: '2.5rem', width: '18rem', height: '18rem', background: 'rgba(139, 92, 246, 0.15)', filter: 'blur(60px)' }}
-                    animate={{
-                        x: [0, 100, 0],
-                        y: [0, -50, 0],
-                    }}
-                    transition={{
-                        duration: 20,
-                        repeat: Infinity,
-                        ease: "linear"
-                    }}
-                />
-                <motion.div
-                    className="absolute morph-blob"
-                    style={{ top: '10rem', right: '5rem', width: '22rem', height: '22rem', background: 'rgba(236, 72, 153, 0.15)', filter: 'blur(70px)' }}
-                    animate={{
-                        x: [0, -80, 0],
-                        y: [0, 60, 0],
-                    }}
-                    transition={{
-                        duration: 25,
-                        repeat: Infinity,
-                        ease: "linear"
-                    }}
-                />
-                <motion.div
-                    className="absolute morph-blob"
-                    style={{ bottom: '5rem', left: '25%', width: '16rem', height: '16rem', background: 'rgba(59, 130, 246, 0.12)', filter: 'blur(50px)' }}
-                    animate={{
-                        x: [0, 60, 0],
-                        y: [0, -40, 0],
-                    }}
-                    transition={{
-                        duration: 18,
-                        repeat: Infinity,
-                        ease: "linear"
-                    }}
-                />
-            </div>
-
-            <motion.div
-                className="absolute z-20 inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-purple-500/10 dark:bg-purple-500/10 border border-purple-500/30 backdrop-blur-md shadow-lg"
-                style={{
-                    top: '90px',
-                    left: '100px',
-                    borderRadius: '9999px'
-                }}
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0, y: [0, -5, 0] }}
-                transition={{
-                    x: { duration: 0.8, ease: "easeOut" },
-                    y: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-                }}
-            >
-                <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950 dark:text-purple-400 fill-slate-950 dark:fill-purple-400" />
-                <span className="text-[10px] sm:text-sm font-bold text-slate-950 dark:text-purple-300">AI-Powered Coaching Platform</span>
-            </motion.div>
-
-            <div className="container mx-auto px-6 relative z-10">
-                <div className="grid md:grid-cols-2 gap-12 items-center">
-                    {/* Left Content */}
-                    <motion.div
-                        initial={{ opacity: 0, x: -50 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
-                        className="text-left order-2 lg:order-1 mt-12 sm:mt-0"
-                    >
+            <div className="container relative mx-auto px-6 z-10">
+                
+                <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center max-w-7xl mx-auto">
+                    {/* Left Text Content */}
+                    <div className="flex flex-col items-center lg:items-start text-center lg:text-left z-10">
                         {/* Badge */}
-
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground border border-border text-sm font-medium mb-8">
+                            <span className="flex h-2 w-2 rounded-full bg-primary"></span>
+                            Introducing Enterprise Coaching AI
+                        </div>
 
                         {/* Headline */}
-                        <motion.h1
-                            className="text-3xl sm:text-5xl lg:text-7xl font-bold mb-6 leading-tight"
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                        >
-                            <span className="text-foreground block">AI-Powered Coaching  </span>
-                            <span className="block text-gradient-animate text-glow">for Real World Conversation</span>
-                        </motion.h1>
+                        <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-foreground mb-8">
+                            Master conversations that <br className="hidden md:block" />
+                            <span className="text-primary">drive business results.</span>
+                        </h1>
 
                         {/* Subheadline */}
-                        <motion.p
-                            className="text-lg text-muted-foreground mb-10 leading-relaxed max-w-2xl mx-auto lg:mx-0"
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.4 }}
-                        >
-                            Personalized AI coaching that adapts to your goals, delivering real-time guidance, actionable insights, and measurable performance improvement.
-                        </motion.p>
+                        <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl leading-relaxed">
+                            Deploy scalable, AI-powered roleplay to train your revenue and leadership teams. Get real-time feedback and actionable analytics.
+                        </p>
 
                         {/* CTA Buttons */}
-                        <motion.div
-                            className="flex flex-col sm:flex-row gap-8 mb-12 justify-center lg:justify-start"
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.5 }}
-                        >
-                            <motion.button
-                                className="btn-ultra-modern text-base px-6 py-3 w-full sm:w-auto flex items-center justify-center"
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
+                        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                            <button
                                 onClick={() => navigate('/practice')}
+                                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors shadow-sm"
                             >
-                                Get Started
-                                <ArrowRight className="w-5 h-5 ml-2" />
-                            </motion.button>
-                            <motion.button
-                                className="btn-glass text-base px-6 py-3 w-full sm:w-auto border border-foreground/20 hover:border-foreground/40 rounded-xl"
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
+                                Start Practicing
+                                <ArrowRight className="w-4 h-4" />
+                            </button>
+                            <button
                                 onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg bg-background text-foreground border border-border font-medium hover:bg-muted transition-colors shadow-sm"
                             >
-                                How It Works
-                            </motion.button>
-                        </motion.div>
-
-
-                    </motion.div>
-
-                    {/* Right Content - 3D Scene */}
-                    <motion.div
-                        className="relative hidden md:block"
-                        initial={{ opacity: 0, x: 50 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.8, delay: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                    >
-                        <div className="relative" style={{ width: '100%', height: '560px' }}>
-                            <Scene3D />
-
-                            {/* Floating Elements */}
-                            <motion.div
-                                className="absolute"
-                                style={{ top: '1rem', right: '1rem', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(6px)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '1rem', padding: '0.75rem' }}
-                                animate={{ y: [0, -10, 0] }}
-                                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                            >
-                                <div className="text-center">
-                                    <div className="text-2xl font-bold text-black">95%</div>
-                                    <div className="text-sm text-black font-medium">Success Rate</div>
-                                </div>
-                            </motion.div>
-
-
-
-                            <motion.div
-                                className="absolute"
-                                style={{ bottom: '1rem', left: '1rem', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(6px)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '1rem', padding: '0.75rem' }}
-                                animate={{ y: [0, 10, 0] }}
-                                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                            >
-                                <div className="text-center">
-                                    <div className="text-2xl font-bold text-black">24/7</div>
-                                    <div className="text-sm text-black font-medium">AI Support</div>
-                                </div>
-                            </motion.div>
+                                <Play className="w-4 h-4" />
+                                Watch Demo
+                            </button>
                         </div>
-                    </motion.div>
+                    </div>
+
+                    {/* Right 3D Scene */}
+                    <div className="hidden lg:flex items-center justify-center relative min-h-[500px] transform scale-[1.3] translate-y-8">
+                        <Scene3D />
+                    </div>
                 </div>
+
             </div>
         </section>
     );

@@ -62,7 +62,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tempfile
 
-def setup_langchain_model():
+def setup_langchain_model(model_name):
     # Force httpx to ignore system proxies
     http_client = httpx.Client(trust_env=False, timeout=120.0)
     base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
@@ -70,18 +70,23 @@ def setup_langchain_model():
     return ChatOpenAI(
         api_key=api_key,
         base_url=base_url,
-        model=os.getenv("MODEL_NAME", "llama-3.3-70b-versatile"),
+        model=model_name,
         http_client=http_client,
         temperature=0.1
     )
 
-llm = setup_langchain_model()
+REPORT_MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+CHAT_MODEL_NAME = os.getenv("CHAT_MODEL_NAME", "llama-3.1-8b-instant")
+
+report_llm = setup_langchain_model(REPORT_MODEL_NAME)
+chat_llm = setup_langchain_model(CHAT_MODEL_NAME)
 prompt_template = PromptTemplate(template="{prompt}", input_variables=["prompt"])
 
-MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+# Kept for backwards compatibility if needed, but prefer specific ones
+MODEL_NAME = REPORT_MODEL_NAME
 
-
-def count_request_tokens(messages, model=MODEL_NAME):
+def count_request_tokens(messages, model=None):
+    if model is None: model = REPORT_MODEL_NAME
     try:
         return token_counter(model=model, messages=messages)
     except Exception as e:
@@ -89,7 +94,8 @@ def count_request_tokens(messages, model=MODEL_NAME):
         return 0
 
 
-def count_response_tokens(text, model=MODEL_NAME):
+def count_response_tokens(text, model=None):
+    if model is None: model = REPORT_MODEL_NAME
     try:
         return token_counter(model=model, text=text, count_response_tokens=True)
     except Exception as e:
@@ -219,14 +225,18 @@ def get_bar_color(score):
     if s > 0.0: return COLORS['danger']
     return COLORS['grey_text']
 
-def llm_reply(messages, max_tokens=4000, max_retries=3, delay=1, return_usage=False, run_name=None, run_tags=None):
+def llm_reply(messages, max_tokens=4000, max_retries=3, delay=1, return_usage=False, run_name=None, run_tags=None, use_chat_model=False):
     """Call the LLM with retry logic and optional LangSmith tracing metadata.
     
     Args:
         run_name: Optional name for this run in LangSmith (e.g., 'chat_reply', 'report_generation')
         run_tags: Optional list of tags for filtering in LangSmith (e.g., ['session', 'turn-5'])
+        use_chat_model: If True, uses the faster/cheaper chat model instead of the heavy report model
     """
-    request_tokens = count_request_tokens(messages) if return_usage else None
+    model_name = CHAT_MODEL_NAME if use_chat_model else REPORT_MODEL_NAME
+    active_llm = chat_llm if use_chat_model else report_llm
+    
+    request_tokens = count_request_tokens(messages, model=model_name) if return_usage else None
     
     # Build LangChain config for LangSmith tracing
     langchain_config = {}
@@ -237,15 +247,15 @@ def llm_reply(messages, max_tokens=4000, max_retries=3, delay=1, return_usage=Fa
     
     for attempt in range(max_retries):
         try:
-            print(f" [DEBUG] llm_reply attempt {attempt + 1}", flush=True)
-            response = llm.invoke(messages, config=langchain_config if langchain_config else None)  # type: ignore
+            print(f" [DEBUG] llm_reply attempt {attempt + 1} using {model_name}", flush=True)
+            response = active_llm.invoke(messages, config=langchain_config if langchain_config else None)  # type: ignore
             content = response.content
             if isinstance(content, list):
                 text = "".join(str(x) for x in content).strip()
             else:
                 text = content.strip()
             if return_usage:
-                response_tokens = count_response_tokens(text)
+                response_tokens = count_response_tokens(text, model=model_name)
                 req_t = request_tokens or 0
                 res_t = response_tokens or 0
                 total_tokens = req_t + res_t
@@ -425,7 +435,7 @@ Be SPECIFIC. Quote EXACT words. No generic advice.
 """
     
     try:
-        chain = prompt_template | llm
+        chain = prompt_template | report_llm
         response = chain.invoke({"prompt": prompt}, config={"run_name": "character_analysis", "tags": ["report", "analysis"]})
         
         # Robust parsing
@@ -517,7 +527,7 @@ Categorize each question and specify optimal timing in the conversation.
 """
     
     try:
-        chain = prompt_template | llm
+        chain = prompt_template | report_llm
         response = chain.invoke({"prompt": prompt}, config={"run_name": "question_analysis", "tags": ["report", "analysis"]})
         
         # Robust parsing
@@ -726,7 +736,7 @@ RULES:
         )
         
         # Create Chain
-        chain_raw = prompt | llm
+        chain_raw = prompt | report_llm
         
         # =====================================================================
         # CONSOLIDATED: Single LLM call instead of 3 parallel calls
@@ -769,7 +779,13 @@ RULES:
             }
         
         # Robust JSON parsing
-        json_text = str(raw_response.content) if hasattr(raw_response, 'content') else str(raw_response)
+        content = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+        if isinstance(content, str):
+            json_text = content.strip()
+        elif isinstance(content, list):
+            json_text = "".join(str(x) for x in content).strip()
+        else:
+            json_text = str(content).strip()
         data = parse_json_robustly(json_text)
         
         if data is None:

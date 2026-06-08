@@ -6,7 +6,8 @@ import { Clock, User, Bot, Calendar, Trophy, Sparkles, BookOpen } from "lucide-r
 import { motion } from "framer-motion"
 
 import Navigation from "../components/landing/Navigation"
-import { getApiUrl } from "../lib/api"
+import { getApiUrl, getAuthHeaders } from "../lib/api"
+import { Skeleton } from "../components/ui/skeleton"
 
 interface SessionItem {
     id: string
@@ -33,7 +34,7 @@ export default function SessionHistory() {
                 if (!userStr) { navigate('/login'); return; }
 
                 const res = await fetch(getApiUrl('/api/history'), {
-                    headers: {}
+                    headers: { ...getAuthHeaders() }
                 });
 
                 if (!res.ok) {
@@ -88,11 +89,7 @@ export default function SessionHistory() {
         <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30">
             <Navigation />
 
-            {/* Background */}
-            <div className="fixed inset-0 pointer-events-none -z-10">
-                <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
-                <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[120px]" />
-            </div>
+
 
             <main className="container mx-auto px-4 sm:px-6 pt-24 sm:pt-32 pb-16 sm:pb-32">
                 {/* Header */}
@@ -102,13 +99,33 @@ export default function SessionHistory() {
                 </div>
 
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-32 text-muted-foreground">
-                        <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4" />
-                        <p className="font-medium animate-pulse">Loading history...</p>
+                    <div className="grid gap-6">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="bg-card border border-border rounded-xl shadow-sm p-6 md:p-8 flex flex-col md:flex-row gap-8 md:items-center justify-between max-w-[800px] mx-auto w-full">
+                                <div className="flex-1 space-y-4">
+                                    <div className="flex gap-3">
+                                        <Skeleton className="h-6 w-24 rounded-md" />
+                                        <Skeleton className="h-6 w-32 rounded-md" />
+                                    </div>
+                                    <Skeleton className="h-8 w-3/4 rounded-md" />
+                                    <div className="flex gap-4">
+                                        <Skeleton className="h-4 w-32" />
+                                        <Skeleton className="h-4 w-32" />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-6">
+                                    <div className="text-center space-y-2">
+                                        <Skeleton className="h-4 w-12 mx-auto" />
+                                        <Skeleton className="h-10 w-16 mx-auto rounded-lg" />
+                                    </div>
+                                    <Skeleton className="h-10 w-28 rounded-lg" />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : sessions.length === 0 ? (
-                    <div className="text-center py-24 card-ultra-glass border-dashed group">
-                        <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6 text-muted-foreground border border-border group-hover:bg-muted/80 transition-colors animate-breathe">
+                    <div className="text-center py-24 bg-card border border-border border-dashed rounded-xl shadow-sm group">
+                        <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6 text-muted-foreground border border-border group-hover:bg-muted transition-colors">
                             <Clock className="w-10 h-10" />
                         </div>
                         <h3 className="text-2xl font-bold text-foreground mb-2">
@@ -119,7 +136,7 @@ export default function SessionHistory() {
                                 ? `There was a problem loading your sessions: ${error}. Please try refreshing the page.`
                                 : "Complete a conversation to see your session history and reports here."}
                         </p>
-                        <button onClick={() => error ? window.location.reload() : navigate("/practice")} className="btn-ultra-modern btn-press px-8 py-3">
+                        <button onClick={() => error ? window.location.reload() : navigate("/practice")} className="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors shadow-sm">
                             {error ? 'Refresh Page' : 'Start New Session'}
                         </button>
                     </div>
@@ -132,10 +149,8 @@ export default function SessionHistory() {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: idx * 0.05 }}
                                 whileHover={{ y: -4, scale: 1.01 }}
-                                className="group relative card-ultra-glass p-6 md:p-8 flex flex-col md:flex-row gap-8 md:items-center justify-between hover:border-primary/30 transition-all duration-300 max-w-[800px] mx-auto w-full"
+                                className="group relative bg-card hover:bg-muted border border-border rounded-xl shadow-sm p-6 md:p-8 flex flex-col md:flex-row gap-8 md:items-center justify-between transition-all duration-200 max-w-[800px] mx-auto w-full"
                             >
-                                {/* Subtle hover glow */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-purple-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl pointer-events-none" />
                                 <div className="flex-1 space-y-4">
                                     <div className="flex items-center gap-3 text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                         <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-md">

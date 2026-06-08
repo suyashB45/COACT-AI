@@ -13,6 +13,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Colors } from '../theme/colors';
@@ -84,6 +85,11 @@ export default function LoginScreen() {
       >
         {/* Branding */}
         <View style={styles.brandingContainer}>
+          <Image
+            source={require('../assets/images/coact-logo.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.brandTitle}>CoAct.AI</Text>
           <Text style={styles.brandSubtitle}>Master the Art of Negotiation</Text>
         </View>
@@ -213,6 +219,12 @@ const styles = StyleSheet.create({
   brandingContainer: {
     alignItems: 'center',
     marginBottom: 40,
+  },
+  brandLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    marginBottom: 16,
   },
   brandTitle: {
     fontSize: 36,

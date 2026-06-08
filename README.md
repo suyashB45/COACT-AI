@@ -60,3 +60,12 @@ cd inter-ai-frontend
 npm install
 npm run dev
 ```
+
+**Mobile App (React Native):**
+```bash
+cd CoActMobile
+npm install
+npm run android # or npm run ios
+```
+
+For more detailed information, please refer to the `README.md` files located in each respective directory, as well as the `MOBILE_REACT_NATIVE_BLUEPRINT.md` for the mobile architecture.
