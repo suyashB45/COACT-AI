@@ -4,14 +4,14 @@ import { toast } from 'sonner';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { getApiUrl, getAuthHeaders } from '../lib/api';
 
-const Login: React.FC = () => {
+const Signup: React.FC = () => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email.trim() || !password.trim()) {
             toast.error('Please enter your email and password.');
@@ -20,13 +20,13 @@ const Login: React.FC = () => {
         
         setLoading(true);
         try {
-            const res = await fetch(getApiUrl('/api/auth/login'), {
+            const res = await fetch(getApiUrl('/api/auth/signup'), {
                 method: 'POST',
                 headers: { ...getAuthHeaders() },
                 body: JSON.stringify({ email: email.trim(), password })
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Login failed');
+            if (!res.ok) throw new Error(data.detail || 'Signup failed');
             
             localStorage.setItem('user', JSON.stringify({
                 id: data.user.id,
@@ -34,10 +34,10 @@ const Login: React.FC = () => {
                 access_token: data.access_token
             }));
 
-            toast.success(`Welcome back, ${data.user.email}!`);
+            toast.success(`Account created successfully! Welcome ${data.user.email}!`);
             navigate('/practice');
         } catch (error: any) {
-            toast.error(error.message || 'Invalid email or password.');
+            toast.error(error.message || 'Failed to create account.');
         } finally {
             setLoading(false);
         }
@@ -57,14 +57,14 @@ const Login: React.FC = () => {
                         </Link>
                         
                         <h1 className="text-3xl font-bold text-foreground mb-2 tracking-tight">
-                            Sign in to your account
+                            Create an account
                         </h1>
                         <p className="text-muted-foreground text-sm">
-                            Welcome back! Please enter your details.
+                            Join us today. Please enter your details.
                         </p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-5">
+                    <form onSubmit={handleSignup} className="space-y-5">
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-foreground">Email</label>
                             <div className="relative">
@@ -82,10 +82,7 @@ const Login: React.FC = () => {
                         </div>
 
                         <div className="space-y-1.5">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-medium text-foreground">Password</label>
-                                <Link to="#" className="text-xs font-medium text-primary hover:text-primary/80 transition-colors">Forgot password?</Link>
-                            </div>
+                            <label className="text-sm font-medium text-foreground">Password</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <input
@@ -96,6 +93,7 @@ const Login: React.FC = () => {
                                     className="w-full bg-background border border-border rounded-lg px-10 py-2.5 pr-12 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                                     placeholder="••••••••"
                                     required
+                                    minLength={6}
                                 />
                                 <button
                                     type="button"
@@ -115,15 +113,15 @@ const Login: React.FC = () => {
                             {loading ? (
                                 <span className="animate-spin w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"></span>
                             ) : (
-                                "Sign In"
+                                "Sign Up"
                             )}
                         </button>
                     </form>
                     
                     <p className="mt-8 text-center text-sm text-muted-foreground">
-                        Don't have an account?{' '}
-                        <Link to="/signup" className="font-medium text-primary hover:text-primary/80 transition-colors">
-                            Sign up
+                        Already have an account?{' '}
+                        <Link to="/login" className="font-medium text-primary hover:text-primary/80 transition-colors">
+                            Sign in
                         </Link>
                     </p>
                 </div>
@@ -159,4 +157,4 @@ const Login: React.FC = () => {
     );
 };
 
-export default Login;
+export default Signup;

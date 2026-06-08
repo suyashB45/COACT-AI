@@ -18,6 +18,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 const LimitReached = lazy(() => import('./pages/LimitReached'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
 const Login = lazy(() => import('./pages/Login'))
+const Signup = lazy(() => import('./pages/Signup'))
 
 // Simple page loader for Suspense fallback
 const PageLoader = () => (
@@ -43,6 +44,7 @@ function AppContent() {
                     <Routes location={location} key={location.pathname}>
                         <Route path="/" element={<Home />} />
                         <Route path="/login" element={<Login />} />
+                        <Route path="/signup" element={<Signup />} />
                         <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
                         <Route path="/limit-reached" element={<ProtectedRoute><LimitReached /></ProtectedRoute>} />
                         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

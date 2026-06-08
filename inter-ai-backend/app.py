@@ -768,6 +768,24 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
+@app.post("/api/auth/signup")
+@limiter.limit("5/minute")
+async def signup(request: Request, user: UserLogin):
+    existing_user = get_user_by_email(user.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+        
+    new_user = create_user(user.email, user.password)
+    if not new_user:
+        raise HTTPException(status_code=500, detail="Failed to create user")
+        
+    access_token_expires = dt.timedelta(days=7)
+    expire = dt.datetime.now(dt.timezone.utc) + access_token_expires
+    to_encode = {"sub": new_user["id"], "exp": expire}
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
+    
+    return {"access_token": encoded_jwt, "token_type": "bearer", "user": {"id": new_user["id"], "email": new_user["email"]}}
+
 @app.post("/api/auth/login")
 @limiter.limit("5/minute")
 async def login(request: Request, user: UserLogin):
