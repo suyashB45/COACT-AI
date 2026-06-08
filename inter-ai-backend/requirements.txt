@@ -59,3 +59,4 @@ langgraph
 pymongo[srv]
 passlib[bcrypt]
 bcrypt
+litellm
