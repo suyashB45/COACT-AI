@@ -57,17 +57,65 @@ async def lifespan(app: FastAPI):
     yield
     await shared_httpx_client.aclose()
 
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from fastapi import Depends
+import time
 
-limiter = Limiter(key_func=get_remote_address)
+class TokenBucketLimiter:
+    """
+    A custom Token Bucket Rate Limiter Dependency for FastAPI.
+    Maintains a steady flow of allowed requests, with support for initial bursts.
+    """
+    def __init__(self, capacity: int, refill_rate_per_sec: float):
+        self.capacity = capacity
+        self.refill_rate = refill_rate_per_sec
+        # Maps IP to (tokens, last_refill_timestamp)
+        self.buckets: Dict[str, tuple[float, float]] = {}
+        self._lock = asyncio.Lock()
+
+    def _get_client_ip(self, request: Request) -> str:
+        """Extract the client IP address, respecting proxy headers."""
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        if request.client:
+            return request.client.host
+        return "127.0.0.1"
+
+    async def __call__(self, request: Request):
+        ip = self._get_client_ip(request)
+        now = time.time()
+
+        async with self._lock:
+            # Initialize bucket if new IP
+            if ip not in self.buckets:
+                self.buckets[ip] = (float(self.capacity), now)
+            
+            tokens, last_refill = self.buckets[ip]
+            
+            # Refill tokens based on elapsed time
+            elapsed = now - last_refill
+            new_tokens = tokens + (elapsed * self.refill_rate)
+            
+            # Cap at max capacity
+            if new_tokens > self.capacity:
+                new_tokens = float(self.capacity)
+                
+            # Check if request is allowed
+            if new_tokens >= 1.0:
+                # Consume 1 token
+                self.buckets[ip] = (new_tokens - 1.0, now)
+            else:
+                # Calculate time to wait for 1 token
+                wait_time = (1.0 - new_tokens) / self.refill_rate
+                raise HTTPException(
+                    status_code=429, 
+                    detail=f"Too Many Requests. Please wait {wait_time:.1f} seconds."
+                )
+
+login_limiter = TokenBucketLimiter(capacity=5, refill_rate_per_sec=5.0 / 60.0)
+standard_limiter = TokenBucketLimiter(capacity=30, refill_rate_per_sec=30.0 / 60.0)
 
 app = FastAPI(lifespan=lifespan)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
-app.add_middleware(SlowAPIMiddleware)
 # Enable CORS
 cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
@@ -768,27 +816,9 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
-@app.post("/api/auth/signup")
-@limiter.limit("5/minute")
-async def signup(request: Request, user: UserLogin):
-    existing_user = get_user_by_email(user.email)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-        
-    new_user = create_user(user.email, user.password)
-    if not new_user:
-        raise HTTPException(status_code=500, detail="Failed to create user")
-        
-    access_token_expires = dt.timedelta(days=7)
-    expire = dt.datetime.now(dt.timezone.utc) + access_token_expires
-    to_encode = {"sub": new_user["id"], "exp": expire}
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
-    
-    return {"access_token": encoded_jwt, "token_type": "bearer", "user": {"id": new_user["id"], "email": new_user["email"]}}
 
 @app.post("/api/auth/login")
-@limiter.limit("5/minute")
-async def login(request: Request, user: UserLogin):
+async def login(request: Request, user: UserLogin, _ = Depends(login_limiter)):
     db_user = get_user_by_email(user.email)
     if not db_user or not verify_password(user.password, db_user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
@@ -1135,8 +1165,7 @@ async def transcribe_audio(request: Request):
         return JSONResponse(content={"error": error_msg}, status_code=500)
 
 @app.post("/api/speak")
-@limiter.limit("30/minute")
-async def speak_text(request: Request):
+async def speak_text(request: Request, _ = Depends(standard_limiter)):
     """Text-to-Speech using OpenAI/Azure. Returns audio as complete response."""
     text = ""
     voice = "alloy"
@@ -1542,8 +1571,7 @@ async def start_session(request: Request):
 
 
 @app.post("/api/session/{session_id}/chat")
-@limiter.limit("30/minute")
-async def chat(session_id: str, request: Request):
+async def chat(session_id: str, request: Request, _ = Depends(standard_limiter)):
     sess = get_session(session_id)
     if not sess: 
         return JSONResponse(content={"error": "Session not found"}, status_code=404)
