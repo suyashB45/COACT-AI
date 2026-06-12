@@ -5,6 +5,8 @@ import asyncio
 import uuid
 import datetime as dt
 import tempfile
+import secrets
+import logging
 import numpy as np
 import concurrent.futures
 from typing import Dict, Any, List, Optional
@@ -21,6 +23,49 @@ from langsmith import traceable
 
 load_dotenv()
 
+# ---------------------------------------------------------
+# Structured Logging Configuration
+# ---------------------------------------------------------
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+logger = logging.getLogger("coact")
+
+# ---------------------------------------------------------
+# Production Security Utilities
+# ---------------------------------------------------------
+def generate_otp(length: int = 6) -> str:
+    """Generate a cryptographically secure OTP code."""
+    return "".join(str(secrets.randbelow(10)) for _ in range(length))
+
+def validate_password(password: str) -> tuple[bool, str]:
+    """Validate password meets minimum security requirements.
+    Returns (is_valid, error_message)."""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r"[0-9]", password):
+        return False, "Password must contain at least one digit"
+    return True, ""
+
+def validate_email(email: str) -> bool:
+    """Validate email format."""
+    return bool(re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email))
+
+def sanitize_input(text: str, max_length: int = 2000) -> str:
+    """Sanitize user input for LLM prompts — strip control chars and limit length."""
+    if not text:
+        return ""
+    # Remove null bytes and other control characters (except newlines/tabs)
+    cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+    return cleaned[:max_length].strip()
+
 # Proxy config moved to top
 
 import jwt
@@ -34,7 +79,8 @@ if os.environ.get("FLASK_ENV") == "production" and JWT_SECRET == "super-secret-k
 # Custom Modules & Setup
 # ---------------------------------------------------------
 from cli_report import generate_report, llm_reply, analyze_full_report_data, detect_scenario_type
-from database import get_user_analytics_from_db, get_session_from_db, get_user_sessions_from_db, save_session_to_db, get_previous_session_scores, clear_user_sessions_from_db, check_token_limit, add_token_usage, check_monthly_session_limit, create_user, get_user_by_email, get_user_by_id, verify_password
+from database import get_user_analytics_from_db, get_session_from_db, get_user_sessions_from_db, save_session_to_db, get_previous_session_scores, clear_user_sessions_from_db, check_token_limit, add_token_usage, check_monthly_session_limit, create_user, get_user_by_email, get_user_by_id, verify_password, delete_user_account, update_user_name, update_user_password, enable_2fa, disable_2fa, set_2fa_code, verify_2fa_code, RateLimitExceeded
+from email_service import send_security_alert_email, send_otp_email
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 # Database Models
@@ -117,15 +163,49 @@ standard_limiter = TokenBucketLimiter(capacity=30, refill_rate_per_sec=30.0 / 60
 
 app = FastAPI(lifespan=lifespan)
 # Enable CORS
-cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+cors_origins_raw = os.getenv("CORS_ORIGINS", "https://coact-ai.com,https://www.coact-ai.com")
+# SECURITY: Never allow wildcard CORS in production
+if os.environ.get("FLASK_ENV") == "production" and cors_origins_raw.strip() == "*":
+    logger.warning("CORS_ORIGINS is set to '*' in production! Defaulting to coact-ai.com only.")
+    cors_origins_raw = "https://coact-ai.com,https://www.coact-ai.com"
+cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
+# ---------------------------------------------------------
+# Security Headers Middleware
+# ---------------------------------------------------------
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if os.environ.get("FLASK_ENV") == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+# ---------------------------------------------------------
+# Global Exception Handler (prevents stack trace leakage)
+# ---------------------------------------------------------
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions and return a generic error to clients."""
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "An internal server error occurred. Please try again later."}
+    )
 
 # Default max tokens per user per day
 DAILY_TOKEN_LIMIT = 50000
@@ -242,6 +322,7 @@ def get_authenticated_user(request: Optional[Request] = None):
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized - Invalid token format")
     token = auth_header.split(" ")[1]
+    
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         user_id = payload.get("sub")
@@ -253,6 +334,7 @@ def get_authenticated_user(request: Optional[Request] = None):
     if user is None:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
     return DummyUser(id=user["id"], email=user["email"])
+
 
 def verify_session_ownership(session_id: str, user_id: Optional[str] = None) -> bool:
     """Verify that the session belongs to the specified user."""
@@ -816,6 +898,17 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+class UserRegister(BaseModel):
+    email: str
+    password: str
 
 @app.post("/api/auth/login")
 async def login(request: Request, user: UserLogin, _ = Depends(login_limiter)):
@@ -829,6 +922,192 @@ async def login(request: Request, user: UserLogin, _ = Depends(login_limiter)):
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
     
     return {"access_token": encoded_jwt, "token_type": "bearer", "user": {"id": db_user["id"], "email": db_user["email"]}}
+
+@app.post("/api/auth/register")
+async def register(request: Request, user: UserRegister, _ = Depends(login_limiter)):
+    # Validate email format
+    if not validate_email(user.email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    # Validate password strength
+    is_valid, error_msg = validate_password(user.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    db_user = get_user_by_email(user.email)
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    new_user = create_user(user.email, user.password)
+    if not new_user:
+        raise HTTPException(status_code=500, detail="Failed to create user")
+        
+    access_token_expires = dt.timedelta(days=7)
+    expire = dt.datetime.now(dt.timezone.utc) + access_token_expires
+    to_encode = {"sub": new_user["id"], "exp": expire}
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
+    
+    return {"access_token": encoded_jwt, "token_type": "bearer", "user": {"id": new_user["id"], "email": new_user["email"], "name": new_user.get("name", "")}}
+
+# ---------------------------------------------------------
+# Forgot Password & Reset Password Endpoints
+# ---------------------------------------------------------
+@app.post("/api/auth/forgot-password")
+async def forgot_password(request: Request, payload: ForgotPasswordRequest, _ = Depends(login_limiter)):
+    """Send OTP to email for password reset. Always returns success to prevent email enumeration."""
+    db_user = get_user_by_email(payload.email)
+    if db_user:
+        otp_code = generate_otp()
+        try:
+            set_2fa_code(db_user["id"], otp_code, "forgot_password")
+            send_otp_email(db_user["email"], otp_code, "forgot_password", db_user.get("name", "User"))
+            logger.info(f"Forgot-password OTP sent to {payload.email}")
+        except RateLimitExceeded as e:
+            raise HTTPException(status_code=429, detail=str(e))
+        except Exception as e:
+            logger.error(f"Failed to send forgot-password OTP: {e}")
+    else:
+        logger.info(f"Forgot-password requested for non-existent email: {payload.email}")
+    # Always return success to prevent email enumeration attacks
+    return {"status": "otp_sent", "message": "If an account exists with this email, a verification code has been sent."}
+
+@app.post("/api/auth/reset-password")
+async def reset_password(request: Request, payload: ResetPasswordRequest, _ = Depends(login_limiter)):
+    """Verify OTP and reset password."""
+    # Validate new password strength
+    is_valid, error_msg = validate_password(payload.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    db_user = get_user_by_email(payload.email)
+    if not db_user:
+        raise HTTPException(status_code=400, detail="Invalid email or verification code")
+    
+    if not verify_2fa_code(db_user["id"], payload.otp, "forgot_password"):
+        raise HTTPException(status_code=400, detail="Invalid, expired, or locked verification code")
+    
+    success = update_user_password(db_user["id"], payload.new_password)
+    if success:
+        send_security_alert_email(db_user["email"], "forgot_password", db_user.get("name", "User"))
+        logger.info(f"Password reset successfully for {payload.email}")
+        return {"status": "success", "message": "Password has been reset successfully"}
+    raise HTTPException(status_code=500, detail="Failed to reset password")
+
+class UpdateNameRequest(BaseModel):
+    name: str
+
+@app.put("/api/user/name")
+async def update_name(request: Request, payload: UpdateNameRequest):
+    user = get_authenticated_user(request)
+    success = update_user_name(user.id, payload.name)
+    if success:
+        return {"status": "success", "name": payload.name}
+    raise HTTPException(status_code=500, detail="Failed to update name")
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@app.put("/api/user/password")
+async def update_password(request: Request, payload: UpdatePasswordRequest):
+    user = get_authenticated_user(request)
+    db_user = get_user_by_id(user.id)
+    if not db_user or not verify_password(payload.current_password, db_user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+        
+    # Validate new password strength before sending OTP
+    is_valid, error_msg = validate_password(payload.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+        
+    otp_code = generate_otp()
+    try:
+        set_2fa_code(user.id, otp_code, "password_update")
+    except RateLimitExceeded as e:
+        raise HTTPException(status_code=429, detail=str(e))
+        
+    send_otp_email(db_user["email"], otp_code, "password_update", db_user.get("name", "User"))
+    return {"status": "otp_required"}
+
+class VerifyUpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    otp: str
+
+@app.post("/api/user/password/verify")
+async def verify_update_password(request: Request, payload: VerifyUpdatePasswordRequest):
+    user = get_authenticated_user(request)
+    db_user = get_user_by_id(user.id)
+    if not db_user or not verify_password(payload.current_password, db_user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+    
+    if not verify_2fa_code(user.id, payload.otp, "password_update"):
+        raise HTTPException(status_code=400, detail="Invalid, expired, or locked verification code")
+        
+    # Validate new password strength
+    is_valid, error_msg = validate_password(payload.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+        
+    success = update_user_password(user.id, payload.new_password)
+    if success:
+        send_security_alert_email(db_user["email"], "password_update", db_user.get("name", "User"))
+        set_2fa_code(user.id, "", "password_update", expires_in_minutes=0)
+        return {"status": "success"}
+    raise HTTPException(status_code=500, detail="Failed to update password")
+
+class Toggle2FARequest(BaseModel):
+    enabled: bool
+
+@app.put("/api/user/2fa")
+async def toggle_2fa(request: Request, payload: Toggle2FARequest):
+    user = get_authenticated_user(request)
+    if payload.enabled:
+        success = enable_2fa(user.id)
+    else:
+        success = disable_2fa(user.id)
+        
+    if success:
+        return {"status": "success", "is_2fa_enabled": payload.enabled}
+    raise HTTPException(status_code=500, detail="Failed to toggle 2FA")
+
+@app.delete("/api/user/account")
+async def delete_account(request: Request):
+    """Request to delete the authenticated user's account."""
+    user = get_authenticated_user(request)
+    user_id_str = user.id
+    db_user = get_user_by_id(user_id_str)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    otp_code = generate_otp()
+    try:
+        set_2fa_code(user_id_str, otp_code, "account_deletion")
+    except RateLimitExceeded as e:
+        raise HTTPException(status_code=429, detail=str(e))
+        
+    send_otp_email(db_user["email"], otp_code, "account_deletion", db_user.get("name", "User"))
+    return {"status": "otp_required"}
+
+class VerifyDeleteAccountRequest(BaseModel):
+    otp: str
+
+@app.post("/api/user/account/verify")
+async def verify_delete_account(request: Request, payload: VerifyDeleteAccountRequest):
+    user = get_authenticated_user(request)
+    user_id_str = user.id
+    db_user = get_user_by_id(user_id_str)
+    
+    if not verify_2fa_code(user_id_str, payload.otp, "account_deletion"):
+        raise HTTPException(status_code=400, detail="Invalid, expired, or locked verification code")
+        
+    success = delete_user_account(user_id_str)
+    if success:
+        if db_user:
+            send_security_alert_email(db_user["email"], "account_deletion", db_user.get("name", "User"))
+        return {"status": "success", "message": "Account deleted successfully"}
+    raise HTTPException(status_code=500, detail="Failed to delete account")
+
 
 @app.post("/api/auth/sync")
 async def sync_user(request: Request):
@@ -1001,7 +1280,7 @@ async def websocket_transcribe_stream(websocket: WebSocket):
         print(f" [ERROR] Streaming STT failed: {e}")
         try:
             await websocket.close(code=1011, reason="Streaming connection failed")
-        except:
+        except Exception:
             pass
 
 
@@ -1370,10 +1649,10 @@ async def start_session(request: Request):
         if not check_token_limit(user.id, DAILY_TOKEN_LIMIT):
             return JSONResponse(content={"error": f"Daily token limit ({DAILY_TOKEN_LIMIT}) exceeded. Please try again tomorrow."}, status_code=429)
 
-    role = data.get("role")
-    ai_role = data.get("ai_role")
-    scenario = data.get("scenario")
-    title = data.get("title") # NEW: Title passed from frontend
+    role = sanitize_input(data.get("role", ""), max_length=200)
+    ai_role = sanitize_input(data.get("ai_role", ""), max_length=200)
+    scenario = sanitize_input(data.get("scenario", ""), max_length=3000)
+    title = sanitize_input(data.get("title", ""), max_length=300) or None
     framework = data.get("framework", "auto")
     # Support optional flip_roles flag: when true, swap role and ai_role
     flip_roles = data.get("flip_roles", False)
@@ -1606,7 +1885,7 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
             framework_data = json.loads(framework_raw)
         else:
             framework_data = framework_raw
-    except:
+    except (json.JSONDecodeError, TypeError, ValueError):
         framework_data = framework_raw
     
     if framework_data is None:
@@ -1779,7 +2058,7 @@ async def complete_session(session_id: str, request: Request, background_tasks: 
     
     try:
         framework_data = json.loads(sess["framework"]) if sess["framework"] and sess["framework"].startswith("[") else sess["framework"]
-    except:
+    except (json.JSONDecodeError, TypeError, ValueError):
         framework_data = sess["framework"]
 
     if isinstance(framework_data, list):
@@ -1856,7 +2135,7 @@ async def view_report(session_id: str, request: Request):
         raw_framework = sess.get("framework") or ""
         try:
             framework_data = json.loads(raw_framework) if raw_framework and raw_framework.startswith("[") else raw_framework
-        except:
+        except (json.JSONDecodeError, TypeError, ValueError):
             framework_data = raw_framework
 
         if isinstance(framework_data, list):
@@ -1905,13 +2184,11 @@ async def view_report(session_id: str, request: Request):
             }
         )
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f" [ERROR] PDF generation failed for {session_id}: {e}")
-        return ({
-            "error": "Failed to generate PDF report",
-            "details": str(e)
-        }), 500
+        logger.error(f"PDF generation failed for {session_id}: {e}", exc_info=True)
+        return JSONResponse(
+            content={"error": "Failed to generate PDF report"},
+            status_code=500
+        )
 
 def _build_comparison(sess, response, session_id):
     """Build a comparison object against the user's previous attempt at the same simulation."""
@@ -1930,7 +2207,7 @@ def _build_comparison(sess, response, session_id):
         if isinstance(prev_report, str):
             try:
                 prev_report = json.loads(prev_report)
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 prev_report = {}
 
         # Current score
@@ -1940,7 +2217,7 @@ def _build_comparison(sess, response, session_id):
             if "/" in str(grade_str):
                 try:
                     current_score = float(str(grade_str).split("/")[0].strip())
-                except:
+                except (ValueError, IndexError):
                     pass
         if current_score is None:
             current_score = sess.get("score")
@@ -1964,7 +2241,7 @@ def _build_comparison(sess, response, session_id):
                 sc = item.get("score", "0")
                 try:
                     prev_map[dim] = float(str(sc).split("/")[0].strip())
-                except:
+                except (ValueError, IndexError):
                     pass
 
             for item in current_scorecard:
@@ -1972,7 +2249,7 @@ def _build_comparison(sess, response, session_id):
                 sc = item.get("score", "0")
                 try:
                     curr_val = float(str(sc).split("/")[0].strip())
-                except:
+                except (ValueError, IndexError):
                     continue
                 if dim in prev_map:
                     delta = round(curr_val - prev_map[dim], 1)
@@ -1991,7 +2268,7 @@ def _build_comparison(sess, response, session_id):
             "previous_date": prev.get("created_at"),
             "dimension_deltas": dimension_deltas
         }
-        print(f" [COMPARISON] Previous attempt found for '{title}': {prev_score} → {current_score} (change: {score_change})")
+        print(f" [COMPARISON] Previous attempt found for '{title}': {prev_score} -> {current_score} (change: {score_change})")
         return result
 
     except Exception as e:

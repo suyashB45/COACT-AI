@@ -37,13 +37,10 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const mockUser = { id: '123', email: email.trim() };
-      const mockSession = { access_token: 'dummy', user: mockUser };
-      setAuth(mockUser as any, mockSession as any);
-      // Sync with backend (non-blocking)
-      api.syncUser(mockSession.access_token).catch((err) =>
-        console.warn('Backend sync skipped:', err)
-      );
+      const data = await api.login({ email: email.trim(), password });
+      const user = data.user;
+      const session = { access_token: data.access_token, user };
+      setAuth(user, session);
     } catch (err: any) {
       Alert.alert('Login Failed', err.message || 'Unable to sign in. Please try again.');
     } finally {
@@ -59,13 +56,10 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const mockUser = { id: '123', email: email.trim() };
-      const mockSession = { access_token: 'dummy', user: mockUser };
-      setAuth(mockUser as any, mockSession as any);
-      // Sync with backend (non-blocking)
-      api.syncUser(mockSession.access_token).catch((err) =>
-        console.warn('Backend sync skipped:', err)
-      );
+      const data = await api.register({ email: email.trim(), password });
+      const user = data.user;
+      const session = { access_token: data.access_token, user };
+      setAuth(user, session);
     } catch (err: any) {
       Alert.alert('Sign Up Failed', err.message || 'Unable to create account. Please try again.');
     } finally {

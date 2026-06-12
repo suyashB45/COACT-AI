@@ -26,12 +26,16 @@ COPY . .
 RUN mkdir -p reports static/audio && \
     chmod 755 reports static/audio
 
+# Create non-root user for security
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+RUN chown -R appuser:appgroup /app
+USER appuser
+
 # Expose port
 EXPOSE 8000
 
 # Set environment variables
 ENV PYTHONPATH=/app
-ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 
 # Health check for container monitoring
@@ -40,4 +44,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Run the application with Gunicorn using Uvicorn worker for FastAPI production performance
 # 4 workers allows it to handle multiple concurrent requests without blocking
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "120", "app:app"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120", "--graceful-timeout", "30", "--access-logfile", "-", "app:app"]

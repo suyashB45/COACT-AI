@@ -1,32 +1,51 @@
-fastapi
-python-multipart
-redis
-pydantic
-openai
-azure-storage-blob
-azure-cognitiveservices-speech
-python-dotenv
-fpdf2
-supabase
-reportlab
-cachetools
-matplotlib
-numpy
-faiss-cpu
-requests
-uvicorn
-sqlalchemy
-psycopg2-binary
-langchain
-langchain-openai
-langsmith
-PyJWT
-pytest
-pytest-asyncio
-gunicorn
-langgraph
-pymongo[srv]
-passlib[bcrypt]
-bcrypt
-litellm
-slowapi
+# Core Framework
+fastapi==0.115.6
+uvicorn==0.36.0
+gunicorn==25.1.0
+python-multipart==0.0.24
+pydantic==2.12.5
+
+# AI/ML
+openai==2.30.0
+langchain==1.2.7
+langchain-openai==1.1.7
+langsmith==0.6.6
+langgraph==1.0.7
+litellm==1.83.4
+numpy==2.3.3
+faiss-cpu==1.12.0
+
+# Database
+pymongo[srv]==4.17.0
+redis==8.0.0
+sqlalchemy==2.0.45
+psycopg2-binary==2.9.11
+
+# Auth & Security
+PyJWT==2.10.1
+bcrypt==5.0.0
+passlib[bcrypt]==1.7.4
+
+# Utilities
+python-dotenv==1.0.1
+cachetools==6.2.4
+requests==2.32.5
+matplotlib==3.10.8
+
+# PDF Reports
+fpdf2==2.8.7
+reportlab==4.4.4
+
+# Azure Services
+azure-storage-blob==12.26.0
+azure-cognitiveservices-speech==1.46.0
+
+# Rate Limiting
+slowapi==0.1.9
+
+# Testing
+pytest==9.0.3
+pytest-asyncio==1.4.0
+
+# Legacy (review for removal)
+supabase==2.27.2

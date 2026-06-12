@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import ProtectedRoute from './components/ProtectedRoute'
 import ScrollProgress from './components/ui/ScrollProgress'
 import ErrorBoundary from './components/ErrorBoundary'
+import CookieBanner from './components/landing/CookieBanner'
 import { Loader2 } from 'lucide-react'
 
 // Lazy loaded pages
@@ -15,9 +16,16 @@ const Report = lazy(() => import('./pages/Report'))
 const SessionHistory = lazy(() => import('./pages/SessionHistory'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Profile = lazy(() => import('./pages/Profile'))
+const Settings = lazy(() => import('./pages/Settings'))
 const LimitReached = lazy(() => import('./pages/LimitReached'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
 const Login = lazy(() => import('./pages/Login'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const TermsOfService = lazy(() => import('./pages/TermsOfService'))
+const SecurityPage = lazy(() => import('./pages/Security'))
+const About = lazy(() => import('./pages/About'))
+const Careers = lazy(() => import('./pages/Careers'))
+const ContactSales = lazy(() => import('./pages/ContactSales'))
 
 // Simple page loader for Suspense fallback
 const PageLoader = () => (
@@ -43,10 +51,17 @@ function AppContent() {
                     <Routes location={location} key={location.pathname}>
                         <Route path="/" element={<Home />} />
                         <Route path="/login" element={<Login />} />
+                        <Route path="/privacy" element={<PrivacyPolicy />} />
+                        <Route path="/terms" element={<TermsOfService />} />
+                        <Route path="/security" element={<SecurityPage />} />
+                        <Route path="/about" element={<About />} />
+                        <Route path="/careers" element={<Careers />} />
+                        <Route path="/contact-sales" element={<ContactSales />} />
                         <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
                         <Route path="/limit-reached" element={<ProtectedRoute><LimitReached /></ProtectedRoute>} />
                         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                         <Route path="/history" element={<ProtectedRoute><SessionHistory /></ProtectedRoute>} />
                         <Route path="/system-check/:sessionId" element={<ProtectedRoute><SystemCheck /></ProtectedRoute>} />
                         <Route path="/conversation/:sessionId" element={<ProtectedRoute><Conversation /></ProtectedRoute>} />
@@ -63,6 +78,7 @@ function App() {
         <ErrorBoundary>
             <BrowserRouter>
                 <ScrollProgress />
+                <CookieBanner />
                 <Toaster position="top-center" theme="dark" richColors />
                 <AppContent />
             </BrowserRouter>

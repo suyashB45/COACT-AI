@@ -24,3 +24,120 @@ export const getAuthHeaders = () => {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     };
 };
+
+export const deleteAccount = async () => {
+    const response = await fetch(getApiUrl('/api/user/account'), {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to delete account');
+    }
+    
+    return response.json();
+};
+
+export const verifyDeleteAccount = async (otp: string) => {
+    const response = await fetch(getApiUrl('/api/user/account/verify'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ otp })
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to verify OTP for account deletion');
+    }
+    
+    return response.json();
+};
+
+export const updateName = async (name: string) => {
+    const response = await fetch(getApiUrl('/api/user/name'), {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name })
+    });
+    
+    if (!response.ok) {
+        throw new Error('Failed to update name');
+    }
+    
+    return response.json();
+};
+
+export const updatePassword = async (currentPassword: string, newPassword: string) => {
+    const response = await fetch(getApiUrl('/api/user/password'), {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to update password');
+    }
+    
+    return response.json();
+};
+
+export const verifyUpdatePassword = async (currentPassword: string, newPassword: string, otp: string) => {
+    const response = await fetch(getApiUrl('/api/user/password/verify'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword, otp })
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to verify OTP for password update');
+    }
+    
+    return response.json();
+};
+
+export const toggle2FA = async (enabled: boolean) => {
+    const response = await fetch(getApiUrl('/api/user/2fa'), {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ enabled })
+    });
+    
+    if (!response.ok) {
+        throw new Error('Failed to toggle 2FA settings');
+    }
+    
+    return response.json();
+};
+
+export const requestForgotPassword = async (email: string) => {
+    const response = await fetch(getApiUrl('/api/auth/forgot-password'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to request password reset');
+    }
+    
+    return response.json();
+};
+
+export const resetPassword = async (email: string, otp: string, newPassword: string) => {
+    const response = await fetch(getApiUrl('/api/auth/reset-password'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, new_password: newPassword })
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to reset password');
+    }
+    
+    return response.json();
+};

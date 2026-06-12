@@ -3,9 +3,15 @@ import json
 import gzip
 import base64
 import uuid
+import time
+import logging
 from datetime import datetime
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING, DESCENDING
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 import bcrypt
+
+logger = logging.getLogger("coact.database")
+
 # Fetch MONGODB_URI, fallback to local mongodb if not set
 MONGODB_URI = os.environ.get(
     "MONGODB_URI",
@@ -13,22 +19,82 @@ MONGODB_URI = os.environ.get(
 )
 
 if "localhost" in MONGODB_URI and os.environ.get("FLASK_ENV") == "production":
-    print("[WARNING] Running in production but MONGODB_URI is not set or using localhost!")
+    logger.warning("Running in production but MONGODB_URI is not set or using localhost!")
 
 from typing import Any
 
+# ---------------------------------------------------------
+# MongoDB Connection with Retry Logic
+# ---------------------------------------------------------
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # seconds
+
 db_conn_raw = None
-try:
-    client = MongoClient(MONGODB_URI)
+for attempt in range(1, MAX_RETRIES + 1):
     try:
-        db_conn_raw = client.get_default_database()
-    except Exception:
-        db_conn_raw = client.get_database("coact")
-    print(f"[SUCCESS] Connected to MongoDB database: {db_conn_raw.name}")
-except Exception as e:
-    print(f"[ERROR] Failed to connect to MongoDB: {e}")
+        client = MongoClient(
+            MONGODB_URI,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000,
+            socketTimeoutMS=10000,
+            retryWrites=True,
+        )
+        # Force a connection test
+        client.admin.command("ping")
+        try:
+            db_conn_raw = client.get_default_database()
+        except Exception:
+            db_conn_raw = client.get_database("coact")
+        logger.info(f"Connected to MongoDB database: {db_conn_raw.name} (attempt {attempt})")
+        break
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        if attempt < MAX_RETRIES:
+            wait = RETRY_DELAY * (2 ** (attempt - 1))  # exponential backoff
+            logger.warning(f"MongoDB connection attempt {attempt}/{MAX_RETRIES} failed: {e}. Retrying in {wait}s...")
+            time.sleep(wait)
+        else:
+            logger.error(f"Failed to connect to MongoDB after {MAX_RETRIES} attempts: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected MongoDB connection error: {e}")
+        break
 
 db_conn: Any = db_conn_raw
+
+# ---------------------------------------------------------
+# Create Database Indexes (idempotent — safe to call on every startup)
+# ---------------------------------------------------------
+if db_conn is not None:
+    try:
+        db_conn.practice_history.create_index(
+            [("user_id", ASCENDING), ("created_at", DESCENDING)],
+            name="idx_user_created",
+            background=True
+        )
+        db_conn.practice_history.create_index(
+            [("user_id", ASCENDING), ("completed", ASCENDING)],
+            name="idx_user_completed",
+            background=True
+        )
+        db_conn.practice_history.create_index(
+            [("user_id", ASCENDING), ("title", ASCENDING), ("completed", ASCENDING)],
+            name="idx_user_title_completed",
+            background=True
+        )
+        db_conn.users.create_index(
+            "email",
+            name="idx_email_unique",
+            unique=True,
+            background=True
+        )
+        db_conn.user_token_usage.create_index(
+            [("user_id", ASCENDING), ("date", ASCENDING)],
+            name="idx_user_date",
+            unique=True,
+            background=True
+        )
+        logger.info("MongoDB indexes verified/created successfully")
+    except Exception as e:
+        logger.warning(f"Failed to create MongoDB indexes (non-fatal): {e}")
 
 # Mock SQLAlchemy objects for compatibility with app.py imports
 class MockMetadata:
@@ -334,8 +400,12 @@ def create_user(email: str, password: str):
         doc = {
             "_id": user_id,
             "id": user_id,
-            "email": email,
+            "email": email.lower().strip(),
+            "name": email.split('@')[0], # Default name to email prefix
             "hashed_password": hashed_pwd,
+            "is_2fa_enabled": False,
+            "two_factor_code": None,
+            "two_factor_expires": None,
             "created_at": datetime.now().isoformat()
         }
         db_conn.users.insert_one(doc)
@@ -346,14 +416,177 @@ def create_user(email: str, password: str):
 
 def get_user_by_email(email: str):
     try:
-        return db_conn.users.find_one({"email": email})
+        return db_conn.users.find_one({"email": email.lower().strip()})
     except Exception as e:
         print(f"[ERROR] DB Get User by Email failed: {e}")
         return None
 
 def get_user_by_id(user_id: str):
     try:
-        return db_conn.users.find_one({"_id": user_id})
+        return db_conn.users.find_one({"id": user_id})
     except Exception as e:
-        print(f"[ERROR] DB Get User by ID failed: {e}")
+        print(f"[ERROR] DB Get User By ID failed: {e}")
         return None
+
+def update_user_name(user_id: str, new_name: str):
+    try:
+        result = db_conn.users.update_one(
+            {"id": user_id},
+            {"$set": {"name": new_name.strip()}}
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        print(f"[ERROR] DB Update User Name failed: {e}")
+        return False
+
+def update_user_password(user_id: str, new_password: str):
+    try:
+        hashed_pwd = get_password_hash(new_password)
+        result = db_conn.users.update_one(
+            {"id": user_id},
+            {"$set": {"hashed_password": hashed_pwd}}
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        print(f"[ERROR] DB Update User Password failed: {e}")
+        return False
+
+def delete_user(user_id: str):
+    try:
+        result = db_conn.users.delete_one({"id": user_id})
+        return result.deleted_count > 0
+    except Exception as e:
+        print(f"[ERROR] DB Delete User failed: {e}")
+        return False
+
+def delete_user_account(user_id: str):
+    try:
+        # Delete user record
+        db_conn.users.delete_one({"_id": user_id})
+        # Delete all practice history
+        db_conn.practice_history.delete_many({"user_id": user_id})
+        # Delete token usage history
+        db_conn.user_token_usage.delete_many({"user_id": user_id})
+        print(f"[SUCCESS] Purged all data for user: {user_id}")
+        return True
+    except Exception as e:
+        print(f"[ERROR] DB Delete User Account failed: {e}")
+        return False
+
+# ---------------------------------------------------------
+# 2FA Operations
+# ---------------------------------------------------------
+class RateLimitExceeded(Exception):
+    pass
+
+def set_2fa_code(user_id: str, code: str, action: str = "generic", expires_in_minutes: int = 15):
+    try:
+        from datetime import timedelta
+        user = get_user_by_id(user_id)
+        if user and code: # Only enforce rate limit when setting a new code, not clearing it
+            last_req = user.get("two_factor_last_requested_at")
+            if last_req:
+                last_req_dt = datetime.fromisoformat(last_req)
+                if (datetime.now() - last_req_dt).total_seconds() < 60:
+                    raise RateLimitExceeded("Please wait 60 seconds before requesting a new code.")
+                    
+        expires_at = (datetime.now() + timedelta(minutes=expires_in_minutes)).isoformat()
+        
+        update_data = {
+            "two_factor_code": code,
+            "two_factor_expires": expires_at,
+            "two_factor_action": action,
+            "two_factor_attempts": 0
+        }
+        
+        if code:
+            update_data["two_factor_last_requested_at"] = datetime.now().isoformat()
+            
+        result = db_conn.users.update_one(
+            {"id": user_id},
+            {"$set": update_data}
+        )
+        return result.modified_count > 0
+    except RateLimitExceeded:
+        raise
+    except Exception as e:
+        print(f"[ERROR] DB Set 2FA Code failed: {e}")
+        return False
+
+def verify_2fa_code(user_id: str, code: str, action: str = "generic"):
+    try:
+        user = get_user_by_id(user_id)
+        if not user:
+            return False
+        
+        stored_code = user.get("two_factor_code")
+        expires_at = user.get("two_factor_expires")
+        stored_action = user.get("two_factor_action", "generic")
+        attempts = user.get("two_factor_attempts", 0)
+        
+        if not stored_code or not expires_at:
+            return False
+            
+        if attempts >= 5:
+            # Clear code due to brute-force
+            db_conn.users.update_one(
+                {"id": user_id},
+                {"$set": {"two_factor_code": None, "two_factor_expires": None}}
+            )
+            return False
+            
+        if stored_action != action:
+            return False
+            
+        if stored_code != code:
+            # Increment attempts
+            db_conn.users.update_one(
+                {"id": user_id},
+                {"$inc": {"two_factor_attempts": 1}}
+            )
+            return False
+            
+        # Check expiration
+        if datetime.fromisoformat(expires_at) < datetime.now():
+            return False
+            
+        # Code is valid, consume it
+        db_conn.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "two_factor_code": None, 
+                "two_factor_expires": None,
+                "two_factor_attempts": 0
+            }}
+        )
+        return True
+    except Exception as e:
+        print(f"[ERROR] DB Verify 2FA Code failed: {e}")
+        return False
+
+def enable_2fa(user_id: str):
+    try:
+        result = db_conn.users.update_one(
+            {"id": user_id},
+            {"$set": {"is_2fa_enabled": True}}
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        print(f"[ERROR] DB Enable 2FA failed: {e}")
+        return False
+
+def disable_2fa(user_id: str):
+    try:
+        result = db_conn.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "is_2fa_enabled": False,
+                "two_factor_code": None,
+                "two_factor_expires": None
+            }}
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        print(f"[ERROR] DB Disable 2FA failed: {e}")
+        return False
+

@@ -42,12 +42,8 @@ export function AppNavigator() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check initial session
-    const mockUser = { id: '123', email: 'test@example.com' };
-    const mockSession = { access_token: 'dummy', user: mockUser };
-    setAuth(mockUser as any, mockSession as any);
+    // Stop auto-logging in mock user to allow real database authentication
     setLoading(false);
-
     return () => {};
   }, [setAuth]);
 

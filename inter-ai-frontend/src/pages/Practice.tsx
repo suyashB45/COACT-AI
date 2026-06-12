@@ -506,18 +506,19 @@ export default function Practice() {
 
             <main className="container mx-auto px-4 sm:px-6 pt-24 sm:pt-32 pb-16 sm:pb-32">
                 {/* Hero Section */}
+                <div className="absolute top-0 left-0 w-full h-[50vh] bg-gradient-to-b from-primary/10 via-purple-500/5 to-transparent pointer-events-none -z-10" />
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8 }}
-                    className="text-center mb-20 relative z-10"
+                    className="text-center mb-16 relative z-10"
                 >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-bold uppercase tracking-wider mb-6 animate-fade-in-up">
-                        <Sparkles className="w-4 h-4" /> AI Training Arena
+                    <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-[0.15em] mb-6 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+                        <Sparkles className="w-3.5 h-3.5" /> AI Training Arena
                     </div>
-                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 tracking-tight text-foreground">
+                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-black mb-6 tracking-tight text-foreground">
                         Practice Conversations <br />
-                        <span className="text-primary">
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-400">
                             That Matter
                         </span>
                     </h1>
@@ -623,24 +624,24 @@ export default function Practice() {
                             <h3 className="text-2xl font-bold text-foreground tracking-tight mb-6">Choose Your Challenge</h3>
 
                             {/* Global Mode Toggle */}
-                            <div className="flex bg-card/60 border border-border/50 rounded-full p-1.5 shadow-xl backdrop-blur-md mb-8">
+                            <div className="flex bg-card border border-border/50 rounded-2xl p-2 shadow-2xl backdrop-blur-md mb-12">
                                 <button
                                     onClick={() => setGlobalMode("assessment")}
-                                    className={`relative px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 ${globalMode === "assessment"
-                                        ? "text-primary bg-primary/10 shadow-[0_2px_10px_rgba(59,130,246,0.15)]"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                                    className={`relative px-10 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${globalMode === "assessment"
+                                        ? "text-primary bg-primary/10 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-primary/20"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                         }`}
                                 >
-                                    Assessment
+                                    <Swords className="w-4 h-4" /> Assessment
                                 </button>
                                 <button
                                     onClick={() => setGlobalMode("mentorship")}
-                                    className={`relative px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 ${globalMode === "mentorship"
-                                        ? "text-emerald-500 bg-emerald-500/10 shadow-[0_2px_10px_rgba(16,185,129,0.15)]"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                                    className={`relative px-10 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${globalMode === "mentorship"
+                                        ? "text-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/20"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                         }`}
                                 >
-                                    Mentorship
+                                    <UserCog className="w-4 h-4" /> Mentorship
                                 </button>
                             </div>
                         </div>
@@ -661,22 +662,24 @@ export default function Practice() {
                                             'negotiation': 'Negotiation',
                                             'reflection': 'Reflection',
                                             'mentorship': 'Mentorship',
+                                            'mentorship_sim': 'Mentorship',
                                             'coaching_sim': 'Simulation',
-                                            'custom': 'Custom'
                                         }
                                         const typeColors: any = {
-                                            'coaching': 'bg-blue-500/10 text-slate-900 dark:text-blue-300 border-blue-500/30',
-                                            'negotiation': 'bg-green-500/10 text-slate-900 dark:text-green-300 border-green-500/30',
-                                            'reflection': 'bg-purple-500/10 text-slate-900 dark:text-purple-300 border-purple-500/30',
-                                            'mentorship': 'bg-emerald-500/10 text-slate-900 dark:text-emerald-300 border-emerald-500/30',
-                                            'coaching_sim': 'bg-amber-500/10 text-slate-900 dark:text-amber-300 border-amber-500/30',
-                                            'custom': 'bg-amber-500/10 text-slate-900 dark:text-amber-300 border-amber-500/20'
+                                            'coaching': 'bg-blue-500/10 text-blue-500 border-blue-500/30',
+                                            'negotiation': 'bg-green-500/10 text-green-500 border-green-500/30',
+                                            'reflection': 'bg-purple-500/10 text-purple-500 border-purple-500/30',
+                                            'mentorship': 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30',
+                                            'mentorship_sim': 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30',
+                                            'coaching_sim': 'bg-amber-500/10 text-amber-500 border-amber-500/30',
+                                            'custom': 'bg-amber-500/10 text-amber-500 border-amber-500/20'
                                         }
                                         const typeIcons: any = {
                                             'coaching': Users,
                                             'negotiation': ShoppingCart,
                                             'reflection': GraduationCap,
                                             'mentorship': UserCog,
+                                            'mentorship_sim': UserCog,
                                             'coaching_sim': Swords,
                                             'custom': Sparkles
                                         }
@@ -754,7 +757,7 @@ export default function Practice() {
                                                                     expandedScenario === scenario.title ? null : scenario.title
                                                                 )
                                                             }}
-                                                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 transition-colors"
+                                                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400 hover:text-blue-300 transition-colors"
                                                         >
                                                             <Info className="w-3.5 h-3.5" />
                                                             <span>Scenario Details</span>
@@ -786,7 +789,7 @@ export default function Practice() {
                                                         )}
                                                     </div>
 
-                                                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-primary transition-colors mt-4">
+                                                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300 group-hover:text-blue-400 transition-colors mt-4">
                                                         <span>Start Scenario</span>
                                                         <Swords className="w-3 h-3" />
                                                     </div>
@@ -799,157 +802,161 @@ export default function Practice() {
                         ))}
 
                         {/* Custom Scenario Builder */}
-                        <div className="relative mt-24">
-                            <div className="flex flex-col items-center mb-10 relative">
-                                <div className="absolute top-1/2 left-0 w-full h-px bg-border -z-10" />
+                        <div className="relative mt-32 max-w-4xl mx-auto">
+                            <div className="flex flex-col items-center mb-12 relative">
+                                <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent -z-10" />
                                 <div className="bg-background px-6 relative z-10 mb-6">
-                                    <span className="text-xs font-black text-amber-500 tracking-[0.2em] uppercase border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.2)]">Create Your Own</span>
+                                    <span className="text-xs font-black text-amber-500 tracking-[0.2em] uppercase border border-amber-500/30 bg-amber-500/10 px-6 py-2 rounded-full shadow-[0_0_20px_rgba(245,158,11,0.2)]">Custom Builder</span>
                                 </div>
-                                <h3 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">Build a Scenario</h3>
-                                <p className="text-muted-foreground text-center max-w-lg mb-8">Design a specific situation to test your skills or explore a new dynamic.</p>
+                                <h3 className="text-4xl sm:text-5xl font-black text-foreground tracking-tight mb-4">Build Your Scenario</h3>
+                                <p className="text-lg text-muted-foreground text-center max-w-2xl mb-10 leading-relaxed">Design a specific situation to test your skills, explore a new dynamic, or rehearse for an upcoming conversation.</p>
 
                                 {/* Custom Mode Toggle */}
-                                <div className="flex bg-card/60 border border-border/50 rounded-full p-1.5 shadow-xl backdrop-blur-md">
+                                <div className="flex bg-card border border-border/50 rounded-2xl p-2 shadow-2xl backdrop-blur-md">
                                     <button
                                         onClick={() => setCustomForm({ ...customForm, sessionType: "assessment" })}
-                                        className={`relative px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 ${customForm.sessionType === "assessment"
-                                            ? "text-primary bg-primary/10 shadow-[0_2px_10px_rgba(59,130,246,0.15)]"
-                                            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                                        className={`relative px-10 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${customForm.sessionType === "assessment"
+                                            ? "text-primary bg-primary/10 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-primary/20"
+                                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                             }`}
                                     >
-                                        Assessment
+                                        <Swords className="w-4 h-4" /> Assessment
                                     </button>
                                     <button
                                         onClick={() => setCustomForm({ ...customForm, sessionType: "mentorship" })}
-                                        className={`relative px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 ${customForm.sessionType === "mentorship"
-                                            ? "text-emerald-500 bg-emerald-500/10 shadow-[0_2px_10px_rgba(16,185,129,0.15)]"
-                                            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                                        className={`relative px-10 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${customForm.sessionType === "mentorship"
+                                            ? "text-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/20"
+                                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                             }`}
                                     >
-                                        Mentorship
+                                        <UserCog className="w-4 h-4" /> Mentorship
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="bg-card/40 border border-white/10 rounded-3xl p-6 sm:p-10 backdrop-blur-md shadow-2xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
+                            <div className="relative group">
+                                {/* Animated Gradient Background/Border */}
+                                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/30 via-purple-500/30 to-emerald-500/30 rounded-[2.5rem] blur opacity-30 group-hover:opacity-60 transition duration-1000 group-hover:duration-200" />
+                                
+                                <div className="bg-card border border-border/50 rounded-[2rem] p-8 sm:p-12 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+                                    <div className="absolute -top-32 -right-32 w-96 h-96 bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+                                    <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
 
-                                <div className="space-y-8 relative z-10">
+                                    <div className="space-y-10 relative z-10">
 
-                                    {/* 1. Basics */}
-                                    <div className="space-y-6">
-                                        <div className="grid grid-cols-1 gap-6">
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold uppercase text-muted-foreground ml-1">Scenario Title</label>
-                                                <div className="relative group">
-                                                    <div className="absolute left-3 top-3 text-muted-foreground group-focus-within:text-primary transition-colors">
-                                                        <Type className="w-5 h-5" />
+                                        {/* 1. Basics */}
+                                        <div className="space-y-6">
+                                            <div className="grid grid-cols-1 gap-6">
+                                                <div className="space-y-3">
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-2">Scenario Title</label>
+                                                    <div className="relative group/input">
+                                                        <div className="absolute left-4 top-4 text-muted-foreground group-focus-within/input:text-primary transition-colors">
+                                                            <Type className="w-5 h-5" />
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            value={customForm.title}
+                                                            onChange={(e) => setCustomForm({ ...customForm, title: e.target.value })}
+                                                            placeholder="e.g., Managing Underperformance"
+                                                            className="w-full bg-background/50 border-2 border-border hover:border-primary/30 rounded-2xl pl-12 pr-4 py-4 text-base focus:outline-none focus:border-primary/50 transition-all font-medium shadow-inner"
+                                                        />
                                                     </div>
-                                                    <input
-                                                        type="text"
-                                                        value={customForm.title}
-                                                        onChange={(e) => setCustomForm({ ...customForm, title: e.target.value })}
-                                                        placeholder="e.g., Managing Underperformance"
-                                                        className="w-full bg-background/50 border border-border group-hover:border-primary/30 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium"
-                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-3">
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-2">Your Role</label>
+                                                    <div className="relative group/input">
+                                                        <div className="absolute left-4 top-4 text-muted-foreground group-focus-within/input:text-indigo-400 transition-colors">
+                                                            <User className="w-5 h-5" />
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            value={customForm.userRole}
+                                                            onChange={(e) => setCustomForm({ ...customForm, userRole: e.target.value })}
+                                                            placeholder="e.g., Engineering Lead"
+                                                            className="w-full bg-background/50 border-2 border-border hover:border-indigo-500/30 rounded-2xl pl-12 pr-4 py-4 text-base focus:outline-none focus:border-indigo-500/50 transition-all font-medium shadow-inner"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-2">Partner Role (AI)</label>
+                                                    <div className="relative group/input">
+                                                        <div className="absolute left-4 top-4 text-muted-foreground group-focus-within/input:text-purple-400 transition-colors">
+                                                            <BrainCircuit className="w-5 h-5" />
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            value={customForm.aiRole}
+                                                            onChange={(e) => setCustomForm({ ...customForm, aiRole: e.target.value })}
+                                                            placeholder="e.g., Junior Developer"
+                                                            className="w-full bg-background/50 border-2 border-border hover:border-purple-500/30 rounded-2xl pl-12 pr-4 py-4 text-base focus:outline-none focus:border-purple-500/50 transition-all font-medium shadow-inner"
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold uppercase text-muted-foreground ml-1">Your Role</label>
-                                                <div className="relative group">
-                                                    <div className="absolute left-3 top-3 text-muted-foreground group-focus-within:text-indigo-400 transition-colors">
-                                                        <User className="w-5 h-5" />
-                                                    </div>
-                                                    <input
-                                                        type="text"
-                                                        value={customForm.userRole}
-                                                        onChange={(e) => setCustomForm({ ...customForm, userRole: e.target.value })}
-                                                        placeholder="e.g., Engineering Lead"
-                                                        className="w-full bg-background/50 border border-border group-hover:border-indigo-500/30 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium"
-                                                    />
+                                        {/* 3. Context */}
+                                        <div className="space-y-3">
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-2">Scenario Context</label>
+                                            <div className="relative group/input">
+                                                <div className="absolute left-4 top-5 text-muted-foreground group-focus-within/input:text-primary transition-colors">
+                                                    <MessageSquare className="w-5 h-5" />
                                                 </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold uppercase text-muted-foreground ml-1">Partner Role (AI)</label>
-                                                <div className="relative group">
-                                                    <div className="absolute left-3 top-3 text-muted-foreground group-focus-within:text-purple-400 transition-colors">
-                                                        <BrainCircuit className="w-5 h-5" />
-                                                    </div>
-                                                    <input
-                                                        type="text"
-                                                        value={customForm.aiRole}
-                                                        onChange={(e) => setCustomForm({ ...customForm, aiRole: e.target.value })}
-                                                        placeholder="e.g., Junior Developer"
-                                                        className="w-full bg-background/50 border border-border group-hover:border-purple-500/30 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all font-medium"
-                                                    />
-                                                </div>
+                                                <textarea
+                                                    value={customForm.context}
+                                                    onChange={(e) => setCustomForm({ ...customForm, context: e.target.value })}
+                                                    placeholder="Describe the situation clearly. Example: 'I need to give negative feedback to a high performer who has been arriving late recently.'..."
+                                                    rows={5}
+                                                    className="w-full bg-background/50 border-2 border-border hover:border-primary/30 rounded-2xl pl-12 pr-4 py-4 text-base focus:outline-none focus:border-primary/50 resize-none leading-relaxed shadow-inner"
+                                                />
                                             </div>
                                         </div>
-                                    </div>
 
+                                        <div className="pt-6 flex justify-end">
+                                            <button
+                                                onClick={() => {
+                                                    if (!customForm.title || !customForm.userRole || !customForm.aiRole || !customForm.context) {
+                                                        toast.error("Please fill in all fields")
+                                                        return
+                                                    }
 
+                                                    // Dynamic mode based on toggle
+                                                    const scenario_type = customForm.sessionType === 'mentorship' ? 'mentorship' : 'coaching_sim'
+                                                    const session_mode = customForm.sessionType === 'mentorship' ? 'mentorship' : 'skill_assessment'
+                                                    const mode_param = customForm.sessionType === 'mentorship' ? 'mentorship' : 'evaluation'
 
-                                    {/* 3. Context */}
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold uppercase text-muted-foreground ml-1">Scenario Context</label>
-                                        <div className="relative group">
-                                            <div className="absolute left-3 top-3.5 text-muted-foreground group-focus-within:text-primary transition-colors">
-                                                <MessageSquare className="w-5 h-5" />
-                                            </div>
-                                            <textarea
-                                                value={customForm.context}
-                                                onChange={(e) => setCustomForm({ ...customForm, context: e.target.value })}
-                                                placeholder="Describe the situation clearly. Example: 'I need to give negative feedback to a high performer who has been arriving late recently.'..."
-                                                rows={4}
-                                                className="w-full bg-background/50 border border-border group-hover:border-primary/30 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none leading-relaxed"
-                                            />
+                                                    handleStartSession({
+                                                        role: customForm.userRole,
+                                                        ai_role: customForm.aiRole,
+                                                        scenario: customForm.context,
+                                                        title: customForm.title,
+                                                        scenario_type: scenario_type,
+                                                        session_mode: session_mode,
+                                                        ai_character: selectedCharacter,
+                                                        mode: mode_param
+                                                    })
+                                                }}
+                                                disabled={isStartingSession}
+                                                className="w-full sm:w-auto px-10 py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-lg hover:bg-primary/90 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:shadow-[0_0_40px_rgba(59,130,246,0.5)]"
+                                            >
+                                                {isStartingSession && startingScenarioTitle === customForm.title ? (
+                                                    <>
+                                                        <Loader2 className="w-6 h-6 animate-spin" />
+                                                        Initializing Simulation...
+                                                    </>
+                                                ) : isStartingSession ? (
+                                                    'Initializing Simulation...'
+                                                ) : (
+                                                    <>
+                                                        Start Simulation
+                                                        <Swords className="w-6 h-6" />
+                                                    </>
+                                                )}
+                                            </button>
                                         </div>
-                                    </div>
-
-                                    <div className="pt-4 flex justify-end">
-                                        <button
-                                            onClick={() => {
-                                                if (!customForm.title || !customForm.userRole || !customForm.aiRole || !customForm.context) {
-                                                    toast.error("Please fill in all fields")
-                                                    return
-                                                }
-
-                                                // Dynamic mode based on toggle
-                                                const scenario_type = customForm.sessionType === 'mentorship' ? 'mentorship' : 'coaching_sim'
-                                                const session_mode = customForm.sessionType === 'mentorship' ? 'mentorship' : 'skill_assessment'
-                                                const mode_param = customForm.sessionType === 'mentorship' ? 'mentorship' : 'evaluation'
-
-                                                handleStartSession({
-                                                    role: customForm.userRole,
-                                                    ai_role: customForm.aiRole,
-                                                    scenario: customForm.context,
-                                                    title: customForm.title,
-                                                    scenario_type: scenario_type,
-                                                    session_mode: session_mode,
-                                                    ai_character: selectedCharacter,
-                                                    mode: mode_param
-                                                })
-                                            }}
-                                            disabled={isStartingSession}
-                                            className="w-full sm:w-auto px-8 py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2.5 shadow-sm"
-                                        >
-                                            {isStartingSession && startingScenarioTitle === customForm.title ? (
-                                                <>
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                    Initializing Simulation...
-                                                </>
-                                            ) : isStartingSession ? (
-                                                'Initializing Simulation...'
-                                            ) : (
-                                                <>
-                                                    Start Simulation
-                                                    <Swords className="w-5 h-5" />
-                                                </>
-                                            )}
-                                        </button>
                                     </div>
                                 </div>
                             </div>

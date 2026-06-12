@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Clock, Trophy, Calendar, ArrowRight, LogOut, PlayCircle } from 'lucide-react';
+import { Mail, Clock, Trophy, Calendar, ArrowRight, LogOut, PlayCircle, Settings } from 'lucide-react';
 import Navigation from '../components/landing/Navigation';
 import { getApiUrl, getAuthHeaders } from '../lib/api';
 
@@ -103,7 +103,7 @@ const Profile: React.FC = () => {
                             </div>
                             <div>
                                 <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
-                                    {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                                    {user?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
                                 </h1>
                                 <div className="flex items-center justify-center sm:justify-start gap-2 text-muted-foreground text-sm">
                                     <Mail className="w-4 h-4" />
@@ -111,13 +111,22 @@ const Profile: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
-                        >
-                            <LogOut className="w-4 h-4" />
-                            Logout
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => navigate('/settings')}
+                                className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm font-medium"
+                            >
+                                <Settings className="w-4 h-4" />
+                                Settings
+                            </button>
+                            <button
+                                onClick={handleLogout}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                Logout
+                            </button>
+                        </div>
                     </div>
                 </motion.div>
 

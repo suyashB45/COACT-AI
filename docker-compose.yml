@@ -30,13 +30,13 @@ services:
 
   backend:
     build:
-      context: ./inter-ai-backend-go
+      context: ./inter-ai-backend
       dockerfile: Dockerfile
     expose:
       - "8000"
     volumes:
-      - ./inter-ai-backend-go/reports:/app/reports
-      - ./inter-ai-backend-go/data:/app/data
+      - ./inter-ai-backend/reports:/app/reports
+      - ./inter-ai-backend/data:/app/data
       - ./piper_models:/app/models
       - backend-db:/app/db
     environment:

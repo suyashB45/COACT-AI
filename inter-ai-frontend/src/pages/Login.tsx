@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { getApiUrl, getAuthHeaders } from '../lib/api';
+import { Mail, Lock, Eye, EyeOff, X } from 'lucide-react';
+import { getApiUrl, getAuthHeaders, requestForgotPassword, resetPassword } from '../lib/api';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -10,6 +10,14 @@ const Login: React.FC = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    // Forgot Password State
+    const [showForgotModal, setShowForgotModal] = useState(false);
+    const [forgotEmail, setForgotEmail] = useState('');
+    const [forgotOtp, setForgotOtp] = useState('');
+    const [forgotNewPassword, setForgotNewPassword] = useState('');
+    const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+    const [forgotLoading, setForgotLoading] = useState(false);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -40,6 +48,48 @@ const Login: React.FC = () => {
             toast.error(error.message || 'Invalid email or password.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleForgotRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!forgotEmail.trim()) {
+            toast.error('Please enter your email address.');
+            return;
+        }
+        setForgotLoading(true);
+        try {
+            await requestForgotPassword(forgotEmail.trim());
+            toast.success('If that email exists, an OTP has been sent.');
+            setForgotStep(2);
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to request OTP.');
+        } finally {
+            setForgotLoading(false);
+        }
+    };
+
+    const handleForgotReset = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!forgotOtp.trim() || !forgotNewPassword.trim()) {
+            toast.error('Please fill in all fields.');
+            return;
+        }
+        setForgotLoading(true);
+        try {
+            await resetPassword(forgotEmail.trim(), forgotOtp.trim(), forgotNewPassword);
+            toast.success('Password reset successfully! You can now log in.');
+            setShowForgotModal(false);
+            setEmail(forgotEmail.trim());
+            setPassword(forgotNewPassword);
+            setForgotEmail('');
+            setForgotOtp('');
+            setForgotNewPassword('');
+            setForgotStep(1);
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to reset password.');
+        } finally {
+            setForgotLoading(false);
         }
     };
 
@@ -84,7 +134,16 @@ const Login: React.FC = () => {
                         <div className="space-y-1.5">
                             <div className="flex justify-between items-center">
                                 <label className="text-sm font-medium text-foreground">Password</label>
-                                <Link to="#" className="text-xs font-medium text-primary hover:text-primary/80 transition-colors">Forgot password?</Link>
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        setForgotStep(1);
+                                        setShowForgotModal(true);
+                                    }}
+                                    className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                                >
+                                    Forgot password?
+                                </button>
                             </div>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -148,6 +207,98 @@ const Login: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Forgot Password Modal */}
+            {showForgotModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                    <div className="bg-card w-full max-w-md rounded-2xl shadow-xl border border-border p-6 relative">
+                        <button
+                            onClick={() => setShowForgotModal(false)}
+                            className="absolute right-4 top-4 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="mb-6">
+                            <h2 className="text-2xl font-bold text-foreground">Reset Password</h2>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {forgotStep === 1 
+                                    ? "Enter your email address to receive a verification code." 
+                                    : "Enter the code sent to your email and your new password."}
+                            </p>
+                        </div>
+
+                        {forgotStep === 1 ? (
+                            <form onSubmit={handleForgotRequest} className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium text-foreground">Email Address</label>
+                                    <input
+                                        type="email"
+                                        value={forgotEmail}
+                                        onChange={(e) => setForgotEmail(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                                        placeholder="Enter your email"
+                                        required
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={forgotLoading}
+                                    className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors flex justify-center items-center h-10"
+                                >
+                                    {forgotLoading ? (
+                                        <span className="animate-spin w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"></span>
+                                    ) : (
+                                        "Send Verification Code"
+                                    )}
+                                </button>
+                            </form>
+                        ) : (
+                            <form onSubmit={handleForgotReset} className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium text-foreground">Verification Code</label>
+                                    <input
+                                        type="text"
+                                        value={forgotOtp}
+                                        onChange={(e) => setForgotOtp(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono tracking-widest text-center"
+                                        placeholder="123456"
+                                        maxLength={6}
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium text-foreground">New Password</label>
+                                    <input
+                                        type="password"
+                                        value={forgotNewPassword}
+                                        onChange={(e) => setForgotNewPassword(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                                        placeholder="••••••••"
+                                        required
+                                    />
+                                </div>
+                                <div className="pt-2">
+                                    <p className="text-xs text-muted-foreground mb-3 text-center">
+                                        Please check your Spam or Junk folder if you don't see the email within a minute.
+                                    </p>
+                                    <button
+                                        type="submit"
+                                        disabled={forgotLoading}
+                                        className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors flex justify-center items-center h-10"
+                                    >
+                                        {forgotLoading ? (
+                                            <span className="animate-spin w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"></span>
+                                        ) : (
+                                            "Reset Password"
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
