@@ -326,6 +326,7 @@ def get_authenticated_user(request: Optional[Request] = None):
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         user_id = payload.get("sub")
+        iat = payload.get("iat")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Could not validate credentials")
     except jwt.PyJWTError:
@@ -333,6 +334,19 @@ def get_authenticated_user(request: Optional[Request] = None):
     user = get_user_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
+        
+    # Check if token was issued before the password was last changed
+    pwd_changed = user.get("password_changed_at")
+    if pwd_changed and iat:
+        try:
+            pwd_changed_dt = dt.datetime.fromisoformat(pwd_changed.replace('Z', '+00:00'))
+            if pwd_changed_dt.tzinfo is None:
+                pwd_changed_dt = pwd_changed_dt.replace(tzinfo=dt.timezone.utc)
+            if iat < pwd_changed_dt.timestamp():
+                raise HTTPException(status_code=401, detail="Token expired due to password change")
+        except ValueError:
+            pass # ignore invalid date format
+
     return DummyUser(id=user["id"], email=user["email"])
 
 
@@ -917,8 +931,9 @@ async def login(request: Request, user: UserLogin, _ = Depends(login_limiter)):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
         
     access_token_expires = dt.timedelta(days=7)
-    expire = dt.datetime.now(dt.timezone.utc) + access_token_expires
-    to_encode = {"sub": db_user["id"], "exp": expire}
+    now = dt.datetime.now(dt.timezone.utc)
+    expire = now + access_token_expires
+    to_encode = {"sub": db_user["id"], "exp": expire, "iat": now}
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
     
     return {"access_token": encoded_jwt, "token_type": "bearer", "user": {"id": db_user["id"], "email": db_user["email"]}}
@@ -943,8 +958,9 @@ async def register(request: Request, user: UserRegister, _ = Depends(login_limit
         raise HTTPException(status_code=500, detail="Failed to create user")
         
     access_token_expires = dt.timedelta(days=7)
-    expire = dt.datetime.now(dt.timezone.utc) + access_token_expires
-    to_encode = {"sub": new_user["id"], "exp": expire}
+    now = dt.datetime.now(dt.timezone.utc)
+    expire = now + access_token_expires
+    to_encode = {"sub": new_user["id"], "exp": expire, "iat": now}
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
     
     return {"access_token": encoded_jwt, "token_type": "bearer", "user": {"id": new_user["id"], "email": new_user["email"], "name": new_user.get("name", "")}}
@@ -1317,6 +1333,28 @@ async def transcribe_audio(request: Request):
         
         tmp = tempfile.NamedTemporaryFile(suffix=file_ext, delete=False)
         audio_bytes = await audio_file.read()
+        
+        # Strict magic bytes validation to prevent malicious uploads (e.g. .exe masquerading as .mp3)
+        magic_bytes = audio_bytes[:12]
+        is_audio = False
+        
+        if magic_bytes.startswith(b'ID3') or magic_bytes.startswith(b'\xff\xfb') or magic_bytes.startswith(b'\xff\xf3'): # MP3
+            is_audio = True
+        elif magic_bytes.startswith(b'OggS'): # OGG
+            is_audio = True
+        elif magic_bytes.startswith(b'fLaC'): # FLAC
+            is_audio = True
+        elif magic_bytes.startswith(b'RIFF') and b'WAVE' in magic_bytes: # WAV
+            is_audio = True
+        elif magic_bytes.startswith(b'\x1aE\xdf\xa3'): # WEBM
+            is_audio = True
+        elif b'ftyp' in magic_bytes: # MP4 / M4A
+            is_audio = True
+            
+        if not is_audio:
+            logger.warning(f"Rejected invalid file upload at /api/transcribe. Magic bytes: {magic_bytes}")
+            return JSONResponse(content={"error": "Invalid file format. Uploaded file is not a valid audio file."}, status_code=400)
+            
         tmp.write(audio_bytes)
         tmp.close()
         read_path = tmp.name

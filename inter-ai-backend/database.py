@@ -406,6 +406,7 @@ def create_user(email: str, password: str):
             "is_2fa_enabled": False,
             "two_factor_code": None,
             "two_factor_expires": None,
+            "password_changed_at": datetime.utcnow().isoformat(),
             "created_at": datetime.now().isoformat()
         }
         db_conn.users.insert_one(doc)
@@ -444,7 +445,10 @@ def update_user_password(user_id: str, new_password: str):
         hashed_pwd = get_password_hash(new_password)
         result = db_conn.users.update_one(
             {"id": user_id},
-            {"$set": {"hashed_password": hashed_pwd}}
+            {"$set": {
+                "hashed_password": hashed_pwd,
+                "password_changed_at": datetime.utcnow().isoformat()
+            }}
         )
         return result.modified_count > 0
     except Exception as e:
