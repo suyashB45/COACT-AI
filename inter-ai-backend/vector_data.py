@@ -11,7 +11,9 @@ load_dotenv()
 # 1. Setup
 # -------------------
 base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
-api_key = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
+api_key = os.getenv("GROQ_API_KEY", "")
+if not api_key:
+    print("[WARNING] GROQ_API_KEY is not set! Embedding generation will fail.")
 
 client = OpenAI(
     api_key=api_key,

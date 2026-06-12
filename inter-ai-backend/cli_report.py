@@ -66,7 +66,9 @@ def setup_langchain_model(model_name):
     # Force httpx to ignore system proxies
     http_client = httpx.Client(trust_env=False, timeout=120.0)
     base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
-    api_key = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
+    api_key = os.getenv("GROQ_API_KEY", "")
+    if not api_key:
+        print("[WARNING] GROQ_API_KEY is not set! LLM calls will fail.")
     return ChatOpenAI(
         api_key=api_key,
         base_url=base_url,

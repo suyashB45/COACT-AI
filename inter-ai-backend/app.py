@@ -380,18 +380,24 @@ QUESTIONS_FILE = os.path.join(BASE_DIR, "framework_questions.json")
 MAX_TURNS = 12 
 
 base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
-api_key = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
+api_key = os.getenv("GROQ_API_KEY", "")
+if not api_key:
+    logger.error("GROQ_API_KEY environment variable is not set! LLM features will not work.")
 
 client = OpenAI(
-    api_key=api_key,
+    api_key=api_key or "not-set",
     base_url=base_url
 )
-print(f"[SUCCESS] Groq API client initialized with base URL: {base_url}")
+logger.info(f"Groq API client initialized with base URL: {base_url}")
+
+openai_key = os.getenv("OPENAI_API_KEY", "")
+if not openai_key:
+    logger.warning("OPENAI_API_KEY environment variable is not set! TTS features will not work.")
 
 tts_client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY", "your_openai_api_key_here")
+    api_key=openai_key or "not-set"
 )
-print("[SUCCESS] OpenAI TTS client initialized.")
+logger.info("OpenAI TTS client initialized.")
 
 
 
