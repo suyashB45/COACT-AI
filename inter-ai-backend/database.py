@@ -5,7 +5,7 @@ import base64
 import uuid
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 import bcrypt
@@ -21,10 +21,15 @@ MONGODB_URI = os.environ.get(
 if "localhost" in MONGODB_URI and os.environ.get("FLASK_ENV") == "production":
     logger.warning("Running in production but MONGODB_URI is not set or using localhost!")
 
+# Connection pooling configurations
+MONGODB_MAX_POOL_SIZE = int(os.environ.get("MONGODB_MAX_POOL_SIZE", "100"))
+MONGODB_MIN_POOL_SIZE = int(os.environ.get("MONGODB_MIN_POOL_SIZE", "10"))
+MONGODB_MAX_IDLE_TIME_MS = int(os.environ.get("MONGODB_MAX_IDLE_TIME_MS", "30000"))
+
 from typing import Any
 
 # ---------------------------------------------------------
-# MongoDB Connection with Retry Logic
+# MongoDB Connection with Retry Logic & Connection Pooling
 # ---------------------------------------------------------
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
@@ -37,6 +42,9 @@ for attempt in range(1, MAX_RETRIES + 1):
             serverSelectionTimeoutMS=5000,
             connectTimeoutMS=5000,
             socketTimeoutMS=10000,
+            maxPoolSize=MONGODB_MAX_POOL_SIZE,
+            minPoolSize=MONGODB_MIN_POOL_SIZE,
+            maxIdleTimeMS=MONGODB_MAX_IDLE_TIME_MS,
             retryWrites=True,
         )
         # Force a connection test
@@ -46,6 +54,7 @@ for attempt in range(1, MAX_RETRIES + 1):
         except Exception:
             db_conn_raw = client.get_database("coact")
         logger.info(f"Connected to MongoDB database: {db_conn_raw.name} (attempt {attempt})")
+        logger.info(f"MongoDB connection pool settings: maxPoolSize={MONGODB_MAX_POOL_SIZE}, minPoolSize={MONGODB_MIN_POOL_SIZE}, maxIdleTimeMS={MONGODB_MAX_IDLE_TIME_MS}")
         break
     except (ConnectionFailure, ServerSelectionTimeoutError) as e:
         if attempt < MAX_RETRIES:
@@ -65,6 +74,7 @@ db_conn: Any = db_conn_raw
 # ---------------------------------------------------------
 if db_conn is not None:
     try:
+        # practice_history Indexes
         db_conn.practice_history.create_index(
             [("user_id", ASCENDING), ("created_at", DESCENDING)],
             name="idx_user_created",
@@ -80,12 +90,34 @@ if db_conn is not None:
             name="idx_user_title_completed",
             background=True
         )
+        # New optimized compound indexes
+        db_conn.practice_history.create_index(
+            [("user_id", ASCENDING), ("completed", ASCENDING), ("created_at", DESCENDING)],
+            name="idx_user_completed_created",
+            background=True
+        )
+        db_conn.practice_history.create_index(
+            [("user_id", ASCENDING), ("title", ASCENDING), ("completed", ASCENDING), ("created_at", DESCENDING)],
+            name="idx_user_title_completed_created",
+            background=True
+        )
+
+        # users Indexes
         db_conn.users.create_index(
             "email",
             name="idx_email_unique",
             unique=True,
             background=True
         )
+        # New optimized unique index on id
+        db_conn.users.create_index(
+            "id",
+            name="idx_user_id_unique",
+            unique=True,
+            background=True
+        )
+
+        # user_token_usage Indexes
         db_conn.user_token_usage.create_index(
             [("user_id", ASCENDING), ("date", ASCENDING)],
             name="idx_user_date",
@@ -406,7 +438,7 @@ def create_user(email: str, password: str):
             "is_2fa_enabled": False,
             "two_factor_code": None,
             "two_factor_expires": None,
-            "password_changed_at": datetime.utcnow().isoformat(),
+            "password_changed_at": datetime.now(timezone.utc).isoformat(),
             "created_at": datetime.now().isoformat()
         }
         db_conn.users.insert_one(doc)
@@ -447,7 +479,7 @@ def update_user_password(user_id: str, new_password: str):
             {"id": user_id},
             {"$set": {
                 "hashed_password": hashed_pwd,
-                "password_changed_at": datetime.utcnow().isoformat()
+                "password_changed_at": datetime.now(timezone.utc).isoformat()
             }}
         )
         return result.modified_count > 0

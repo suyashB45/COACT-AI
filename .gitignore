@@ -83,3 +83,7 @@ inter-ai-backend/coact_local.db
 inter-ai-backend/new_service_key.txt
 *.pem
 *.key
+
+# Agents and Skills
+.agents/
+skills-lock.json

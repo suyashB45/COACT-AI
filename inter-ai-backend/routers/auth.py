@@ -221,9 +221,9 @@ class UnifiedCache:
         if self.redis_url:
             try:
                 self.redis = redis.Redis.from_url(self.redis_url, decode_responses=True)
-                logger.info(f"Connected to Redis for session cache: {self.redis_url}")
+                print(f"[SUCCESS] Connected to Redis for session cache: {self.redis_url}")
             except Exception as e:
-                logger.info(f"[WARNING] Redis connection failed, falling back to TTLCache: {e}")
+                print(f"[WARNING] Redis connection failed, falling back to TTLCache: {e}")
                 self.redis = None # type: ignore
         else:
             self.redis = None # type: ignore
@@ -411,11 +411,11 @@ def load_questions():
         if os.path.exists(QUESTIONS_FILE):
             with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
                 questions_data = json.load(f)
-            logger.info(f"Loaded {len(questions_data)} questions from JSON.")
+            print(f"[SUCCESS] Loaded {len(questions_data)} questions from JSON.")
         else:
-            logger.info(f"[WARNING] Questions file not found at {QUESTIONS_FILE}.")
+            print(f"[WARNING] Questions file not found at {QUESTIONS_FILE}.")
     except Exception as e:
-        logger.info(f"[ERROR] Error loading questions: {e}")
+        print(f"[ERROR] Error loading questions: {e}")
 
 load_questions()
 
@@ -1142,12 +1142,12 @@ async def get_history(request: Request):
     user_id_str = user.id
     
     try:
-        logger.info(f"[HISTORY] Fetching all sessions for user {user_id_str}")
+        print(f"[HISTORY] Fetching all sessions for user {user_id_str}")
         db_result = get_user_sessions_from_db(user_id_str, completed_only=False)
         db_sessions: list = db_result.get("sessions", []) if isinstance(db_result, dict) else (db_result if isinstance(db_result, list) else []) # type: ignore
         
         user_sessions: list = db_sessions if db_sessions else []
-        logger.info(f"[HISTORY] Found {len(user_sessions)} completed sessions in database")
+        print(f"[HISTORY] Found {len(user_sessions)} completed sessions in database")
         
         # Sort by created_at desc (newest first)
         user_sessions.sort(key=lambda x: x.get("created_at", "") if isinstance(x, dict) else "", reverse=True)
@@ -1178,7 +1178,7 @@ async def get_history(request: Request):
         return history_items
         
     except Exception as e:
-        logger.info(f"[ERROR] Failed to fetch history: {e}")
+        print(f"[ERROR] Failed to fetch history: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse(content={"error": str(e)}, status_code=400)
@@ -1217,13 +1217,13 @@ async def contact_sales(request: Request):
             return JSONResponse(content={"error": "Invalid email format"}, status_code=400)
 
         # Suppressed Supabase insert
-        logger.info(f"Contact form captured (Supabase removed): {name} ({email})")
+        print(f"[SUCCESS] Contact form captured (Supabase removed): {name} ({email})")
         # Local db not hooked up yet for contact_submissions
 
         return JSONResponse(content={"success": True}, status_code=200)
 
     except Exception as e:
-        logger.info(f"[ERROR] Contact form error: {e}")
+        print(f"[ERROR] Contact form error: {e}")
         return JSONResponse(content={"error": "Failed to save contact request"}, status_code=500)
 
 # Audio serving route removed
@@ -1249,7 +1249,7 @@ async def websocket_transcribe_stream(websocket: WebSocket):
             language_code="en-IN",
             high_vad_sensitivity=True
         ) as sarvam_ws:
-            logger.info(" [INFO] Connected to Sarvam Streaming STT via SDK")
+            print(" [INFO] Connected to Sarvam Streaming STT via SDK")
             
             async def receive_from_client():
                 try:
@@ -1259,9 +1259,9 @@ async def websocket_transcribe_stream(websocket: WebSocket):
                         audio_data = base64.b64encode(data).decode("utf-8")
                         await sarvam_ws.transcribe(audio=audio_data)
                 except WebSocketDisconnect:
-                    logger.info(" [INFO] Client disconnected from streaming STT")
+                    print(" [INFO] Client disconnected from streaming STT")
                 except Exception as e:
-                    logger.info(f" [ERROR] Client receive error: {e}")
+                    print(f" [ERROR] Client receive error: {e}")
 
             async def receive_from_sarvam():
                 try:
@@ -1283,7 +1283,7 @@ async def websocket_transcribe_stream(websocket: WebSocket):
                             
                 except Exception as e:
                     if str(e) != "timeout":
-                        logger.info(f" [ERROR] Sarvam receive error: {e}")
+                        print(f" [ERROR] Sarvam receive error: {e}")
 
             task1 = asyncio.create_task(receive_from_client())
             task2 = asyncio.create_task(receive_from_sarvam())
@@ -1297,7 +1297,7 @@ async def websocket_transcribe_stream(websocket: WebSocket):
                 p.cancel()
             
     except Exception as e:
-        logger.info(f" [ERROR] Streaming STT failed: {e}")
+        print(f" [ERROR] Streaming STT failed: {e}")
         try:
             await websocket.close(code=1011, reason="Streaming connection failed")
         except Exception:
@@ -1317,12 +1317,12 @@ async def transcribe_audio(request: Request):
         session_id = form_data.get("session_id")
         
         if 'file' not in form_data:
-            logger.info(" [DEBUG] returning 400: 'file' not in form_data")
+            print(" [DEBUG] returning 400: 'file' not in form_data")
             return JSONResponse(content={"error": "No audio file uploaded"}, status_code=400)
             
         audio_file = form_data['file']
         if isinstance(audio_file, str):
-            logger.info(" [DEBUG] returning 400: audio_file is str")
+            print(" [DEBUG] returning 400: audio_file is str")
             return JSONResponse(content={"error": "File upload required"}, status_code=400)
             
         # Removed strict duck typing as it might fail on some Starlette versions
@@ -1365,7 +1365,7 @@ async def transcribe_audio(request: Request):
         audio_url = None
         
         try:
-            logger.info(f" [INFO] Transcribing audio with Groq Whisper Turbo...")
+            print(f" [INFO] Transcribing audio with Groq Whisper Turbo...")
             import httpx
             groq_key = os.getenv("GROQ_API_KEY")
             if not groq_key:
@@ -1394,7 +1394,7 @@ async def transcribe_audio(request: Request):
             resp = await _call_whisper_api(read_path, groq_key)
                     
             if resp.status_code != 200:
-                logger.info(f" [ERROR] Groq STT Error: {resp.status_code} {resp.text}")
+                print(f" [ERROR] Groq STT Error: {resp.status_code} {resp.text}")
                 return JSONResponse(content={"error": "Groq STT failed"}, status_code=500)
                 
             response_json = resp.json()
@@ -1417,7 +1417,7 @@ async def transcribe_audio(request: Request):
             elif lower_text in ["you", "you.", "okay", "okay.", "hello", "hello.", "yeah", "yeah."]:
                 transcribed_text = ""
                 
-            logger.info(f" [SUCCESS] Transcribed: {transcribed_text[:100]}...")
+            print(f" [SUCCESS] Transcribed: {transcribed_text[:100]}...")
             
             # --- SPEECH ANALYSIS: Filler Words & WPM ---
             speech_metrics = None
@@ -1459,9 +1459,9 @@ async def transcribe_audio(request: Request):
                     "wpm_label": wpm_label
                 }
                 if filler_count > 0:
-                    logger.info(f" [SPEECH] Filler words detected: {filler_count} ({filler_ratio*100:.1f}% of words)")
+                    print(f" [SPEECH] Filler words detected: {filler_count} ({filler_ratio*100:.1f}% of words)")
                 if wpm:
-                    logger.info(f" [SPEECH] WPM: {wpm} ({wpm_label})")
+                    print(f" [SPEECH] WPM: {wpm} ({wpm_label})")
             
             return ({
                 "text": transcribed_text, 
@@ -1476,12 +1476,12 @@ async def transcribe_audio(request: Request):
                 try:
                     os.unlink(read_path)
                 except Exception as e:
-                    logger.info(f"Warning: Failed to delete temp file {read_path}: {e}")
+                    print(f"Warning: Failed to delete temp file {read_path}: {e}")
                 
     except Exception as e:
         import traceback
         error_msg = str(e)
-        logger.info(f" [ERROR] STT Transcription Error: {error_msg}")
+        print(f" [ERROR] STT Transcription Error: {error_msg}")
         traceback.print_exc()
         return JSONResponse(content={"error": error_msg}, status_code=500)
 
@@ -1498,7 +1498,7 @@ async def speak_text(request: Request, _ = Depends(standard_limiter)):
         if not text:
             return JSONResponse(content={"error": "No text provided"}, status_code=400)
 
-        logger.info(f" [INFO] Generating TTS via Sarvam AI API for: '{text[:80]}...'")
+        print(f" [INFO] Generating TTS via Sarvam AI API for: '{text[:80]}...'")
         
         sarvam_key = os.getenv("SARVAM_API_KEY")
         if not sarvam_key:
@@ -1532,25 +1532,25 @@ async def speak_text(request: Request, _ = Depends(standard_limiter)):
         sarvam_res = await _call_sarvam_tts(payload, sarvam_key)
             
         if sarvam_res.status_code != 200:
-            logger.info(f" [WARNING] Sarvam TTS Error: {sarvam_res.status_code} {sarvam_res.text}")
+            print(f" [WARNING] Sarvam TTS Error: {sarvam_res.status_code} {sarvam_res.text}")
             return JSONResponse(content={"error": "TTS failed"}, status_code=500)
             
         response_json = sarvam_res.json()
         audios = response_json.get("audios", [])
         if not audios:
-            logger.info(" [WARNING] Sarvam TTS Error: No audio in response")
+            print(" [WARNING] Sarvam TTS Error: No audio in response")
             return JSONResponse(content={"error": "No audio generated"}, status_code=500)
             
         import base64
         audio_data = base64.b64decode(audios[0])
         mimetype = "audio/wav"
 
-        logger.info(f" [SUCCESS] Sarvam TTS generated {len(audio_data)} bytes")
+        print(f" [SUCCESS] Sarvam TTS generated {len(audio_data)} bytes")
 
         return Response(audio_data, media_type=mimetype, headers={"Content-Length": str(len(audio_data))})
 
     except Exception as e:
-        logger.info(f" [ERROR] TTS Endpoint Error: {e}")
+        print(f" [ERROR] TTS Endpoint Error: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -1595,7 +1595,7 @@ def select_framework_for_scenario(scenario: str, ai_role: str, simulation_id: Op
     # OPTIMIZATION: Return immediately for known simulations (no LLM call needed)
     if simulation_id and simulation_id in SIMULATION_FRAMEWORKS:
         result = SIMULATION_FRAMEWORKS[simulation_id]
-        logger.info(f" [TARGET] Hardcoded frameworks for {simulation_id}: {result} (saved 1 LLM call)")
+        print(f" [TARGET] Hardcoded frameworks for {simulation_id}: {result} (saved 1 LLM call)")
         return result
     
     # Fallback: Use AI for custom/unknown scenarios
@@ -1634,10 +1634,10 @@ Based on the scenario, respond with ONLY the framework names separated by commas
         # Filter to only valid frameworks
         valid = [fw for fw in frameworks if fw in ALL_FRAMEWORKS]
         if valid:
-            logger.info(f" [TARGET] AI selected frameworks for scenario: {valid}")
+            print(f" [TARGET] AI selected frameworks for scenario: {valid}")
             return valid
     except Exception as e:
-        logger.info(f"Framework selection error: {e}")
+        print(f"Framework selection error: {e}")
     
     # Default fallback
     return ["GROW", "EQ", "STAR", "ADKAR", "SMART", "BOUNDARY", "OSKAR", "CBT", "CLEAR", "RADICAL CANDOR", "SFBT", "CIRCLE OF INFLUENCE", "SCARF", "FUEL"]
@@ -1663,22 +1663,22 @@ def detect_session_mode(scenario: str, ai_role: str) -> str:
     # Check for assessment keywords
     for keyword in assessment_keywords:
         if keyword in scenario_lower or keyword in ai_role_lower:
-            logger.info(f" [TARGET] Auto-detected ASSESSMENT mode (keyword: '{keyword}')")
+            print(f" [TARGET] Auto-detected ASSESSMENT mode (keyword: '{keyword}')")
             return "assessment"
     
     # Check for learning keywords
     for keyword in learning_keywords:
         if keyword in scenario_lower or keyword in ai_role_lower:
-            logger.info(f" [INFO] Auto-detected LEARNING mode (keyword: '{keyword}')")
+            print(f" [INFO] Auto-detected LEARNING mode (keyword: '{keyword}')")
             return "learning"
     
     # Default to learning mode for safe practice
-    logger.info(" [INFO] Defaulting to LEARNING mode (no clear indicators)")
+    print(" [INFO] Defaulting to LEARNING mode (no clear indicators)")
     return "learning"
 
 @app.post("/api/session/start")
 async def start_session(request: Request):
-    logger.info("[DEBUG] Entered /session/start")
+    print("[DEBUG] Entered /session/start", flush=True)
     # Audio cleanup logic removed
 
 
@@ -1699,7 +1699,7 @@ async def start_session(request: Request):
     # Support optional flip_roles flag: when true, swap role and ai_role
     flip_roles = data.get("flip_roles", False)
     if flip_roles:
-        logger.info("flip_roles flag detected - swapping role and ai_role")
+        print("[INFO] flip_roles flag detected - swapping role and ai_role", flush=True)
         role, ai_role = ai_role, role
     
     # Support both old 'mode' and new 'scenario_type' parameters
@@ -1714,7 +1714,7 @@ async def start_session(request: Request):
     # Auto-detect scenario_type if not explicitly provided
     if not scenario_type:
         scenario_type = detect_scenario_type(scenario, ai_role, role)
-    logger.info(f"Session scenario_type set to: {scenario_type}")
+    print(f"[INFO] Session scenario_type set to: {scenario_type}")
     
     # Detect session_mode from scenario_type if not provided
     if not session_mode:
@@ -1728,7 +1728,7 @@ async def start_session(request: Request):
             "custom": "practice"
         }
         session_mode = mode_mapping.get(scenario_type, "practice")
-    logger.info(f"Session mode set to: {session_mode}")
+    print(f"[INFO] Session mode set to: {session_mode}")
     
     # Map scenario_type to mode for backward compatibility with roleplay prompts
     mode_map = {
@@ -1745,7 +1745,7 @@ async def start_session(request: Request):
     # Simulation-specific mode override (skip mentorship — they stay qualitative)
     if simulation_id and scenario_type not in ("mentorship", "mentorship_sim"):
         mode = "evaluation"
-        logger.info(f"Simulation {simulation_id} detected, mode forced to evaluation")
+        print(f"[INFO] Simulation {simulation_id} detected, mode forced to evaluation")
 
     # Handle 'auto' framework selection
     needs_auto_framework = (framework == "auto" or framework == "AUTO")
@@ -1762,9 +1762,9 @@ async def start_session(request: Request):
     user_id = user.id if user is not None else None
     
     if not user_id:
-        logger.info("[WARNING] Session created without user authentication")
+        print("[WARNING] Session created without user authentication")
     else:
-        logger.info(f"Session created for user: {user_id}")
+        print(f"[INFO] Session created for user: {user_id}")
         user_email = getattr(user, 'email', None)
         
         # Global limit: restrict all users to 3 completed scenarios maximum
@@ -1774,10 +1774,10 @@ async def start_session(request: Request):
             total_sessions = int(user_sessions_data.get("total", 0)) if isinstance(user_sessions_data, dict) else 0 # type: ignore
             
             if total_sessions >= max_sessions:
-                logger.info(f"[BLOCKED] User '{user_email}' exceeded {max_sessions} completed session limit (current: {total_sessions}).")
+                print(f"[BLOCKED] User '{user_email}' exceeded {max_sessions} completed session limit (current: {total_sessions}).")
                 return JSONResponse(content={"error": f"Free Limit Reached ({max_sessions}/{max_sessions} sessions). Please contact sales to upgrade."}, status_code=403)
         except Exception as e:
-            logger.info(f"[ERROR] Failed to verify session limit for {user_email}: {e}")
+            print(f"[ERROR] Failed to verify session limit for {user_email}: {e}")
     
     ai_character = data.get("ai_character", "alex") # Default to Alex
 
@@ -1799,7 +1799,7 @@ async def start_session(request: Request):
         if needs_auto_framework:
             framework = select_framework_for_scenario(scenario or "", ai_role or "", simulation_id=simulation_id)
         summary = HARDCODED_OPENINGS.get(simulation_id, "")
-        logger.info(f"[PERF] Used hardcoded opening for {simulation_id} - skipped LLM summary call")
+        print(f"[PERF] Used hardcoded opening for {simulation_id} - skipped LLM summary call")
     elif needs_auto_framework:
         # Run BOTH LLM calls in parallel (framework + summary)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -1821,7 +1821,7 @@ async def start_session(request: Request):
                 if user is not None: add_token_usage(user.id, summary_tuple[1].get('total_tokens', 0))
             else:
                 summary = sanitize_llm_output(summary_tuple)
-        logger.info(f"[PERF] Parallel framework+summary completed in {_time.time()-_t_start:.2f}s")
+        print(f"[PERF] Parallel framework+summary completed in {_time.time()-_t_start:.2f}s")
     else:
         summary, summary_usage = llm_reply(
             build_summary_prompt(role, ai_role, scenario, framework, mode=mode, ai_character=ai_character, simulation_id=simulation_id),
@@ -1832,9 +1832,9 @@ async def start_session(request: Request):
             use_chat_model=True
         )
         summary = sanitize_llm_output(summary)
-        logger.info(f"[TOKEN] Summary call | request={summary_usage['request_tokens']} response={summary_usage['response_tokens']} total={summary_usage['total_tokens']}")
+        print(f"[TOKEN] Summary call | request={summary_usage['request_tokens']} response={summary_usage['response_tokens']} total={summary_usage['total_tokens']}", flush=True)
         if user is not None: add_token_usage(user.id, summary_usage.get('total_tokens', 0))
-        logger.info(f"[PERF] Sequential summary completed in {_time.time()-_t_start:.2f}s")
+        print(f"[PERF] Sequential summary completed in {_time.time()-_t_start:.2f}s")
     
     # Determine if this is a multi-character scenario
     multi_characters = simulation_id in ("SIM-05-CON-001", "MENT-05-CON-001")
@@ -1969,7 +1969,7 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
                         full_raw_response += token
                         yield f"data: {json.dumps({'token': token})}\n\n"
             except Exception as e:
-                logger.info(f"[STREAM ERROR] {e}")
+                print(f"[STREAM ERROR] {e}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
                 return
                 
@@ -2001,7 +2001,7 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
     # -------------------------------------------------------------
     from graph import app_graph
     
-    graph_state: Any = await asyncio.to_thread(
+    graph_state = await asyncio.to_thread(
         app_graph.invoke,
         {
             "messages": messages,
@@ -2017,7 +2017,7 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
     
     raw_response = graph_state["raw_response"]
     token_usage = graph_state["token_usage"]
-    logger.info(f"[TOKEN] Chat turn {turn_count} | request={token_usage['request_tokens']} response={token_usage['response_tokens']} total={token_usage['total_tokens']} | {len(messages)} messages")
+    print(f"[TOKEN] Chat turn {turn_count} | request={token_usage['request_tokens']} response={token_usage['response_tokens']} total={token_usage['total_tokens']} | {len(messages)} messages", flush=True)
     
     if user is not None: add_token_usage(user.id, token_usage.get('total_tokens', 0))
     
@@ -2055,7 +2055,7 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
     })
 
 def run_report_generation(session_id: str, sess: dict, fw_display: str, mode: str, scenario_type: str):
-    logger.info(f"[COST] Generating report data for {session_id} (scenario_type: {scenario_type}) in background...")
+    print(f"[COST] Generating report data for {session_id} (scenario_type: {scenario_type}) in background...")
     try:
         data = analyze_full_report_data(
             sess["transcript"], 
@@ -2073,11 +2073,11 @@ def run_report_generation(session_id: str, sess: dict, fw_display: str, mode: st
         sess["completed"] = True
         sess["report_file"] = "dynamic"
         save_session_to_db(sess) # Save completed status and report_data to Supabase
-        logger.info(f"Report generated for {session_id}")
+        print(f"[SUCCESS] Report generated for {session_id}")
     except Exception as e:
         import traceback
         traceback.print_exc()
-        logger.info(f" [ERROR] Data generation failed for {session_id}: {e}")
+        print(f" [ERROR] Data generation failed for {session_id}: {e}")
         sess["report_status"] = "error"
         save_session_to_db(sess)
 
@@ -2121,7 +2121,7 @@ async def complete_session(session_id: str, request: Request, background_tasks: 
         user_obj = get_authenticated_user(request)
         if user_obj and user_obj.email:
             user_name = user_obj.email
-            logger.info(f" [SUCCESS] Resolved user name from auth: {user_name}")
+            print(f" [SUCCESS] Resolved user name from auth: {user_name}")
         sess["user_name"] = user_name
     
     # Run in background if not already generated
@@ -2310,11 +2310,11 @@ def _build_comparison(sess, response, session_id):
             "previous_date": prev.get("created_at"),
             "dimension_deltas": dimension_deltas
         }
-        logger.info(f" [COMPARISON] Previous attempt found for '{title}': {prev_score} -> {current_score} (change: {score_change})")
+        print(f" [COMPARISON] Previous attempt found for '{title}': {prev_score} -> {current_score} (change: {score_change})")
         return result
 
     except Exception as e:
-        logger.info(f" [ERROR] Comparison build failed: {e}")
+        print(f" [ERROR] Comparison build failed: {e}")
         return None
 
 @app.get("/api/session/{session_id}/report_data")
@@ -2444,7 +2444,7 @@ async def get_user_sessions_paginated(request: Request):
     except HTTPException as he:
         raise he
     except Exception as e:
-        logger.info(f"[ERROR] Failed to get user sessions: {e}")
+        print(f"[ERROR] Failed to get user sessions: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/api/sessions/clear")
@@ -2461,10 +2461,10 @@ async def clear_sessions(request: Request):
         keys_to_delete = [k for k, v in SESSIONS.items() if str(v.get("user_id")) == str(user.id)]
         for k in keys_to_delete:
             del SESSIONS[k]
-        logger.info(f" [SUCCESS] Sessions cleared for user {user.id}")
+        print(f" [SUCCESS] Sessions cleared for user {user.id}")
         return {"message": "History cleared successfully"}
     except Exception as e:
-        logger.info(f" [ERROR] Error clearing sessions: {e}")
+        print(f" [ERROR] Error clearing sessions: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -2670,7 +2670,7 @@ async def get_analytics(request: Request):
             "next_best_action": next_best_action
         })
     except Exception as e:
-        logger.info(f"[ERROR] Analytics computation failed: {e}")
+        print(f"[ERROR] Analytics computation failed: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -2681,5 +2681,5 @@ if __name__ == "__main__":
     is_dev = os.getenv("FLASK_ENV", "production") == "development"
     
     import uvicorn
-    logger.info(f"Starting Uvicorn ASGI server on port {port}...")
+    print(f"Starting Uvicorn ASGI server on port {port}...")
     uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1, log_level="info")

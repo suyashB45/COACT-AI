@@ -14,6 +14,7 @@ const TrustLogosSection = () => {
     const doubled = [...companies, ...companies];
 
     return (
+    
         <section className="py-10 border-b border-border bg-muted/20 overflow-hidden">
             <div className="container mx-auto px-6">
                 <p className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-8">

@@ -81,7 +81,7 @@ print(f"FAISS index dimension: {dim}")
 if emb_matrix.shape[1] != dim:
     raise ValueError(f"Embedding dimension mismatch: got {emb_matrix.shape[1]}, expected {dim}")
 
-index.add(emb_matrix)
+index.add(n=emb_matrix.shape[0], x=emb_matrix)
 
 # Save index + metadata
 faiss.write_index(index, INDEX_FILE)

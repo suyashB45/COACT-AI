@@ -1,13 +1,14 @@
-from app import app
-from database import db, PracticeHistory
+from database import db_conn
 
 def clear_all_history():
     try:
-        num_deleted = db.session.query(PracticeHistory).delete()
-        db.session.commit()
-        print(f"Successfully deleted {num_deleted} conversation sessions.")
+        if db_conn is None:
+            print("Database connection is not initialized.")
+            return
+            
+        result = db_conn.practice_history.delete_many({})
+        print(f"Successfully deleted {result.deleted_count} conversation sessions from MongoDB.")
     except Exception as e:
-        db.session.rollback()
         print(f"Error deleting history: {e}")
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # CoAct.AI — Running Guide & Architecture
 
 <p align="center">
-  <img src="logos/concept_4_logo_with_text.png" alt="CoAct.AI Logo" width="600"/>
+  <img src="logos/coactai.png" alt="CoAct.AI Logo" width="600"/>
 </p>
 
 Welcome to the **CoAct.AI** codebase. CoAct.AI is an AI-powered interactive roleplay simulation platform consisting of a React-based web app, a React Native mobile app, and a FastAPI backend.

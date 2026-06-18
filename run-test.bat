@@ -4,7 +4,7 @@ echo Testing Mentorship Report with Fixes
 echo ============================================================
 echo.
 
-cd /d "d:\UAE Project"
+cd /d "d:\GH INDUCTION\COACT PROJECT"
 
 echo [TEST] Running complete flow test...
 python test_complete_flow.py
