@@ -36,14 +36,65 @@ services:
     volumes:
       - mongodb_data:/data/db
 
+  # --- LOCAL AI: Big LLM (Qwen2.5-7B) — Report Generation & Evaluation ---
+  # Heavy model for deep analysis, report writing, and evaluation scoring
   vllm:
     image: vllm/vllm-openai:latest
     restart: always
     ports:
       - "8001:8000"
-    command: --model sarvamai/sarvam-2b-v0.5
+    command: >
+      --model Qwen/Qwen2.5-7B-Instruct
+      --max-model-len 8192
+      --gpu-memory-utilization 0.40
+      --dtype auto
+      --trust-remote-code
     volumes:
       - huggingface_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # --- LOCAL AI: Small LLM (Qwen2.5-1.5B) — Fast Chat & Conversation ---
+  # Lightweight model for real-time roleplay chat (low latency)
+  vllm-chat:
+    image: vllm/vllm-openai:latest
+    restart: always
+    ports:
+      - "8003:8000"
+    command: >
+      --model Qwen/Qwen2.5-1.5B-Instruct
+      --max-model-len 4096
+      --gpu-memory-utilization 0.15
+      --dtype auto
+      --trust-remote-code
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # --- LOCAL AI: Speech-to-Text (Faster Whisper) ---
+  # Runs whisper-large-v3-turbo locally on GPU for zero-latency STT
+  whisper:
+    image: fedirz/faster-whisper-server:latest-cuda
+    restart: always
+    ports:
+      - "8002:8000"
+    environment:
+      - WHISPER__MODEL=Systran/faster-whisper-large-v3
+      - WHISPER__DEVICE=cuda
+      - WHISPER__COMPUTE_TYPE=float16
+    volumes:
+      - whisper_cache:/root/.cache/huggingface
     deploy:
       resources:
         reservations:
@@ -66,13 +117,14 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/coact
       - PORT=8000
-      - MODEL_NAME=${MODEL_NAME:-qwen3.5:0.8b}
-      - CHAT_MODEL_NAME=${CHAT_MODEL_NAME}
-      - GROQ_OPENAI_BASE_URL=${GROQ_OPENAI_BASE_URL}
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - CHAT_OPENAI_BASE_URL=${CHAT_OPENAI_BASE_URL}
-      - CHAT_API_KEY=${CHAT_API_KEY}
+      - MODEL_NAME=${MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
+      - CHAT_MODEL_NAME=${CHAT_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
+      - GROQ_OPENAI_BASE_URL=${GROQ_OPENAI_BASE_URL:-http://vllm:8000/v1}
+      - GROQ_API_KEY=${GROQ_API_KEY:-not-needed}
+      - CHAT_OPENAI_BASE_URL=${CHAT_OPENAI_BASE_URL:-http://vllm-chat:8000/v1}
+      - CHAT_API_KEY=${CHAT_API_KEY:-not-needed}
       - OLLAMA_API_URL=${OLLAMA_API_URL:-http://host.docker.internal:11434}
+      - WHISPER_API_URL=${WHISPER_API_URL:-http://whisper:8000/v1/audio/transcriptions}
       - WHISPER_CMD=whisper
       - PIPER_CMD=/app/piper/piper
       - PIPER_MODEL_PATH=${PIPER_MODEL_PATH:-/app/models/en_US-lessac-medium.onnx}
@@ -81,10 +133,15 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
       - JWT_SECRET=${JWT_SECRET:-super-secret-production-key}
-      - CORS_ORIGINS=${CORS_ORIGINS:-https://coact-ai.com,https://www.coact-ai.com}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://coact-ai.com,https://www.coact-ai.com,http://coact-ai.com}
+      - SARVAM_API_KEY=${SARVAM_API_KEY:-not-needed}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-not-needed}
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
     depends_on:
       - mongodb
       - vllm
+      - vllm-chat
+      - whisper
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
@@ -115,3 +172,4 @@ volumes:
   backend-db:
   mongodb_data:
   huggingface_cache:
+  whisper_cache:

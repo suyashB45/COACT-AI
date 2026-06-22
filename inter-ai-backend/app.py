@@ -386,16 +386,18 @@ client = OpenAI(
     api_key=api_key or "not-set",
     base_url=base_url
 )
-logger.info(f"Groq API client initialized with base URL: {base_url}")
+logger.info(f"LLM client initialized with base URL: {base_url}")
 
-openai_key = os.getenv("OPENAI_API_KEY", "")
-if not openai_key:
-    logger.warning("OPENAI_API_KEY environment variable is not set! TTS features will not work.")
+# Local Whisper STT URL (faster-whisper-server container)
+WHISPER_API_URL = os.getenv("WHISPER_API_URL", "http://whisper:8000/v1/audio/transcriptions")
+logger.info(f"Local Whisper STT URL: {WHISPER_API_URL}")
 
-tts_client = OpenAI(
-    api_key=openai_key or "not-set"
-)
-logger.info("OpenAI TTS client initialized.")
+# Local Piper TTS configuration
+PIPER_CMD = os.getenv("PIPER_CMD", "/app/piper/piper")
+PIPER_MODEL_PATH = os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx")
+PIPER_MODEL_PATH_BOY = os.getenv("PIPER_MODEL_PATH_BOY", PIPER_MODEL_PATH)
+PIPER_MODEL_PATH_GIRL = os.getenv("PIPER_MODEL_PATH_GIRL", PIPER_MODEL_PATH)
+logger.info(f"Local Piper TTS: {PIPER_CMD} with model {PIPER_MODEL_PATH}")
 
 
 
@@ -1365,37 +1367,33 @@ async def transcribe_audio(request: Request):
         audio_url = None
         
         try:
-            logger.info(f" [INFO] Transcribing audio with Groq Whisper Turbo...")
+            logger.info(f" [INFO] Transcribing audio with Local Whisper Server...")
             import httpx
-            groq_key = os.getenv("GROQ_API_KEY")
-            if not groq_key:
-                return JSONResponse(content={"error": "GROQ_API_KEY not configured"}, status_code=500)
+            whisper_url = os.getenv("WHISPER_API_URL", "http://whisper:8000/v1/audio/transcriptions")
                 
-            # Use the global connection pool for Groq STT
+            # Use the global connection pool for local Whisper STT
             if shared_httpx_client is None:
                 raise Exception("Shared HTTPX client not initialized")
                 
             @traceable(run_type="llm", name="whisper_stt")
-            async def _call_whisper_api(filepath: str, key: str):
+            async def _call_whisper_api(filepath: str):
                 with open(filepath, "rb") as f:
                     return await shared_httpx_client.post(
-                        "https://api.groq.com/openai/v1/audio/transcriptions",
-                        headers={"Authorization": f"Bearer {key}"},
+                        whisper_url,
                         files={"file": (os.path.basename(filepath), f, "audio/webm")},
                         data={
-                            "model": "whisper-large-v3-turbo",
+                            "model": "Systran/faster-whisper-large-v3",
                             "response_format": "json",
-                            "language": "en",
-                            "prompt": "This is a recording of a person speaking in a conversation. Please transcribe it accurately without adding hallucinated text like 'thanks for watching'."
+                            "language": "en"
                         },
-                        timeout=30.0
+                        timeout=60.0
                     )
             
-            resp = await _call_whisper_api(read_path, groq_key)
+            resp = await _call_whisper_api(read_path)
                     
             if resp.status_code != 200:
-                logger.info(f" [ERROR] Groq STT Error: {resp.status_code} {resp.text}")
-                return JSONResponse(content={"error": "Groq STT failed"}, status_code=500)
+                logger.info(f" [ERROR] Local Whisper STT Error: {resp.status_code} {resp.text}")
+                return JSONResponse(content={"error": "Local Whisper STT failed"}, status_code=500)
                 
             response_json = resp.json()
             # The API returns {"text": "transcribed text"}
@@ -1487,7 +1485,7 @@ async def transcribe_audio(request: Request):
 
 @app.post("/api/speak")
 async def speak_text(request: Request, _ = Depends(standard_limiter)):
-    """Text-to-Speech using OpenAI/Azure. Returns audio as complete response."""
+    """Text-to-Speech using local Piper TTS. Returns audio as complete response."""
     text = ""
     voice = "alloy"
     try:
@@ -1498,56 +1496,55 @@ async def speak_text(request: Request, _ = Depends(standard_limiter)):
         if not text:
             return JSONResponse(content={"error": "No text provided"}, status_code=400)
 
-        logger.info(f" [INFO] Generating TTS via Sarvam AI API for: '{text[:80]}...'")
+        logger.info(f" [INFO] Generating TTS via Local Piper for: '{text[:80]}...'")
         
-        sarvam_key = os.getenv("SARVAM_API_KEY")
-        if not sarvam_key:
-            return JSONResponse(content={"error": "SARVAM_API_KEY not configured"}, status_code=500)
-            
-        sarvam_speaker = "shreya" if voice.lower() in ["nova", "shimmer"] else "shubh"
+        # Select Piper voice model based on voice parameter
+        piper_cmd = os.getenv("PIPER_CMD", "/app/piper/piper")
+        if voice.lower() in ["nova", "shimmer"]:
+            piper_model = os.getenv("PIPER_MODEL_PATH_GIRL", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
+        else:
+            piper_model = os.getenv("PIPER_MODEL_PATH_BOY", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
         
-        payload = {
-            "text": text[:2500],
-            "model": "bulbul:v3",
-            "target_language_code": "en-IN",
-            "speaker": sarvam_speaker,
-            "pace": 1.0
-        }
+        import subprocess
+        import tempfile
         
-        # Use the global connection pool for Sarvam TTS
-        if shared_httpx_client is None:
-            raise Exception("Shared HTTPX client not initialized")
-            
-        @traceable(run_type="tool", name="sarvam_tts")
-        async def _call_sarvam_tts(payload_data: dict, key: str):
-            return await shared_httpx_client.post(
-                "https://api.sarvam.ai/text-to-speech",
-                headers={
-                    "api-subscription-key": key,
-                    "Content-Type": "application/json"
-                },
-                json=payload_data
+        # Create temp WAV file for Piper output
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+            tmp_wav_path = tmp_wav.name
+        
+        try:
+            # Run Piper TTS subprocess
+            process = subprocess.run(
+                [piper_cmd, "--model", piper_model, "--output_file", tmp_wav_path],
+                input=text[:2500],
+                capture_output=True,
+                text=True,
+                timeout=30
             )
             
-        sarvam_res = await _call_sarvam_tts(payload, sarvam_key)
+            if process.returncode != 0:
+                logger.warning(f" [WARNING] Piper TTS Error: {process.stderr}")
+                return JSONResponse(content={"error": "Local TTS failed"}, status_code=500)
             
-        if sarvam_res.status_code != 200:
-            logger.info(f" [WARNING] Sarvam TTS Error: {sarvam_res.status_code} {sarvam_res.text}")
-            return JSONResponse(content={"error": "TTS failed"}, status_code=500)
+            # Read the generated WAV file
+            with open(tmp_wav_path, "rb") as f:
+                audio_data = f.read()
             
-        response_json = sarvam_res.json()
-        audios = response_json.get("audios", [])
-        if not audios:
-            logger.info(" [WARNING] Sarvam TTS Error: No audio in response")
-            return JSONResponse(content={"error": "No audio generated"}, status_code=500)
+            if not audio_data or len(audio_data) < 100:
+                logger.warning(" [WARNING] Piper TTS Error: No audio generated")
+                return JSONResponse(content={"error": "No audio generated"}, status_code=500)
             
-        import base64
-        audio_data = base64.b64decode(audios[0])
-        mimetype = "audio/wav"
-
-        logger.info(f" [SUCCESS] Sarvam TTS generated {len(audio_data)} bytes")
-
-        return Response(audio_data, media_type=mimetype, headers={"Content-Length": str(len(audio_data))})
+            mimetype = "audio/wav"
+            logger.info(f" [SUCCESS] Local Piper TTS generated {len(audio_data)} bytes")
+            return Response(audio_data, media_type=mimetype, headers={"Content-Length": str(len(audio_data))})
+        
+        finally:
+            # Always clean up temp file
+            if os.path.exists(tmp_wav_path):
+                try:
+                    os.unlink(tmp_wav_path)
+                except Exception:
+                    pass
 
     except Exception as e:
         logger.info(f" [ERROR] TTS Endpoint Error: {e}")
