@@ -38,18 +38,22 @@ RETRY_DELAY = 2  # seconds
 db_conn_raw = None
 for attempt in range(1, MAX_RETRIES + 1):
     try:
-        client = MongoClient(
-            MONGODB_URI,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=5000,
-            socketTimeoutMS=10000,
-            maxPoolSize=MONGODB_MAX_POOL_SIZE,
-            minPoolSize=MONGODB_MIN_POOL_SIZE,
-            maxIdleTimeMS=MONGODB_MAX_IDLE_TIME_MS,
-            retryWrites=True,
-            tlsCAFile=certifi.where(),
-            tlsAllowInvalidCertificates=True
-        )
+        kwargs: dict[str, Any] = {
+            "serverSelectionTimeoutMS": 5000,
+            "connectTimeoutMS": 5000,
+            "socketTimeoutMS": 10000,
+            "maxPoolSize": MONGODB_MAX_POOL_SIZE,
+            "minPoolSize": MONGODB_MIN_POOL_SIZE,
+            "maxIdleTimeMS": MONGODB_MAX_IDLE_TIME_MS,
+            "retryWrites": True
+        }
+        
+        # Only use TLS for cloud databases like MongoDB Atlas
+        if "mongodb+srv" in MONGODB_URI or "tls=true" in MONGODB_URI.lower():
+            kwargs["tlsCAFile"] = certifi.where()
+            kwargs["tlsAllowInvalidCertificates"] = True
+
+        client = MongoClient(MONGODB_URI, **kwargs)
         # Force a connection test
         client.admin.command("ping")
         try:
