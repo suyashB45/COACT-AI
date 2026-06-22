@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+import certifi
 import bcrypt
 
 logger = logging.getLogger("coact.database")
@@ -46,6 +47,8 @@ for attempt in range(1, MAX_RETRIES + 1):
             minPoolSize=MONGODB_MIN_POOL_SIZE,
             maxIdleTimeMS=MONGODB_MAX_IDLE_TIME_MS,
             retryWrites=True,
+            tlsCAFile=certifi.where(),
+            tlsAllowInvalidCertificates=True
         )
         # Force a connection test
         client.admin.command("ping")

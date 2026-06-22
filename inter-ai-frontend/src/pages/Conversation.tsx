@@ -555,7 +555,40 @@ export default function Conversation() {
             const reader = response.body.getReader()
             const decoder = new TextDecoder("utf-8")
             let done = false
-            let aiResponse = ""
+            let rawAiResponse = ""
+            let visibleAiResponse = ""
+            let ttsCursor = 0
+            
+            const audioUrlQueue: string[] = []
+            let isPlayingQueue = false
+            
+            const processAudioQueue = async () => {
+                if (isPlayingQueue) return
+                isPlayingQueue = true
+                
+                while (audioUrlQueue.length > 0) {
+                    if (sessionEndedRef.current || abortControllerRef.current?.signal.aborted) break
+                    const url = audioUrlQueue.shift()!
+                    
+                    await new Promise<void>((resolve) => {
+                        setIsAiSpeaking(true)
+                        const audio = new Audio(url)
+                        aiAudioRef.current = audio
+                        
+                        audio.onended = () => {
+                            URL.revokeObjectURL(url)
+                            resolve()
+                        }
+                        audio.onerror = () => {
+                            URL.revokeObjectURL(url)
+                            resolve()
+                        }
+                        audio.play().catch(() => resolve())
+                    })
+                }
+                setIsAiSpeaking(false)
+                isPlayingQueue = false
+            }
             
             // Add a temporary assistant message to the transcript that we will update
             setState((prev) => ({
@@ -574,16 +607,42 @@ export default function Conversation() {
                             try {
                                 const data = JSON.parse(line.slice(6))
                                 if (data.token) {
-                                    aiResponse += data.token
+                                    rawAiResponse += data.token
+                                    visibleAiResponse = rawAiResponse.replace(/\[THOUGHT\][\s\S]*?(?:\[\/THOUGHT\]|$)/g, "").replace(/<<[\s\S]*?(?:>>|$)/g, "").trimStart()
+                                    
                                     // Update the last message in the transcript with the new token
                                     setState((prev) => {
                                         const newTranscript = [...prev.transcript]
-                                        newTranscript[newTranscript.length - 1] = { role: "assistant", content: aiResponse }
+                                        newTranscript[newTranscript.length - 1] = { role: "assistant", content: visibleAiResponse }
                                         return { ...prev, transcript: newTranscript }
                                     })
+                                    
+                                    if (!multiCharacters) {
+                                        const unprocessed = visibleAiResponse.substring(ttsCursor)
+                                        // Match up to the first end-of-sentence punctuation followed by a space
+                                        const sentenceMatch = unprocessed.match(/^([\s\S]*?[.!?\n]+)(?=\s)/)
+                                        if (sentenceMatch) {
+                                            const sentence = sentenceMatch[1]
+                                            ttsCursor += sentence.length
+                                            
+                                            if (sentence.trim().length > 0) {
+                                                const voice = state.sessionData?.ai_character === 'sarah' ? 'nova' : 'fable'
+                                                fetch(getApiUrl('/api/speak'), {
+                                                    method: 'POST',
+                                                    headers: { ...getAuthHeaders() },
+                                                    body: JSON.stringify({ text: sentence.trim(), voice })
+                                                }).then(res => res.ok ? res.blob() : null).then(blob => {
+                                                    if (blob) {
+                                                        audioUrlQueue.push(URL.createObjectURL(blob))
+                                                        processAudioQueue()
+                                                    }
+                                                }).catch(err => console.error("Streaming TTS error", err))
+                                            }
+                                        }
+                                    }
                                 }
                                 if (data.done) {
-                                    aiResponse = data.follow_up
+                                    visibleAiResponse = data.follow_up || visibleAiResponse
                                 }
                                 if (data.error) {
                                     console.error("Stream error:", data.error)
@@ -602,12 +661,24 @@ export default function Conversation() {
                 isProcessing: false,
             }))
 
-            // NOTE: Early TTS sentence buffering can be added here inside the stream loop.
-            // For now, we wait for the full response to play TTS.
-            if (multiCharacters) {
-                speakMultiCharacter(aiResponse, characters)
+            if (!multiCharacters) {
+                // Speak any remaining text in the buffer
+                const unprocessed = visibleAiResponse.substring(ttsCursor)
+                if (unprocessed.trim().length > 0) {
+                    const voice = state.sessionData?.ai_character === 'sarah' ? 'nova' : 'fable'
+                    fetch(getApiUrl('/api/speak'), {
+                        method: 'POST',
+                        headers: { ...getAuthHeaders() },
+                        body: JSON.stringify({ text: unprocessed.trim(), voice })
+                    }).then(res => res.ok ? res.blob() : null).then(blob => {
+                        if (blob) {
+                            audioUrlQueue.push(URL.createObjectURL(blob))
+                            processAudioQueue()
+                        }
+                    }).catch(err => console.error("Streaming TTS error", err))
+                }
             } else {
-                speakText(aiResponse)
+                speakMultiCharacter(visibleAiResponse, characters)
             }
 
             if (state.sessionData) {
@@ -615,7 +686,7 @@ export default function Conversation() {
                     ...state.sessionData,
                     transcript: [...state.sessionData.transcript,
                     { role: "user", content: message },
-                    { role: "assistant", content: aiResponse }
+                    { role: "assistant", content: visibleAiResponse }
                     ]
                 }
                 localStorage.setItem(`session_${sessionId}`, JSON.stringify(updated))
@@ -718,7 +789,7 @@ export default function Conversation() {
                     } else {
                         setState(prev => ({ ...prev, interimText: "" }))
                     }
-                }, 1500) // 1500ms silence triggers send for more natural pauses
+                }, 400) // 400ms silence triggers send
             }
             
             animationFrameRef.current = requestAnimationFrame(checkAudio)

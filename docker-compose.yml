@@ -28,6 +28,14 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  mongodb:
+    image: mongo:latest
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
   backend:
     build:
       context: ./inter-ai-backend
@@ -40,8 +48,12 @@ services:
       - ./piper_models:/app/models
       - backend-db:/app/db
     environment:
+      - MONGODB_URI=mongodb://mongodb:27017/coact
       - PORT=8000
       - MODEL_NAME=${MODEL_NAME:-qwen3.5:0.8b}
+      - CHAT_MODEL_NAME=${CHAT_MODEL_NAME}
+      - GROQ_OPENAI_BASE_URL=${GROQ_OPENAI_BASE_URL}
+      - GROQ_API_KEY=${GROQ_API_KEY}
       - OLLAMA_API_URL=${OLLAMA_API_URL:-http://host.docker.internal:11434}
       - WHISPER_CMD=whisper
       - PIPER_CMD=/app/piper/piper
@@ -52,6 +64,8 @@ services:
       - SUPABASE_KEY=${SUPABASE_KEY}
       - JWT_SECRET=${JWT_SECRET:-super-secret-production-key}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://coact-ai.com,https://www.coact-ai.com}
+    depends_on:
+      - mongodb
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
@@ -73,3 +87,4 @@ services:
 
 volumes:
   backend-db:
+  mongodb_data:

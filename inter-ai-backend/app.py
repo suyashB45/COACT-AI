@@ -666,10 +666,10 @@ YOUR BEHAVIORAL ARC (as {ai_role}):
 REACT TO {role}'s APPROACH:
 - If {role} Discounts Early -> Push for even lower prices.
 - If {role} Probes Needs -> Become Collaborative."""
-    elif "Coach Alex" in ai_role: # Scenario 3
+    elif "Coach" in ai_role: # Scenario 3
         behavior_instruction = f"""
 YOUR ROLE (as {ai_role}):
-You are COACH ALEX. You are NOT a customer. You are a developmental coach.
+You are {ai_role.upper()}. You are NOT a customer. You are a developmental coach.
 1. OPENING: Set a safe space. "I wanted to talk about a customer interaction..." -> Be Supportive.
 2. NARRATIVE: Listen to {role}'s story. Ask: "What was the customer really trying to solve?"
 3. PATTERN: Highlight patterns (e.g., "I noticed you moved to solution quickly") WITHOUT judging.

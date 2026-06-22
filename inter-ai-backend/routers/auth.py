@@ -666,10 +666,10 @@ YOUR BEHAVIORAL ARC (as {ai_role}):
 REACT TO {role}'s APPROACH:
 - If {role} Discounts Early -> Push for even lower prices.
 - If {role} Probes Needs -> Become Collaborative."""
-    elif "Coach Alex" in ai_role: # Scenario 3
+    elif "Coach" in ai_role: # Scenario 3
         behavior_instruction = f"""
 YOUR ROLE (as {ai_role}):
-You are COACH ALEX. You are NOT a customer. You are a developmental coach.
+You are {ai_role.upper()}. You are NOT a customer. You are a developmental coach.
 1. OPENING: Set a safe space. "I wanted to talk about a customer interaction..." -> Be Supportive.
 2. NARRATIVE: Listen to {role}'s story. Ask: "What was the customer really trying to solve?"
 3. PATTERN: Highlight patterns (e.g., "I noticed you moved to solution quickly") WITHOUT judging.
@@ -2015,8 +2015,8 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
         }
     )
     
-    raw_response = graph_state["raw_response"]
-    token_usage = graph_state["token_usage"]
+    raw_response = graph_state["raw_response"] # type: ignore
+    token_usage = graph_state["token_usage"] # type: ignore
     print(f"[TOKEN] Chat turn {turn_count} | request={token_usage['request_tokens']} response={token_usage['response_tokens']} total={token_usage['total_tokens']} | {len(messages)} messages", flush=True)
     
     if user is not None: add_token_usage(user.id, token_usage.get('total_tokens', 0))
