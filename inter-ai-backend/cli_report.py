@@ -62,15 +62,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tempfile
 
-def setup_langchain_model(model_name):
+def setup_langchain_model(model_name, is_chat=False):
     # Force httpx to ignore system proxies
     http_client = httpx.Client(trust_env=False, timeout=120.0)
-    base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
-    api_key = os.getenv("GROQ_API_KEY", "")
+    
+    if is_chat:
+        base_url = os.getenv("CHAT_OPENAI_BASE_URL", os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1"))
+        api_key = os.getenv("CHAT_API_KEY", os.getenv("GROQ_API_KEY", "not-needed"))
+    else:
+        base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
+        api_key = os.getenv("GROQ_API_KEY", "")
+        
     if not api_key:
         print("[WARNING] GROQ_API_KEY is not set! LLM calls will fail.")
     return ChatOpenAI(
-        api_key=api_key,
+        api_key=api_key or "not-needed",
         base_url=base_url,
         model=model_name,
         http_client=http_client,
@@ -80,8 +86,8 @@ def setup_langchain_model(model_name):
 REPORT_MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
 CHAT_MODEL_NAME = os.getenv("CHAT_MODEL_NAME", "llama-3.1-8b-instant")
 
-report_llm = setup_langchain_model(REPORT_MODEL_NAME)
-chat_llm = setup_langchain_model(CHAT_MODEL_NAME)
+report_llm = setup_langchain_model(REPORT_MODEL_NAME, is_chat=False)
+chat_llm = setup_langchain_model(CHAT_MODEL_NAME, is_chat=True)
 prompt_template = PromptTemplate(template="{prompt}", input_variables=["prompt"])
 
 # Kept for backwards compatibility if needed, but prefer specific ones

@@ -36,6 +36,22 @@ services:
     volumes:
       - mongodb_data:/data/db
 
+  vllm:
+    image: vllm/vllm-openai:latest
+    restart: always
+    ports:
+      - "8001:8000"
+    command: --model sarvamai/sarvam-2b-v0.5
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
   backend:
     build:
       context: ./inter-ai-backend
@@ -54,6 +70,8 @@ services:
       - CHAT_MODEL_NAME=${CHAT_MODEL_NAME}
       - GROQ_OPENAI_BASE_URL=${GROQ_OPENAI_BASE_URL}
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - CHAT_OPENAI_BASE_URL=${CHAT_OPENAI_BASE_URL}
+      - CHAT_API_KEY=${CHAT_API_KEY}
       - OLLAMA_API_URL=${OLLAMA_API_URL:-http://host.docker.internal:11434}
       - WHISPER_CMD=whisper
       - PIPER_CMD=/app/piper/piper
@@ -66,6 +84,7 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-https://coact-ai.com,https://www.coact-ai.com}
     depends_on:
       - mongodb
+      - vllm
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
@@ -78,6 +97,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   certbot:
     image: certbot/certbot
@@ -88,3 +114,4 @@ services:
 volumes:
   backend-db:
   mongodb_data:
+  huggingface_cache:
