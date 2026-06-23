@@ -49,5 +49,6 @@ slowapi==0.1.9
 pytest==9.0.3
 pytest-asyncio==1.4.0
 
-# Legacy (review for removal)
-supabase==2.27.2
+
+# TTS (Text-to-Speech)
+edge-tts>=6.1.0

@@ -1485,7 +1485,7 @@ async def transcribe_audio(request: Request):
 
 @app.post("/api/speak")
 async def speak_text(request: Request, _ = Depends(standard_limiter)):
-    """Text-to-Speech using local Piper TTS. Returns audio as complete response."""
+    """Text-to-Speech using edge-tts (Microsoft Edge free TTS). No binary or API key needed."""
     text = ""
     voice = "alloy"
     try:
@@ -1496,53 +1496,44 @@ async def speak_text(request: Request, _ = Depends(standard_limiter)):
         if not text:
             return JSONResponse(content={"error": "No text provided"}, status_code=400)
 
-        logger.info(f" [INFO] Generating TTS via Local Piper for: '{text[:80]}...'")
-        
-        # Select Piper voice model based on voice parameter
-        piper_cmd = os.getenv("PIPER_CMD", "/app/piper/piper")
-        if voice.lower() in ["nova", "shimmer"]:
-            piper_model = os.getenv("PIPER_MODEL_PATH_GIRL", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
-        else:
-            piper_model = os.getenv("PIPER_MODEL_PATH_BOY", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
-        
-        import subprocess
+        import edge_tts
         import tempfile
-        
-        # Create temp WAV file for Piper output
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
-            tmp_wav_path = tmp_wav.name
-        
+
+        # Map voice parameter to Microsoft Edge TTS voice names
+        VOICE_MAP = {
+            "nova": "en-US-JennyNeural",      # Female voice (for Sarah character)
+            "shimmer": "en-US-JennyNeural",    # Female voice
+            "fable": "en-US-GuyNeural",        # Male voice (for Alex character)
+            "alloy": "en-US-GuyNeural",        # Male voice (default)
+        }
+        edge_voice = VOICE_MAP.get(voice.lower(), "en-US-GuyNeural")
+
+        logger.info(f" [INFO] Generating TTS via edge-tts ({edge_voice}) for: '{text[:80]}...'")
+
+        # Generate audio using edge-tts
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_mp3:
+            tmp_mp3_path = tmp_mp3.name
+
         try:
-            # Run Piper TTS subprocess
-            process = subprocess.run(
-                [piper_cmd, "--model", piper_model, "--output_file", tmp_wav_path],
-                input=text[:2500],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
-            if process.returncode != 0:
-                logger.warning(f" [WARNING] Piper TTS Error: {process.stderr}")
-                return JSONResponse(content={"error": "Local TTS failed"}, status_code=500)
-            
-            # Read the generated WAV file
-            with open(tmp_wav_path, "rb") as f:
+            communicate = edge_tts.Communicate(text[:2500], edge_voice)
+            await communicate.save(tmp_mp3_path)
+
+            # Read the generated MP3 file
+            with open(tmp_mp3_path, "rb") as f:
                 audio_data = f.read()
-            
+
             if not audio_data or len(audio_data) < 100:
-                logger.warning(" [WARNING] Piper TTS Error: No audio generated")
+                logger.warning(" [WARNING] edge-tts: No audio generated")
                 return JSONResponse(content={"error": "No audio generated"}, status_code=500)
-            
-            mimetype = "audio/wav"
-            logger.info(f" [SUCCESS] Local Piper TTS generated {len(audio_data)} bytes")
-            return Response(audio_data, media_type=mimetype, headers={"Content-Length": str(len(audio_data))})
-        
+
+            logger.info(f" [SUCCESS] edge-tts generated {len(audio_data)} bytes")
+            return Response(audio_data, media_type="audio/mpeg", headers={"Content-Length": str(len(audio_data))})
+
         finally:
             # Always clean up temp file
-            if os.path.exists(tmp_wav_path):
+            if os.path.exists(tmp_mp3_path):
                 try:
-                    os.unlink(tmp_wav_path)
+                    os.unlink(tmp_mp3_path)
                 except Exception:
                     pass
 
