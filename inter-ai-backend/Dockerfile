@@ -26,6 +26,15 @@ COPY . .
 RUN mkdir -p reports static/audio && \
     chmod 755 reports static/audio
 
+# Download and install Piper TTS binary (for AI voice output)
+RUN mkdir -p /app/piper && \
+    curl -L https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz | tar xzf - -C /app/piper --strip-components=1
+
+# Download Piper voice models (male + female)
+RUN mkdir -p /app/models && \
+    curl -L -o /app/models/en_US-lessac-medium.onnx https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx && \
+    curl -L -o /app/models/en_US-lessac-medium.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
+
 # Create non-root user for security
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 RUN chown -R appuser:appgroup /app
