@@ -3,8 +3,6 @@ services:
     build:
       context: ./inter-ai-frontend
       args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-        VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY}
         VITE_API_URL: ${VITE_API_URL}
     ports:
       - "80:80"
@@ -130,8 +128,6 @@ services:
       - PIPER_MODEL_PATH=${PIPER_MODEL_PATH:-/app/models/en_US-lessac-medium.onnx}
       - PIPER_MODEL_PATH_BOY=${PIPER_MODEL_PATH_BOY:-/app/models/en_US-lessac-medium.onnx}
       - PIPER_MODEL_PATH_GIRL=${PIPER_MODEL_PATH_GIRL:-/app/models/en_US-lessac-medium.onnx}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
       - JWT_SECRET=${JWT_SECRET:-super-secret-production-key}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://coact-ai.com,https://www.coact-ai.com,http://coact-ai.com}
       - SARVAM_API_KEY=${SARVAM_API_KEY:-not-needed}
