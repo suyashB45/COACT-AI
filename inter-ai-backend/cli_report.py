@@ -770,7 +770,7 @@ RULES:
                 )
                 
                 content = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
-                json_text = "".join(str(x) for x in content).strip() if isinstance(content, list) else str(content).strip()
+                json_text = "".join(str(x) for x in content).strip() if isinstance(content, list) else content.strip()
                 data = parse_json_robustly(json_text)
                 
                 if data is None:

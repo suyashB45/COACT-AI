@@ -29,8 +29,9 @@ services:
   mongodb:
     image: mongo:latest
     restart: always
-    ports:
-      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=coact_secure_db_pass_2026
     volumes:
       - mongodb_data:/data/db
 
@@ -44,11 +45,23 @@ services:
     command: >
       --model Qwen/Qwen2.5-7B-Instruct
       --max-model-len 8192
-      --gpu-memory-utilization 0.40
+      --gpu-memory-utilization 0.85
+      --enable-chunked-prefill
       --dtype auto
       --trust-remote-code
     volumes:
       - huggingface_cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     deploy:
       resources:
         reservations:
@@ -57,28 +70,7 @@ services:
               count: 1
               capabilities: [gpu]
 
-  # --- LOCAL AI: Small LLM (Qwen2.5-1.5B) — Fast Chat & Conversation ---
-  # Lightweight model for real-time roleplay chat (low latency)
-  vllm-chat:
-    image: vllm/vllm-openai:latest
-    restart: always
-    ports:
-      - "8003:8000"
-    command: >
-      --model Qwen/Qwen2.5-1.5B-Instruct
-      --max-model-len 4096
-      --gpu-memory-utilization 0.15
-      --dtype auto
-      --trust-remote-code
-    volumes:
-      - huggingface_cache:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+
 
   # --- LOCAL AI: Speech-to-Text (Faster Whisper) ---
   # Runs whisper-large-v3-turbo locally on GPU for zero-latency STT
@@ -113,13 +105,13 @@ services:
       - ./piper_models:/app/models
       - backend-db:/app/db
     environment:
-      - MONGODB_URI=mongodb://mongodb:27017/coact
+      - MONGODB_URI=mongodb://admin:coact_secure_db_pass_2026@mongodb:27017/coact?authSource=admin
       - PORT=8000
       - MODEL_NAME=${MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
       - CHAT_MODEL_NAME=${CHAT_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
       - GROQ_OPENAI_BASE_URL=${GROQ_OPENAI_BASE_URL:-http://vllm:8000/v1}
       - GROQ_API_KEY=${GROQ_API_KEY:-not-needed}
-      - CHAT_OPENAI_BASE_URL=${CHAT_OPENAI_BASE_URL:-http://vllm-chat:8000/v1}
+      - CHAT_OPENAI_BASE_URL=${CHAT_OPENAI_BASE_URL:-http://vllm:8000/v1}
       - CHAT_API_KEY=${CHAT_API_KEY:-not-needed}
       - OLLAMA_API_URL=${OLLAMA_API_URL:-http://host.docker.internal:11434}
       - WHISPER_API_URL=${WHISPER_API_URL:-http://whisper:8000/v1/audio/transcriptions}
@@ -136,7 +128,6 @@ services:
     depends_on:
       - mongodb
       - vllm
-      - vllm-chat
       - whisper
     restart: always
     healthcheck:

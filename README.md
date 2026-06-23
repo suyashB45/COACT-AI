@@ -24,13 +24,13 @@ graph TD
     subgraph Backend Services [FastAPI Backend]
         API[FastAPI Server]
         Cache[(Unified Session Cache - Redis/TTLCache)]
-        DB[(MongoDB Atlas / SQLite)]
+        DB[(MongoDB Container - Authenticated)]
     end
 
-    subgraph External AI APIs
-        GroqSTT[Groq Whisper - STT]
-        GroqLLM[Groq Llama 3.3 - Reasoning]
-        TTS[Sarvam AI / OpenAI - TTS]
+    subgraph Local AI Engine [GPU Accelerated via Docker]
+        LocalSTT[Faster Whisper Large-v3]
+        UnifiedLLM[vLLM Unified Serving: Qwen2.5-7B]
+        TTS[Piper Local TTS / Edge TTS]
     end
 
     Web <-->|HTTP / WebSockets / Proxy| API
@@ -39,9 +39,9 @@ graph TD
     API <--> Cache
     API <--> DB
     
-    API -->|Audio Transcription| GroqSTT
-    API -->|Conversation Reasoning| GroqLLM
-    API -->|Voice Synthesis Stream| TTS
+    API <-->|Audio Transcription| LocalSTT
+    API <-->|Reasoning & Live Chat| UnifiedLLM
+    API -->|Voice Synthesis| TTS
 ```
 
 ### Component Details
@@ -59,96 +59,67 @@ graph TD
    - **Rate Limiting**: Custom Token Bucket Rate Limiter to prevent API abuse.
    - **Caching**: Unified Cache supporting local in-memory TTLCache and Redis for session state management.
    - **Database**: SQLite (SQLAlchemy) for rapid local development; MongoDB Atlas for production data persistence.
-4. **AI Processing Layer**:
-   - **Speech-to-Text (STT)**: Groq Whisper API (`whisper-large-v3-turbo`) for fast transcription.
-   - **Reasoning**: Groq Llama 3.3 (`llama-3.3-70b-versatile`) with enterprise security guardrails.
-   - **Text-to-Speech (TTS)**: Sarvam AI (`bulbul:v3` for Indian accents) or OpenAI (`tts-1`) for streaming voice audio.
-   - **Report Generation**: Consolidates transcripts and scores metrics before generating a downloadable PDF report.
+4. **AI Processing Layer (Fully Local & GPU Accelerated)**:
+   - **Speech-to-Text (STT)**: Hosted locally using `faster-whisper-large-v3` for zero-latency, private transcription.
+   - **Reasoning & Live Chat**: Unified `vLLM` server running `Qwen2.5-7B-Instruct`. Employs chunked-prefill to generate massive PDF reports in the background without causing any latency in live roleplay chats.
+   - **Text-to-Speech (TTS)**: Local `Piper` models or `edge-tts` for high-speed streaming voice audio.
+   - **Report Generation**: Employs parallel threaded processing to evaluate transcripts across multiple criteria (EQ, STAR, GROW) simultaneously, generating a secure PDF report.
 
 ---
 
 ## 2. Environment Configuration
 
-The application requires various environment variables for database connections, security, and external AI services.
+The application is configured to run **fully locally** without relying on external APIs for its core AI functionality.
 
-### API Keys & Services Checklist
-- **Groq API Key**: Needed for LLM reasoning and transcription. Get it from [Groq Console](https://console.groq.com/).
-- **Sarvam AI Key**: Needed for natural text-to-speech. Get it from [Sarvam Dashboard](https://sarvam.ai/dashboard).
-- **OpenAI API Key (Optional)**: Used as fallback TTS. Get it from [OpenAI Platform](https://platform.openai.com/).
-- **MongoDB Connection String**: Needed for session persistence. Create a free M0 cluster on [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
+### Core Architecture Components (Local)
+- **Unified LLM**: Powered by `vLLM` running `Qwen2.5-7B-Instruct`.
+- **Speech-to-Text**: Powered by `faster-whisper-large-v3`.
+- **Database**: Local `MongoDB` container (authenticated).
 
 ### Environment Files Setup
-From the project root, duplicate the templates:
+From the project root, duplicate the `.env.example` file to create your `.env` file:
 ```bash
-# Copy root environment file
 copy .env.example .env
-
-# Copy backend environment file
-copy inter-ai-backend\.env.example inter-ai-backend\.env
 ```
 
-Edit the newly created `.env` files. Ensure the following variables are correctly configured:
+Ensure the following critical variables are set in your `.env` for the local GPU architecture:
 ```env
-GROQ_API_KEY=your_groq_api_key_here
-SARVAM_API_KEY=your_sarvam_api_key_here
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/coact?retryWrites=true&w=majority
-JWT_SECRET=use-a-strong-random-key-in-production
+USE_LOCAL_AI=true
+GROQ_OPENAI_BASE_URL=http://vllm:8000/v1
+CHAT_OPENAI_BASE_URL=http://vllm:8000/v1
+MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
+CHAT_MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
+MONGODB_URI=mongodb://admin:coact_secure_db_pass_2026@mongodb:27017/coact?authSource=admin
+JWT_SECRET=your_secure_64_character_hex_string
 ```
 
 ---
 
-## 3. How to Run Locally (Development)
+## 3. How to Run Locally & In Production
 
-Ensure you have **Node.js 18+** and **Python 3.10+** installed on your development machine.
+The entire stack is containerized using Docker, allowing you to easily spin up the frontend, backend, database, and all AI models simultaneously.
 
-### Method A: Automated Start Script (Windows)
-A convenience batch file is provided in the project root to run both backend and frontend development servers concurrently:
+### Prerequisites
+- **Docker & Docker Compose** installed.
+- **NVIDIA GPU** with at least 48GB VRAM (e.g., RTX 6000 Ada / A6000) for local AI models.
+- **NVIDIA Container Toolkit** installed to allow Docker to access the GPU.
+
+### Starting the Full Stack
+To spin up the entire application (including the heavily optimized vLLM server, Whisper STT, secured MongoDB, FastAPI backend, and React frontend), simply run:
+
 ```bash
-start-dev.bat
+docker compose up -d --build
 ```
-*This starts the Python backend, waits for it to initialize, boots up the React frontend, and opens it automatically in your browser at `http://localhost:3000`.*
 
----
+*This will boot up the services. The React Web App will be available at `http://localhost` (or your domain), and the backend API will be running on port `8000`.*
 
-### Method B: Manual Startup
+### Shutting Down
+To gracefully stop the application:
+```bash
+docker compose down
+```
 
-#### 1. Start the Backend
-1. Navigate to the backend folder:
-   ```bash
-   cd inter-ai-backend
-   ```
-2. Create and activate a Python virtual environment:
-   ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Start the FastAPI server:
-   ```bash
-   python app.py
-   ```
-   *The backend will boot on `http://localhost:8000`. API docs can be viewed at `http://localhost:8000/docs`.*
-
-#### 2. Start the Web Frontend
-1. Navigate to the frontend folder:
-   ```bash
-   cd inter-ai-frontend
-   ```
-2. Install packages:
-   ```bash
-   npm install
-   ```
-3. Run in development mode:
-   ```bash
-   npm run dev
-   ```
-   *Vite will start the dev server at `http://localhost:3000` and proxy all `/api` traffic to port 8000.*
+*(Note: To completely wipe the database volume and start fresh, use `docker compose down -v`)*
 
 #### 3. Start the Mobile Client
 1. Navigate to the mobile folder:
