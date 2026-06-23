@@ -55,7 +55,14 @@ const HeroSection = () => {
                         {/* CTA Buttons */}
                         <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mb-6">
                             <button
-                                onClick={() => navigate('/practice')}
+                                onClick={() => {
+                                    const user = localStorage.getItem('user');
+                                    if (user) {
+                                        navigate('/practice');
+                                    } else {
+                                        navigate('/login');
+                                    }
+                                }}
                                 className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
                             >
                                 Start Practicing

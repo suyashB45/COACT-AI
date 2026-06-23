@@ -49,6 +49,8 @@ slowapi==0.1.9
 pytest==9.0.3
 pytest-asyncio==1.4.0
 
-
 # TTS (Text-to-Speech)
 edge-tts>=6.1.0
+
+# HTTP Client (Required for http2=True in app.py)
+httpx[http2]>=0.27.0
