@@ -75,12 +75,15 @@ def setup_langchain_model(model_name, is_chat=False):
         
     if not api_key:
         print("[WARNING] API_KEY is not set! LLM calls will fail.")
+        
+    temp = 0.7 if is_chat else 0.1
+    
     return ChatOpenAI(
         api_key=api_key or "not-needed",
         base_url=base_url,
         model=model_name,
         http_client=http_client,
-        temperature=0.1
+        temperature=temp
     )
 
 REPORT_MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")

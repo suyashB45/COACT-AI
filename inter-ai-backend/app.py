@@ -484,7 +484,7 @@ def truncate_history(transcript: list, max_turns: int = MAX_HISTORY_TURNS) -> li
 
 def ensure_reports_dir() -> str:
     # Use path relative to BASE_DIR for reliability across environments
-    reports_dir = os.path.join(BASE_DIR, "..", "reports")
+    reports_dir = os.path.join(BASE_DIR, "reports")
     os.makedirs(reports_dir, exist_ok=True)
     return reports_dir
 

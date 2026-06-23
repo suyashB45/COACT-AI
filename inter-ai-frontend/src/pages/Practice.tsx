@@ -735,7 +735,8 @@ export default function Practice() {
                                                         </div>
                                                     </div>
 
-                                                    <h4 className="text-lg font-bold text-foreground mb-4 group-hover:text-primary transition-colors">{scenario.title}</h4>
+                                                    <h4 className="text-lg font-bold text-foreground mb-2 group-hover:text-primary transition-colors">{scenario.title}</h4>
+                                                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{displayDescription}</p>
 
                                                     <div className="flex flex-col gap-2 mb-4">
                                                         <div className="flex items-center gap-2 text-xs">
