@@ -432,15 +432,20 @@ def get_password_hash(password):
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
-def create_user(email: str, password: str):
+def create_user(email: str, password: str, name: str = None, company: str = None):
     try:
         hashed_pwd = get_password_hash(password)
         user_id = str(uuid.uuid4())
+        
+        # Default name to email prefix if not provided
+        final_name = name.strip() if name and name.strip() else email.split('@')[0]
+        
         doc = {
             "_id": user_id,
             "id": user_id,
             "email": email.lower().strip(),
-            "name": email.split('@')[0], # Default name to email prefix
+            "name": final_name,
+            "company": company.strip() if company else None,
             "hashed_password": hashed_pwd,
             "is_2fa_enabled": False,
             "two_factor_code": None,

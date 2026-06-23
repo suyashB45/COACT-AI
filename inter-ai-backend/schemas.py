@@ -14,6 +14,8 @@ class UserLogin(StrictBaseModel):
     password: str
 
 class UserRegister(StrictBaseModel):
+    name: Optional[str] = None
+    company: Optional[str] = None
     email: str
     password: str
 

@@ -25,6 +25,21 @@ export const getAuthHeaders = () => {
     };
 };
 
+export const registerUser = async (data: { name?: string; company?: string; email: string; password: string }) => {
+    const response = await fetch(getApiUrl('/api/auth/register'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to register account');
+    }
+    
+    return response.json();
+};
+
 export const deleteAccount = async () => {
     const response = await fetch(getApiUrl('/api/user/account'), {
         method: 'DELETE',

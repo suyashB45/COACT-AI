@@ -20,6 +20,7 @@ const Settings = lazy(() => import('./pages/Settings'))
 const LimitReached = lazy(() => import('./pages/LimitReached'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
 const Login = lazy(() => import('./pages/Login'))
+const Signup = lazy(() => import('./pages/Signup'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 const SecurityPage = lazy(() => import('./pages/Security'))
@@ -51,6 +52,7 @@ function AppContent() {
                     <Routes location={location} key={location.pathname}>
                         <Route path="/" element={<Home />} />
                         <Route path="/login" element={<Login />} />
+                        <Route path="/signup" element={<Signup />} />
                         <Route path="/privacy" element={<PrivacyPolicy />} />
                         <Route path="/terms" element={<TermsOfService />} />
                         <Route path="/security" element={<SecurityPage />} />

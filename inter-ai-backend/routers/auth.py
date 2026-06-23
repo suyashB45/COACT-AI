@@ -959,7 +959,12 @@ async def register(request: Request, user: UserRegister, _ = Depends(login_limit
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    new_user = create_user(user.email, user.password)
+    new_user = create_user(
+        email=user.email,
+        password=user.password,
+        name=user.name,
+        company=user.company
+    )
     if not new_user:
         raise HTTPException(status_code=500, detail="Failed to create user")
         
