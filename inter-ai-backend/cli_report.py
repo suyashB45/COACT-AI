@@ -693,14 +693,11 @@ Use encouraging plain English. Every score needs transcript evidence from [HUMAN
   "follow_up_strategy": {{ "review_cadence": "", "metrics_to_track": [], "accountability_method": "" }},
   "strengths_and_improvements": {{ "strengths": [], "missed_opportunities": [] }},
   "final_evaluation": {{ "readiness_level": "", "maturity_rating": "X/10", "immediate_focus": [], "long_term_suggestion": "" }},
-  "character_assessment": {{ "observed_traits": [{{ "trait": "", "evidence_quote": "EXACT quote from [HUMAN LEARNER]", "impact": "", "insight": "" }}], "scenario_fit": {{ "required_traits": ["Active Listening","Empathy","Accountability","Growth Mindset","Professional Communication"], "user_strengths": [], "user_gaps": [], "fit_score": "X/10", "fit_assessment": "", "development_priority": "" }}, "character_development_plan": [] }},
-  "question_analysis": {{ "questions_asked_count": 0, "questions_missed": [{{ "question": "", "category": "Discovery|Probing|Clarifying|Vision|Closing", "timing": "Early|Mid|Late", "why_important": "", "when_to_ask": "", "impact_if_asked": "" }}], "question_quality_score": "X/10", "question_quality_feedback": "", "questioning_improvement_tip": "" }}
+  "final_evaluation": {{ "readiness_level": "", "maturity_rating": "X/10", "immediate_focus": [], "long_term_suggestion": "" }}
 }}
 
 RULES:
 - ideal_questions must have 3-5 NEW questions (not repeats) that the [HUMAN LEARNER] could have asked.
-- character_assessment and question_analysis are REQUIRED.
-- questions_missed: Include 3-5 questions IF the learner genuinely missed them. If they performed well, include fewer. Do NOT invent missed questions.
 - ALL quotes MUST come from [HUMAN LEARNER] lines. NEVER quote [AI CHARACTER] lines as evidence.
 - TONE: Use balanced, objective, and constructive language. Do NOT use overly harsh, dramatic, or exaggerated phrasing in summaries (e.g., avoid "completely failed").
 """
@@ -748,33 +745,53 @@ RULES:
         chain_raw = prompt | report_llm
         
         # =====================================================================
-        # CONSOLIDATED: Single LLM call instead of 3 parallel calls
-        # Saves ~60% API cost by eliminating 2 redundant transcript sends
+        # PARALLEL EXECUTION: Run 3 smaller LLM calls simultaneously
+        # Uses concurrent.futures to drastically reduce generation time
         # =====================================================================
-        print(f" [INFO] Starting CONSOLIDATED report generation (1 LLM call instead of 3)...", flush=True)
+        print(f" [INFO] Starting PARALLEL report generation (3 concurrent LLM calls)...", flush=True)
         
+        import concurrent.futures
         t1 = dt.datetime.now()
         
-        try:
-            raw_response = chain_raw.invoke(
-                {
-                    "system_prompt": system_prompt,
-                    "conversation": full_conversation
-                },
-                config={
-                    "run_name": "report_generation",
-                    "tags": ["report", scenario_type or "unknown"]
-                }
-            )
-        except Exception as invoke_error:
-            print(f" [ERROR] Report LLM call failed: {invoke_error}", flush=True)
-            raw_response = None
-        
+        def run_main_report():
+            try:
+                raw_response = chain_raw.invoke(
+                    {
+                        "system_prompt": system_prompt,
+                        "conversation": full_conversation
+                    },
+                    config={
+                        "run_name": "report_generation",
+                        "tags": ["report", scenario_type or "unknown"]
+                    }
+                )
+                
+                content = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+                json_text = "".join(str(x) for x in content).strip() if isinstance(content, list) else str(content).strip()
+                data = parse_json_robustly(json_text)
+                
+                if data is None:
+                    data = parser.parse(json_text)
+                return data
+            except Exception as e:
+                print(f" [ERROR] Main report LLM call failed: {e}", flush=True)
+                return None
+
+        # Execute all 3 in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            future_main = executor.submit(run_main_report)
+            future_character = executor.submit(analyze_character_traits, transcript, role, ai_role, scenario, scenario_type)
+            future_questions = executor.submit(analyze_questions_missed, transcript, role, ai_role, scenario, scenario_type)
+            
+            data = future_main.result()
+            character_data = future_character.result()
+            questions_data = future_questions.result()
+
         t2 = dt.datetime.now()
-        print(f" [SUCCESS] Consolidated report completed in {(t2-t1).total_seconds():.2f}s (saved 2 LLM calls)", flush=True)
+        print(f" [SUCCESS] Parallel report completed in {(t2-t1).total_seconds():.2f}s", flush=True)
         
         # Handle potential timeout/None response
-        if raw_response is None:
+        if data is None:
             print(f" [ERROR] Main report generation failed", flush=True)
             return {
                 "meta": {
@@ -787,44 +804,15 @@ RULES:
                 "type": scenario_type
             }
         
-        # Robust JSON parsing
-        content = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
-        if isinstance(content, str):
-            json_text = content.strip()
-        elif isinstance(content, list):
-            json_text = "".join(str(x) for x in content).strip()
-        else:
-            json_text = str(content).strip()
-        data = parse_json_robustly(json_text)
-        
-        if data is None:
-            print(f" [ERROR] Main report JSON parse failed. Raw response: {json_text[:1000]}...", flush=True)
-            try:
-                data = parser.parse(json_text)
-                print(f" [SUCCESS] LangChain parser succeeded as fallback", flush=True)
-            except Exception as parser_error:
-                print(f" [ERROR] LangChain parser also failed: {parser_error}", flush=True)
-                raise ValueError("Could not parse JSON from main report response")
-        else:
-            print(f" [SUCCESS] Main report JSON parsed successfully", flush=True)
-        
         # Ensure meta exists and session_mode is always preserved
         if 'meta' not in data: data['meta'] = {}
         data['meta']['scenario_type'] = scenario_type
         data['meta']['session_mode'] = session_mode or data['meta'].get('session_mode', 'skill_assessment')
         if 'type' not in data: data['type'] = scenario_type
 
-        # Ensure character_assessment and question_analysis exist (fallback if LLM omitted them)
-        if 'character_assessment' not in data:
-            data['character_assessment'] = {
-                "observed_traits": [], "scenario_fit": {"required_traits": [], "user_strengths": [], "user_gaps": ["Analysis unavailable"], "fit_score": "N/A", "fit_assessment": "Unable to analyze", "development_priority": "N/A"},
-                "character_development_plan": []
-            }
-        if 'question_analysis' not in data:
-            data['question_analysis'] = {
-                "questions_asked_count": 0, "questions_missed": [], "question_quality_score": "N/A",
-                "question_quality_feedback": "Analysis unavailable", "questioning_improvement_tip": "Ask more open-ended questions"
-            }
+        # Inject the parallel results into the main data payload
+        data['character_assessment'] = character_data
+        data['question_analysis'] = questions_data
 
         return data
         
