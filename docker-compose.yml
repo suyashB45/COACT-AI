@@ -35,7 +35,7 @@ services:
     volumes:
       - mongodb_data:/data/db
 
-  # --- LOCAL AI: Big LLM (Qwen2.5-7B) — Report Generation & Evaluation ---
+  # --- LOCAL AI: Big LLM (Qwen2.5-32B) — Report Generation & Evaluation ---
   # Heavy model for deep analysis, report writing, and evaluation scoring
   vllm:
     image: vllm/vllm-openai:latest
@@ -43,7 +43,7 @@ services:
     ports:
       - "8001:8000"
     command: >
-      --model Qwen/Qwen2.5-7B-Instruct
+      --model Qwen/Qwen2.5-32B-Instruct
       --max-model-len 8192
       --gpu-memory-utilization 0.85
       --enable-chunked-prefill
@@ -80,7 +80,7 @@ services:
     ports:
       - "8002:8000"
     environment:
-      - WHISPER__MODEL=Systran/faster-whisper-large-v3
+      - WHISPER__MODEL=Systran/faster-whisper-small.en
       - WHISPER__DEVICE=cuda
       - WHISPER__COMPUTE_TYPE=float16
     volumes:
@@ -107,8 +107,8 @@ services:
     environment:
       - MONGODB_URI=mongodb://admin:coact_secure_db_pass_2026@mongodb:27017/coact?authSource=admin
       - PORT=8000
-      - MODEL_NAME=${MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
-      - CHAT_MODEL_NAME=${CHAT_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
+      - MODEL_NAME=${MODEL_NAME:-Qwen/Qwen2.5-32B-Instruct}
+      - CHAT_MODEL_NAME=${CHAT_MODEL_NAME:-Qwen/Qwen2.5-32B-Instruct}
       - GROQ_OPENAI_BASE_URL=${GROQ_OPENAI_BASE_URL:-http://vllm:8000/v1}
       - GROQ_API_KEY=${GROQ_API_KEY:-not-needed}
       - CHAT_OPENAI_BASE_URL=${CHAT_OPENAI_BASE_URL:-http://vllm:8000/v1}

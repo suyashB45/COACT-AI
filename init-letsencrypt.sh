@@ -3,7 +3,7 @@
 # init-letsencrypt.sh
 # Automated SSL Certificate Setup for CoAct.AI
 
-domains=(coact-ai.com www.coact-ai.com)
+domains=(coact-ai.com)
 email="coactai@outlook.com"
 data_path="./certbot"
 rsa_key_size=4096

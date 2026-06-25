@@ -1382,11 +1382,11 @@ async def transcribe_audio(request: Request):
                         whisper_url,
                         files={"file": (os.path.basename(filepath), f, "audio/webm")},
                         data={
-                            "model": "Systran/faster-whisper-large-v3",
+                            "model": "Systran/faster-whisper-small.en",
                             "response_format": "json",
                             "language": "en"
                         },
-                        timeout=60.0
+                        timeout=300.0
                     )
             
             resp = await _call_whisper_api(read_path)
