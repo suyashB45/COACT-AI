@@ -388,12 +388,17 @@ export default function Practice() {
             aiBehavior: ''
         }
 
-        // Extract CONTEXT
-        const contextMatch = scenarioText.match(/CONTEXT:\s*(.*?)(?=\n\n|FOCUS AREAS:|AI BEHAVIOR:|$)/s)
-        if (contextMatch) sections.context = contextMatch[1].trim()
+        // Extract CONTEXT (handles both 'CONTEXT:' prefix and no prefix)
+        const contextMatch = scenarioText.match(/CONTEXT:\s*(.*?)(?=\n\n|FOCUS AREAS:|YOUR OBJECTIVES:|AI BEHAVIOR:|$)/s)
+        if (contextMatch) {
+            sections.context = contextMatch[1].trim()
+        } else {
+            const fallbackMatch = scenarioText.match(/^(.*?)(?=\n\n(?:FOCUS AREAS:|YOUR OBJECTIVES:|AI BEHAVIOR:)|$)/s)
+            if (fallbackMatch) sections.context = fallbackMatch[1].trim()
+        }
 
-        // Extract FOCUS AREAS
-        const focusMatch = scenarioText.match(/FOCUS AREAS:\s*(.*?)(?=\n\n|AI BEHAVIOR:|$)/s)
+        // Extract FOCUS AREAS or YOUR OBJECTIVES
+        const focusMatch = scenarioText.match(/(?:FOCUS AREAS|YOUR OBJECTIVES):\s*(.*?)(?=\n\n|AI BEHAVIOR:|$)/s)
         if (focusMatch) sections.focusAreas = focusMatch[1].trim()
 
         // Extract AI BEHAVIOR
@@ -781,8 +786,18 @@ export default function Practice() {
                                                                 {(() => {
                                                                     const details = parseScenarioDetails(scenario.scenario)
                                                                     return (
-                                                                        <div className="text-muted-foreground leading-relaxed">
-                                                                            {details.context}
+                                                                        <div className="text-muted-foreground leading-relaxed space-y-3">
+                                                                            {details.context && (
+                                                                                <div>
+                                                                                    <span className="font-bold text-foreground">Context:</span> {details.context.replace(/^CONTEXT:\s*/i, '')}
+                                                                                </div>
+                                                                            )}
+                                                                            {details.focusAreas && (
+                                                                                <div>
+                                                                                    <span className="font-bold text-foreground">Your Objectives:</span>
+                                                                                    <div className="mt-1 whitespace-pre-wrap">{details.focusAreas}</div>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     )
                                                                 })()}

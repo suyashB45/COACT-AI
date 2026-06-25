@@ -8,7 +8,7 @@ const plans = [
         price: "$0",
         description: "Perfect for individuals looking to improve communication skills.",
         features: [
-            "5 practice sessions per month",
+            "3 practice sessions per month",
             "Basic AI feedback",
             "Standard scenarios",
             "Email support"
@@ -18,7 +18,7 @@ const plans = [
     },
     {
         name: "Pro",
-        price: "$29",
+        price: "$10",
         period: "/month",
         description: "For professionals wanting advanced analytics and unlimited practice.",
         features: [
