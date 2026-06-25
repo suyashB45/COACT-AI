@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, ShieldCheck, Lock, Eye, Server } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import Navigation from '../components/landing/Navigation';
