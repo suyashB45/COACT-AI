@@ -28,8 +28,8 @@ graph TD
     end
 
     subgraph Local AI Engine [GPU Accelerated via Docker]
-        LocalSTT[Faster Whisper Large-v3]
-        UnifiedLLM[vLLM Unified Serving: Qwen2.5-7B]
+        LocalSTT[Faster Whisper Small.en]
+        UnifiedLLM[vLLM Unified Serving: Qwen2.5-14B]
         TTS[Piper Local TTS / Edge TTS]
     end
 
@@ -60,8 +60,8 @@ graph TD
    - **Caching**: Unified Cache supporting local in-memory TTLCache and Redis for session state management.
    - **Database**: SQLite (SQLAlchemy) for rapid local development; MongoDB Atlas for production data persistence.
 4. **AI Processing Layer (Fully Local & GPU Accelerated)**:
-   - **Speech-to-Text (STT)**: Hosted locally using `faster-whisper-large-v3` for zero-latency, private transcription.
-   - **Reasoning & Live Chat**: Unified `vLLM` server running `Qwen2.5-7B-Instruct`. Employs chunked-prefill to generate massive PDF reports in the background without causing any latency in live roleplay chats.
+   - **Speech-to-Text (STT)**: Hosted locally using `faster-whisper-small.en` for zero-latency, private transcription.
+   - **Reasoning & Live Chat**: Unified `vLLM` server running `Qwen2.5-14B-Instruct`. Employs chunked-prefill to generate massive PDF reports in the background without causing any latency in live roleplay chats.
    - **Text-to-Speech (TTS)**: Local `Piper` models or `edge-tts` for high-speed streaming voice audio.
    - **Report Generation**: Employs parallel threaded processing to evaluate transcripts across multiple criteria (EQ, STAR, GROW) simultaneously, generating a secure PDF report.
 
@@ -72,8 +72,8 @@ graph TD
 The application is configured to run **fully locally** without relying on external APIs for its core AI functionality.
 
 ### Core Architecture Components (Local)
-- **Unified LLM**: Powered by `vLLM` running `Qwen2.5-7B-Instruct`.
-- **Speech-to-Text**: Powered by `faster-whisper-large-v3`.
+- **Unified LLM**: Powered by `vLLM` running `Qwen2.5-14B-Instruct`.
+- **Speech-to-Text**: Powered by `faster-whisper-small.en`.
 - **Database**: Local `MongoDB` container (authenticated).
 
 ### Environment Files Setup
@@ -87,8 +87,8 @@ Ensure the following critical variables are set in your `.env` for the local GPU
 USE_LOCAL_AI=true
 GROQ_OPENAI_BASE_URL=http://vllm:8000/v1
 CHAT_OPENAI_BASE_URL=http://vllm:8000/v1
-MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
-CHAT_MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
+MODEL_NAME=Qwen/Qwen2.5-14B-Instruct
+CHAT_MODEL_NAME=Qwen/Qwen2.5-14B-Instruct
 MONGODB_URI=mongodb://admin:coact_secure_db_pass_2026@mongodb:27017/coact?authSource=admin
 JWT_SECRET=your_secure_64_character_hex_string
 ```

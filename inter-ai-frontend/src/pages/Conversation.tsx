@@ -789,7 +789,7 @@ export default function Conversation() {
                     } else {
                         setState(prev => ({ ...prev, interimText: "" }))
                     }
-                }, 400) // 400ms silence triggers send
+                }, 250) // 250ms silence triggers send (was 400ms — lower = faster response)
             }
             
             animationFrameRef.current = requestAnimationFrame(checkAudio)
