@@ -51,9 +51,6 @@ services:
       --enable-chunked-prefill
       --dtype auto
       --trust-remote-code
-      --num-scheduler-steps 8
-      --speculative-model Qwen/Qwen2.5-1.5B-Instruct
-      --num-speculative-tokens 5
       --kv-cache-dtype fp8
     volumes:
       - huggingface_cache:/root/.cache/huggingface
