@@ -1503,7 +1503,7 @@ async def transcribe_audio(request: Request):
 
 @app.post("/api/speak")
 async def speak_text(request: Request, _ = Depends(standard_limiter)):
-    """Text-to-Speech using edge-tts (Microsoft Edge free TTS). No binary or API key needed."""
+    """Text-to-Speech using Piper (local) with fallback to edge-tts (Microsoft Edge free TTS)."""
     text = ""
     voice = "alloy"
     try:
@@ -1514,17 +1514,63 @@ async def speak_text(request: Request, _ = Depends(standard_limiter)):
         if not text:
             return JSONResponse(content={"error": "No text provided"}, status_code=400)
 
-        import edge_tts
+        # 1. Try Piper TTS first (Works offline, no IP blocks)
+        piper_cmd = os.getenv("PIPER_CMD", "/app/piper/piper")
+        if voice.lower() in ["nova", "shimmer"]:
+            piper_model = os.getenv("PIPER_MODEL_PATH_GIRL", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
+        else:
+            piper_model = os.getenv("PIPER_MODEL_PATH_BOY", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
+            
+        use_piper = os.path.exists(piper_cmd) and os.path.exists(piper_model)
+        
         import tempfile
-
-        # Map voice parameter to Microsoft Edge TTS voice names
+        
+        if use_piper:
+            import subprocess
+            logger.info(f" [INFO] Generating TTS via Local Piper for: '{text[:80]}...'")
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+                tmp_wav_path = tmp_wav.name
+            
+            try:
+                # Run Piper TTS subprocess
+                process = subprocess.run(
+                    [piper_cmd, "--model", piper_model, "--output_file", tmp_wav_path],
+                    input=text[:2500],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                if process.returncode != 0:
+                    logger.warning(f" [WARNING] Piper TTS Error: {process.stderr}")
+                    raise Exception("Local TTS failed")
+                
+                with open(tmp_wav_path, "rb") as f:
+                    audio_data = f.read()
+                
+                if not audio_data or len(audio_data) < 100:
+                    logger.warning(" [WARNING] Piper TTS Error: No audio generated")
+                    raise Exception("No audio generated")
+                
+                logger.info(f" [SUCCESS] Local Piper TTS generated {len(audio_data)} bytes")
+                return Response(audio_data, media_type="audio/wav", headers={"Content-Length": str(len(audio_data))})
+            finally:
+                if os.path.exists(tmp_wav_path):
+                    try:
+                        os.unlink(tmp_wav_path)
+                    except Exception:
+                        pass
+        
+        # 2. Fallback to edge-tts (Fails in Cloud due to IP blocks)
+        import edge_tts
+        # Map voice parameter to Microsoft Edge TTS voice names (Indian Accent)
         VOICE_MAP = {
-            "nova": "en-US-JennyNeural",      # Female voice (for Sarah character)
-            "shimmer": "en-US-JennyNeural",    # Female voice
-            "fable": "en-US-GuyNeural",        # Male voice (for Alex character)
-            "alloy": "en-US-GuyNeural",        # Male voice (default)
+            "nova": "en-IN-NeerjaExpressiveNeural",      # Female voice (Expressive Indian)
+            "shimmer": "en-IN-NeerjaExpressiveNeural",    # Female voice (Expressive Indian)
+            "fable": "en-IN-PrabhatNeural",               # Male voice (Indian)
+            "alloy": "en-IN-PrabhatNeural",               # Male voice (Indian)
         }
-        edge_voice = VOICE_MAP.get(voice.lower(), "en-US-GuyNeural")
+        edge_voice = VOICE_MAP.get(voice.lower(), "en-IN-NeerjaExpressiveNeural")
 
         logger.info(f" [INFO] Generating TTS via edge-tts ({edge_voice}) for: '{text[:80]}...'")
 
@@ -2769,6 +2815,8 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                     
                     whisper_url = os.getenv("WHISPER_API_URL", "http://whisper:8000/v1/audio/transcriptions")
                     with open(tmp_audio_path, "rb") as f:
+                        if shared_httpx_client is None:
+                            raise Exception("Shared HTTPX client not initialized")
                         resp = await shared_httpx_client.post(
                             whisper_url,
                             files={"file": (os.path.basename(tmp_audio_path), f, "audio/webm")},
@@ -2793,7 +2841,7 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                     await websocket.send_json({"type": "status", "status": "thinking"})
                     
                     # 2. Get DB Session and build prompt
-                    sess = db_sessions.find_one({"session_id": session_id})
+                    sess = get_session_from_db(session_id)
                     if not sess:
                         await websocket.send_json({"type": "error", "error": "Session not found"})
                         continue
@@ -2826,7 +2874,7 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                         
                     # Save AI response
                     sess["transcript"].append({"role": "ai", "content": full_response})
-                    db_sessions.update_one({"session_id": session_id}, {"$set": {"transcript": sess["transcript"]}})
+                    save_session_to_db(sess)
                     
                     await websocket.send_json({"type": "status", "status": "listening"})
 
