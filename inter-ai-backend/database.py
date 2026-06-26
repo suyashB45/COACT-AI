@@ -432,7 +432,7 @@ def get_password_hash(password):
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
-def create_user(email: str, password: str, name: str = None, company: str = None):
+def create_user(email: str, password: str, name: str | None = None, company: str | None = None):
     try:
         hashed_pwd = get_password_hash(password)
         user_id = str(uuid.uuid4())

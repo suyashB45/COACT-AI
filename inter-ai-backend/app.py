@@ -2846,7 +2846,7 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                         await websocket.send_json({"type": "error", "error": "Session not found"})
                         continue
                         
-                    sess.setdefault("transcript", []).append({"role": "user", "content": transcribed_text})
+                    sess.setdefault("transcript", []).append({"role": "user", "content": transcribed_text})  # type: ignore
                     messages = build_followup_prompt(sess, transcribed_text, [])
                     
                     # 3. Stream LLM
@@ -2873,7 +2873,7 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                         await tts_queue.put(sentence_buffer.strip())
                         
                     # Save AI response
-                    sess["transcript"].append({"role": "ai", "content": full_response})
+                    sess["transcript"].append({"role": "ai", "content": full_response})  # type: ignore
                     save_session_to_db(sess)
                     
                     await websocket.send_json({"type": "status", "status": "listening"})
