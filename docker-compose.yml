@@ -108,7 +108,7 @@ services:
       - ./piper_models:/app/models
       - backend-db:/app/db
     environment:
-      - MONGODB_URI=mongodb://admin:Coact%40ai2026@151.185.34.20:27017/coact?authSource=admin
+      - MONGODB_URI=mongodb://admin:Coact%40ai2026@mongodb:27017/coact?authSource=admin
       - PORT=8000
       - MPLCONFIGDIR=/tmp
       - MODEL_NAME=${MODEL_NAME:-Qwen/Qwen2.5-14B-Instruct}
