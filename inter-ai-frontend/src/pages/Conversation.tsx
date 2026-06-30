@@ -701,6 +701,32 @@ export default function Conversation() {
 
 
 
+    const handleInterrupt = useCallback(() => {
+        if (!isAiSpeakingRef.current && !isProcessingRef.current) return;
+
+        console.log("Interrupting AI...");
+
+        // 1. Abort TTS requests
+        if (ttsAbortRef.current) {
+            ttsAbortRef.current.abort();
+        }
+
+        // 2. Stop audio playback
+        if (aiAudioRef.current) {
+            aiAudioRef.current.pause();
+            aiAudioRef.current.currentTime = 0;
+            aiAudioRef.current = null;
+        }
+        setIsAiSpeaking(false);
+
+        // 3. Abort chat completion request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        
+        setState((prev) => ({ ...prev, isProcessing: false }));
+    }, []);
+
     const startVADRecording = () => {
         if (liveRecordingActive.current || !vadStreamRef.current) return
         liveRecordingActive.current = true
@@ -734,15 +760,13 @@ export default function Conversation() {
             for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
             const average = sum / dataArray.length
             
-            // If AI is speaking or we are processing the AI's response, mute the mic (ignore VAD)
-            if (isAiSpeakingRef.current || isProcessingRef.current) {
-                animationFrameRef.current = requestAnimationFrame(checkAudio)
-                return
-            }
-            
             const THRESHOLD = 20 
             
             if (average > THRESHOLD) {
+                if (isAiSpeakingRef.current || isProcessingRef.current) {
+                    handleInterrupt()
+                }
+
                 if (!liveRecordingActive.current) {
                     setIsUserSpeaking(true)
                     startVADRecording()

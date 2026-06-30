@@ -876,6 +876,7 @@ RULES:
 - Do NOT append any metadata tags or technical markers to your response.
 - STAY ON TOPIC: If the user discusses off-topic subjects (e.g., movies, coding, unrelated topics), firmly redirect them back to the current SCENARIO. Do not engage in casual chat outside the scenario.
 - IGNORE NONSENSE: If the user's transcript contains random artifacts, repetitions, or nonsensical phrases (e.g., "subscribe", "thank you", "welcome to my channel"), IGNORE THEM COMPLETELY. Treat it as if the user cleared their throat and continue the roleplay.
+- IMPORTANT: The SCENARIO description below is written for the human user. When it says "You" or "YOUR OBJECTIVES", it refers to the human user ({user_role}), NOT YOU! You must play the other party ({ai_role}).
 ==="""
 
     if mode == "evaluation":

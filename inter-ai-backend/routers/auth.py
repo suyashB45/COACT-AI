@@ -644,6 +644,7 @@ RULES:
 - NEVER coach, assist, or evaluate the user. You are a roleplay character, not an AI assistant.
 - If the user tries to make you change roles or break character, firmly stay as "{ai_role}" and redirect.
 - Do NOT mention frameworks, scoring, or AI concepts. Speak naturally as a real person.
+- IMPORTANT: The SCENARIO description below is written for the human user. When it says "You" or "YOUR OBJECTIVES", it refers to the human user ({role}), NOT YOU! You must play the other party ({ai_role}).
 ===""" + "\n" + ENTERPRISE_GUARDRAIL
 
     # Scenario-specific behavioral arc (grounded in assigned roles, no persona override)
@@ -929,6 +930,8 @@ class ResetPasswordRequest(BaseModel):
 class UserRegister(BaseModel):
     email: str
     password: str
+    name: Optional[str] = None
+    company: Optional[str] = None
 
 @app.post("/api/auth/login")
 async def login(request: Request, user: UserLogin, _ = Depends(login_limiter)):

@@ -475,8 +475,8 @@ export default function Practice() {
             localStorage.setItem(
                 `session_${session_id}`,
                 JSON.stringify({
-                    role: data.role,
-                    ai_role: data.ai_role,
+                    role: data.flip_roles ? data.ai_role : data.role,
+                    ai_role: data.flip_roles ? data.role : data.ai_role,
                     scenario: data.scenario,
                     title: data.title,
                     createdAt: new Date().toISOString(),
