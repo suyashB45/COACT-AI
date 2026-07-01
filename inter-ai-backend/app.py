@@ -1876,7 +1876,9 @@ async def start_session(request: Request):
                 summary = sanitize_llm_output(summary_tuple)
         logger.info(f"[PERF] Parallel framework+summary completed in {_time.time()-_t_start:.2f}s")
     else:
-        summary, summary_usage = llm_reply(
+        import asyncio
+        summary_tuple = await asyncio.to_thread(
+            llm_reply,
             build_summary_prompt(role, ai_role, scenario, framework, mode=mode, ai_character=ai_character, simulation_id=simulation_id),
             max_tokens=150,
             return_usage=True,
@@ -1884,8 +1886,14 @@ async def start_session(request: Request):
             run_tags=["session_start", mode or "coaching"],
             use_chat_model=True
         )
+        if isinstance(summary_tuple, tuple):
+            summary = summary_tuple[0]
+            summary_usage = summary_tuple[1]
+        else:
+            summary = summary_tuple
+            summary_usage = {}
         summary = sanitize_llm_output(summary)
-        logger.info(f"[TOKEN] Summary call | request={summary_usage['request_tokens']} response={summary_usage['response_tokens']} total={summary_usage['total_tokens']}")
+        logger.info(f"[TOKEN] Summary call | request={summary_usage.get('request_tokens', 0)} response={summary_usage.get('response_tokens', 0)} total={summary_usage.get('total_tokens', 0)}")
         if user is not None: add_token_usage(user.id, summary_usage.get('total_tokens', 0))
         logger.info(f"[PERF] Sequential summary completed in {_time.time()-_t_start:.2f}s")
     
