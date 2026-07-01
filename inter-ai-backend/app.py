@@ -99,7 +99,7 @@ shared_httpx_client = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global shared_httpx_client
-    shared_httpx_client = httpx.AsyncClient(http2=True, timeout=60.0, limits=httpx.Limits(max_keepalive_connections=20))
+    shared_httpx_client = httpx.AsyncClient(http2=False, timeout=60.0, limits=httpx.Limits(max_keepalive_connections=20))
     yield
     await shared_httpx_client.aclose()
 
@@ -1381,22 +1381,32 @@ async def transcribe_audio(request: Request):
             @traceable(run_type="llm", name="whisper_stt")
             async def _call_whisper_api(filepath: str):
                 with open(filepath, "rb") as f:
-                    return await shared_httpx_client.post(
-                        whisper_url,
-                        files={"file": (os.path.basename(filepath), f, "audio/webm")},
-                        data={
-                            "model": "Systran/faster-whisper-small.en",
-                            "response_format": "json",
-                            "language": "en",
-                            "temperature": "0.0",
-                            "condition_on_previous_text": "false",
-                            "prompt": "This is a professional roleplay conversation between a coach and a client."
-                        },
-                        timeout=300.0
-                    )
+                    try:
+                        return await shared_httpx_client.post(
+                            whisper_url,
+                            files={"file": (os.path.basename(filepath), f, "audio/webm")},
+                            data={
+                                "model": "Systran/faster-whisper-small.en",
+                                "response_format": "json",
+                                "language": "en",
+                                "temperature": "0.0",
+                                "condition_on_previous_text": "false",
+                                "prompt": "This is a professional roleplay conversation between a coach and a client."
+                            },
+                            timeout=300.0
+                        )
+                    except httpx.ConnectError:
+                        logger.error(f"Failed to connect to Whisper API at {whisper_url}")
+                        return None
+                    except Exception as e:
+                        logger.error(f"Whisper API error: {e}")
+                        return None
             
             resp = await _call_whisper_api(read_path)
                     
+            if resp is None:
+                return JSONResponse(content={"error": "Transcription server is currently unreachable. Please ensure the whisper container is running."}, status_code=500)
+                
             if resp.status_code != 200:
                 logger.info(f" [ERROR] Local Whisper STT Error: {resp.status_code} {resp.text}")
                 return JSONResponse(content={"error": "Local Whisper STT failed"}, status_code=500)
@@ -1522,6 +1532,20 @@ async def speak_text(request: Request, _ = Depends(standard_limiter)):
         else:
             piper_model = os.getenv("PIPER_MODEL_PATH_BOY", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
             
+        # Auto-download Piper model if missing
+        import urllib.request
+        model_dir = os.path.dirname(piper_model)
+        if os.path.exists(piper_cmd) and not os.path.exists(piper_model):
+            logger.info(f" [INFO] Piper model missing. Downloading to {piper_model}...")
+            os.makedirs(model_dir, exist_ok=True)
+            try:
+                base_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
+                urllib.request.urlretrieve(base_url, piper_model)
+                urllib.request.urlretrieve(base_url + ".json", piper_model + ".json")
+                logger.info(" [SUCCESS] Piper model downloaded successfully.")
+            except Exception as e:
+                logger.error(f"Failed to download Piper model: {e}")
+
         use_piper = os.path.exists(piper_cmd) and os.path.exists(piper_model)
         
         import tempfile
