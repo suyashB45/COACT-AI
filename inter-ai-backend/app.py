@@ -1855,25 +1855,28 @@ async def start_session(request: Request):
         logger.info(f"[PERF] Used hardcoded opening for {simulation_id} - skipped LLM summary call")
     elif needs_auto_framework:
         # Run BOTH LLM calls in parallel (framework + summary)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            future_fw = executor.submit(select_framework_for_scenario, scenario or "", ai_role or "", simulation_id)
-            future_summary = executor.submit(
-                lambda: llm_reply(
-                    build_summary_prompt(role, ai_role, scenario, ["GROW", "EQ"], mode=mode, ai_character=ai_character, simulation_id=simulation_id),
-                    max_tokens=150,
-                    return_usage=True,
-                    run_name="session_opening_parallel",
-                    run_tags=["session_start", mode or "coaching"],
-                    use_chat_model=True
-                )
+        import asyncio
+        async def get_fw():
+            return await asyncio.to_thread(select_framework_for_scenario, scenario or "", ai_role or "", simulation_id)
+            
+        async def get_summary():
+            return await asyncio.to_thread(
+                llm_reply,
+                build_summary_prompt(role, ai_role, scenario, ["GROW", "EQ"], mode=mode, ai_character=ai_character, simulation_id=simulation_id),
+                max_tokens=150,
+                return_usage=True,
+                run_name="session_opening_parallel",
+                run_tags=["session_start", mode or "coaching"],
+                use_chat_model=True
             )
-            framework = future_fw.result(timeout=15)
-            summary_tuple = future_summary.result(timeout=30)
-            if isinstance(summary_tuple, tuple):
-                summary = sanitize_llm_output(summary_tuple[0])
-                if user is not None: add_token_usage(user.id, summary_tuple[1].get('total_tokens', 0))
-            else:
-                summary = sanitize_llm_output(summary_tuple)
+            
+        framework, summary_tuple = await asyncio.gather(get_fw(), get_summary())
+        
+        if isinstance(summary_tuple, tuple):
+            summary = sanitize_llm_output(summary_tuple[0])
+            if user is not None: add_token_usage(user.id, summary_tuple[1].get('total_tokens', 0))
+        else:
+            summary = sanitize_llm_output(summary_tuple)
         logger.info(f"[PERF] Parallel framework+summary completed in {_time.time()-_t_start:.2f}s")
     else:
         import asyncio
