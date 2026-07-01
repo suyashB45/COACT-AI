@@ -41,6 +41,7 @@ services:
   # Heavy model for deep analysis, report writing, and evaluation scoring
   vllm:
     image: vllm/vllm-openai:latest
+    init: true
     restart: always
     ports:
       - "8001:8000"
