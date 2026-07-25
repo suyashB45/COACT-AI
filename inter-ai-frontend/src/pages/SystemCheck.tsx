@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { Camera, Mic, CheckCircle2, AlertCircle, Loader2, Server } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
+import { useQuery } from "@tanstack/react-query"
 import { getApiUrl, getAuthHeaders } from "@/lib/api"
 
 export default function SystemCheck() {
@@ -19,6 +20,22 @@ export default function SystemCheck() {
     const [audioLevel, setAudioLevel] = useState<number>(0)
     
     const videoRef = useRef<HTMLVideoElement>(null)
+
+    const { refetch: pingServer } = useQuery({
+        queryKey: ['healthCheck'],
+        queryFn: async () => {
+            const response = await fetch(getApiUrl('/api/health'), {
+                method: 'GET',
+                headers: { ...getAuthHeaders() }
+            })
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+            return response.json()
+        },
+        enabled: false,
+        retry: false
+    })
 
     // Attach video stream whenever the video element or stream is available
     useEffect(() => {
@@ -105,12 +122,9 @@ export default function SystemCheck() {
         setServerStatus("checking")
         setErrorMessage(null)
         try {
-            const response = await fetch(getApiUrl('/api/health'), {
-                method: 'GET',
-                headers: { ...getAuthHeaders() }
-            })
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`)
+            const { isError, error } = await pingServer()
+            if (isError) {
+                throw error
             }
             setServerStatus("success")
         } catch (error: any) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 import {
     TrendingUp, TrendingDown, Minus, Award, Target, Activity,
@@ -76,48 +76,31 @@ const getScoreBg = (score: number) => {
 // --- COMPONENT ---
 export default function Dashboard() {
     const navigate = useNavigate()
-    const [data, setData] = useState<AnalyticsData | null>(null)
-    const [recentSessions, setRecentSessions] = useState<SessionItem[]>([])
-    const [loading, setLoading] = useState(true)
-    const [, setError] = useState<string | null>(null)
 
-    useEffect(() => {
-        const fetchAnalytics = async () => {
-            try {
-                const res = await fetch(getApiUrl("/api/analytics"), {
-                    headers: { ...getAuthHeaders() }
-                })
-                if (!res.ok) throw new Error(`Server error (${res.status})`)
-                const json: AnalyticsData = await res.json()
-                setData(json)
-            } catch (err: any) {
-                console.error("Analytics fetch failed:", err)
-                setError(err?.message || "Failed to load analytics")
-            } finally {
-                setLoading(false)
-            }
+    const { data, isLoading: analyticsLoading } = useQuery<AnalyticsData>({
+        queryKey: ['analytics'],
+        queryFn: async () => {
+            const res = await fetch(getApiUrl("/api/analytics"), {
+                headers: { ...getAuthHeaders() }
+            })
+            if (!res.ok) throw new Error(`Server error (${res.status})`)
+            return res.json()
         }
+    })
 
-        const fetchSessions = async () => {
-            try {
-                const res = await fetch(getApiUrl("/api/user/sessions?limit=5"), {
-                    headers: { ...getAuthHeaders() }
-                })
-                if (res.ok) {
-                    const json = await res.json()
-                    if (json && json.sessions && Array.isArray(json.sessions)) {
-                        setRecentSessions(json.sessions)
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to load recent sessions", err)
-            }
+    const { data: sessionsData, isLoading: sessionsLoading } = useQuery({
+        queryKey: ['recentSessions'],
+        queryFn: async () => {
+            const res = await fetch(getApiUrl("/api/user/sessions?limit=5"), {
+                headers: { ...getAuthHeaders() }
+            })
+            if (!res.ok) throw new Error("Failed to load sessions")
+            return res.json()
         }
+    })
 
-        Promise.all([fetchAnalytics(), fetchSessions()]).finally(() => {
-            setLoading(false)
-        })
-    }, [])
+    const recentSessions: SessionItem[] = sessionsData?.sessions || []
+    const loading = analyticsLoading || sessionsLoading
 
     if (loading) {
         return (

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Mail, Lock, Eye, EyeOff, X } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
 import { getApiUrl, getAuthHeaders, requestForgotPassword, resetPassword } from '../lib/api';
 
 const Login: React.FC = () => {
@@ -9,7 +10,6 @@ const Login: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
 
     // Forgot Password State
     const [showForgotModal, setShowForgotModal] = useState(false);
@@ -17,17 +17,9 @@ const Login: React.FC = () => {
     const [forgotOtp, setForgotOtp] = useState('');
     const [forgotNewPassword, setForgotNewPassword] = useState('');
     const [forgotStep, setForgotStep] = useState<1 | 2>(1);
-    const [forgotLoading, setForgotLoading] = useState(false);
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!email.trim() || !password.trim()) {
-            toast.error('Please enter your email and password.');
-            return;
-        }
-        
-        setLoading(true);
-        try {
+    const loginMutation = useMutation({
+        mutationFn: async () => {
             const res = await fetch(getApiUrl('/api/auth/login'), {
                 method: 'POST',
                 headers: { ...getAuthHeaders() },
@@ -35,49 +27,40 @@ const Login: React.FC = () => {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || 'Login failed');
-            
+            return data;
+        },
+        onSuccess: (data) => {
             localStorage.setItem('user', JSON.stringify({
                 id: data.user.id,
                 email: data.user.email,
                 access_token: data.access_token
             }));
-
             toast.success(`Welcome back, ${data.user.email}!`);
             navigate('/practice');
-        } catch (error: any) {
+        },
+        onError: (error: any) => {
             toast.error(error.message || 'Invalid email or password.');
-        } finally {
-            setLoading(false);
         }
-    };
+    });
 
-    const handleForgotRequest = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!forgotEmail.trim()) {
-            toast.error('Please enter your email address.');
-            return;
-        }
-        setForgotLoading(true);
-        try {
-            await requestForgotPassword(forgotEmail.trim());
+    const forgotRequestMutation = useMutation({
+        mutationFn: async () => {
+            return requestForgotPassword(forgotEmail.trim());
+        },
+        onSuccess: () => {
             toast.success('If that email exists, an OTP has been sent.');
             setForgotStep(2);
-        } catch (error: any) {
+        },
+        onError: (error: any) => {
             toast.error(error.message || 'Failed to request OTP.');
-        } finally {
-            setForgotLoading(false);
         }
-    };
+    });
 
-    const handleForgotReset = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!forgotOtp.trim() || !forgotNewPassword.trim()) {
-            toast.error('Please fill in all fields.');
-            return;
-        }
-        setForgotLoading(true);
-        try {
-            await resetPassword(forgotEmail.trim(), forgotOtp.trim(), forgotNewPassword);
+    const forgotResetMutation = useMutation({
+        mutationFn: async () => {
+            return resetPassword(forgotEmail.trim(), forgotOtp.trim(), forgotNewPassword);
+        },
+        onSuccess: () => {
             toast.success('Password reset successfully! You can now log in.');
             setShowForgotModal(false);
             setEmail(forgotEmail.trim());
@@ -86,11 +69,37 @@ const Login: React.FC = () => {
             setForgotOtp('');
             setForgotNewPassword('');
             setForgotStep(1);
-        } catch (error: any) {
+        },
+        onError: (error: any) => {
             toast.error(error.message || 'Failed to reset password.');
-        } finally {
-            setForgotLoading(false);
         }
+    });
+
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!email.trim() || !password.trim()) {
+            toast.error('Please enter your email and password.');
+            return;
+        }
+        loginMutation.mutate();
+    };
+
+    const handleForgotRequest = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!forgotEmail.trim()) {
+            toast.error('Please enter your email address.');
+            return;
+        }
+        forgotRequestMutation.mutate();
+    };
+
+    const handleForgotReset = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!forgotOtp.trim() || !forgotNewPassword.trim()) {
+            toast.error('Please fill in all fields.');
+            return;
+        }
+        forgotResetMutation.mutate();
     };
 
     return (
@@ -168,10 +177,10 @@ const Login: React.FC = () => {
 
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={loginMutation.isPending}
                             className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors mt-2"
                         >
-                            {loading ? (
+                            {loginMutation.isPending ? (
                                 <span className="animate-spin w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"></span>
                             ) : (
                                 "Sign In"
@@ -250,10 +259,10 @@ const Login: React.FC = () => {
                                 </div>
                                 <button
                                     type="submit"
-                                    disabled={forgotLoading}
+                                    disabled={forgotRequestMutation.isPending}
                                     className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors flex justify-center items-center h-10"
                                 >
-                                    {forgotLoading ? (
+                                    {forgotRequestMutation.isPending ? (
                                         <span className="animate-spin w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"></span>
                                     ) : (
                                         "Send Verification Code"
@@ -291,10 +300,10 @@ const Login: React.FC = () => {
                                     </p>
                                     <button
                                         type="submit"
-                                        disabled={forgotLoading}
+                                        disabled={forgotResetMutation.isPending}
                                         className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors flex justify-center items-center h-10"
                                     >
-                                        {forgotLoading ? (
+                                        {forgotResetMutation.isPending ? (
                                             <span className="animate-spin w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full"></span>
                                         ) : (
                                             "Reset Password"

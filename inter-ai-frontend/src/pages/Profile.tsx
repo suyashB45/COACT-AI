@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Clock, Trophy, Calendar, ArrowRight, LogOut, PlayCircle, Settings } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import Navigation from '../components/landing/Navigation';
 import { getApiUrl, getAuthHeaders } from '../lib/api';
 
@@ -17,52 +18,42 @@ interface Session {
 
 const Profile: React.FC = () => {
     const navigate = useNavigate();
-    const [user, setUser] = useState<any>(null);
-    const [sessions, setSessions] = useState<Session[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState({ total: 0, completed: 0, avgScore: 0 });
+    
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
 
-    useEffect(() => {
-        fetchUserAndHistory();
-    }, []);
+    React.useEffect(() => {
+        if (!userStr) {
+            navigate('/login');
+        }
+    }, [userStr, navigate]);
 
-    const fetchUserAndHistory = async () => {
-        try {
-            // Get current user
-            const userStr = localStorage.getItem('user');
-            if (!userStr) {
-                navigate('/login');
-                return;
-            }
-            const currentUser = JSON.parse(userStr);
-            setUser(currentUser);
-
-            // Fetch practice history
+    const { data: sessions = [], isLoading: loading } = useQuery({
+        queryKey: ['sessionHistory'],
+        queryFn: async () => {
             const res = await fetch(getApiUrl('/api/history'), {
                 headers: { ...getAuthHeaders() }
             });
 
             if (res.ok) {
-                const historyData = await res.json();
-                setSessions(historyData);
-
-                // Calculate stats
-                const completed = historyData.filter((s: Session) => s.completed).length;
-                const scores = historyData.filter((s: Session) => s.score).map((s: Session) => s.score || 0);
-                const avgScore = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
-
-                setStats({
-                    total: historyData.length,
-                    completed,
-                    avgScore
-                });
+                return res.json();
             }
-        } catch (error) {
-            console.error('Error fetching profile data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+            throw new Error('Failed to fetch history');
+        },
+        enabled: !!userStr,
+    });
+
+    const stats = useMemo(() => {
+        const completed = sessions.filter((s: Session) => s.completed).length;
+        const scores = sessions.filter((s: Session) => s.score).map((s: Session) => s.score || 0);
+        const avgScore = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
+
+        return {
+            total: sessions.length,
+            completed,
+            avgScore
+        };
+    }, [sessions]);
 
     const handleLogout = async () => {
         localStorage.removeItem('user');

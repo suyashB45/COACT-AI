@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 import { Clock, User, Bot, Calendar, Trophy, Sparkles, BookOpen } from "lucide-react"
 import { motion } from "framer-motion"
@@ -9,71 +9,50 @@ import Navigation from "../components/landing/Navigation"
 import { getApiUrl, getAuthHeaders } from "../lib/api"
 import { Skeleton } from "../components/ui/skeleton"
 
-interface SessionItem {
-    id: string
-    session_id: string
-    created_at: string
-    role: string
-    ai_role: string
-    scenario: string
-    topic: string
-    fit_score: number
-    session_mode: string
-}
-
 export default function SessionHistory() {
     const navigate = useNavigate()
-    const [sessions, setSessions] = useState<SessionItem[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
 
-    useEffect(() => {
-        const fetchSessions = async () => {
-            try {
-                const userStr = localStorage.getItem('user');
-                if (!userStr) { navigate('/login'); return; }
-
-                const res = await fetch(getApiUrl('/api/history'), {
-                    headers: { ...getAuthHeaders() }
-                });
-
-                if (!res.ok) {
-                    const errBody = await res.text().catch(() => '')
-                    console.error(`History API returned ${res.status}: ${errBody}`)
-                    throw new Error(`Server error (${res.status})`)
-                }
-
-                const data = await res.json()
-
-                if (!Array.isArray(data)) {
-                    console.error('History API returned non-array:', data)
-                    throw new Error(data?.error || 'Unexpected response format')
-                }
-
-                const mappedSessions = data.map((s: any) => ({
-                    id: s.session_id,
-                    session_id: s.session_id,
-                    created_at: s.date,
-                    role: s.role,
-                    ai_role: s.ai_role,
-                    scenario: s.title || s.scenario || "Untitled Scenario",
-                    topic: s.scenario_type || "General",
-                    fit_score: s.score || 0,
-                    session_mode: s.session_mode || "skill_assessment"
-                }))
-
-                setSessions(mappedSessions)
-                setError(null)
-            } catch (err: any) {
-                console.error("Failed to load sessions:", err)
-                setError(err?.message || 'Failed to load session history')
-            } finally {
-                setLoading(false)
+    const { data: sessions = [], isLoading: loading, error: queryError } = useQuery({
+        queryKey: ['sessionHistory'],
+        queryFn: async () => {
+            const userStr = localStorage.getItem('user');
+            if (!userStr) {
+                navigate('/login');
+                throw new Error('Not logged in');
             }
-        }
 
-        fetchSessions()
-    }, [])
+            const res = await fetch(getApiUrl('/api/history'), {
+                headers: { ...getAuthHeaders() }
+            });
+
+            if (!res.ok) {
+                const errBody = await res.text().catch(() => '')
+                console.error(`History API returned ${res.status}: ${errBody}`)
+                throw new Error(`Server error (${res.status})`)
+            }
+
+            const data = await res.json()
+
+            if (!Array.isArray(data)) {
+                console.error('History API returned non-array:', data)
+                throw new Error(data?.error || 'Unexpected response format')
+            }
+
+            return data.map((s: any) => ({
+                id: s.session_id,
+                session_id: s.session_id,
+                created_at: s.date,
+                role: s.role,
+                ai_role: s.ai_role,
+                scenario: s.title || s.scenario || "Untitled Scenario",
+                topic: s.scenario_type || "General",
+                fit_score: s.score || 0,
+                session_mode: s.session_mode || "skill_assessment"
+            }))
+        }
+    })
+
+    const error = queryError ? queryError.message : null;
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString)

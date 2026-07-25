@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Download, AlertCircle, Target, History, Zap, Award, BookOpen, MessageSquare, ChevronRight, Check, X, ArrowLeft, ArrowRight, Clock, CheckCircle2, Brain, Quote, Lightbulb, Activity, Mic, TrendingUp } from "lucide-react"
 import { motion, Variants } from "framer-motion"
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from "recharts"
+import { useQuery } from "@tanstack/react-query"
 
 import Navigation from "../components/landing/Navigation"
 import { getApiUrl, getAuthHeaders } from "@/lib/api"
@@ -250,54 +251,36 @@ export default function Report() {
     const params = useParams()
     const navigate = useNavigate()
     const sessionId = params.sessionId as string
-    const [data, setData] = useState<GenericReportData | null>(null)
-    const [loading, setLoading] = useState(true)
     const [showTranscript, setShowTranscript] = useState(false)
 
-    useEffect(() => {
-        let isMounted = true;
-        let retryCount = 0;
-        const maxRetries = 30; // Wait up to 90 seconds (3s * 30)
+    const { data, isLoading: loading } = useQuery<GenericReportData>({
+        queryKey: ['report', sessionId],
+        queryFn: async () => {
+            if (!sessionId) throw new Error("No session ID")
+            
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            };
 
-        const fetchReport = async () => {
-            try {
-                if (!sessionId) return;
-
-                const headers: Record<string, string> = {
-                    'Content-Type': 'application/json'
-                };
-
-                const response = await fetch(getApiUrl(`/api/session/${sessionId}/report_data`), { headers: { ...headers, ...getAuthHeaders() } });
-                
-                // If the report is still generating, wait and retry!
-                if (response.status === 400 || response.status === 404) {
-                    if (retryCount < maxRetries && isMounted) {
-                        retryCount++;
-                        console.log(`Report not ready. Retrying in 3s... (Attempt ${retryCount}/${maxRetries})`);
-                        setTimeout(fetchReport, 3000);
-                        return;
-                    }
-                }
-
-                if (!response.ok) throw new Error("Failed to fetch report data");
-                const data: GenericReportData = await response.json();
-                
-                if (isMounted) {
-                    setData(data);
-                    setLoading(false);
-                }
-            } catch (err) {
-                console.error("Error generating report:", err);
-                if (isMounted) {
-                    setLoading(false);
-                }
+            const response = await fetch(getApiUrl(`/api/session/${sessionId}/report_data`), { headers: { ...headers, ...getAuthHeaders() } });
+            
+            if (response.status === 400 || response.status === 404) {
+                throw new Error("Report not ready");
             }
-        };
-
-        fetchReport();
-
-        return () => { isMounted = false; };
-    }, [sessionId]);
+            if (!response.ok) throw new Error("Failed to fetch report data");
+            
+            return response.json();
+        },
+        enabled: !!sessionId,
+        retry: (failureCount, error) => {
+            if (error.message === "Report not ready" && failureCount < 30) {
+                console.log(`Report not ready. Retrying in 3s... (Attempt ${failureCount + 1}/30)`);
+                return true;
+            }
+            return false;
+        },
+        retryDelay: 3000,
+    });
 
     const handleDownload = async () => {
         try {
