@@ -5,12 +5,9 @@ import re
 import unicodedata
 import datetime as dt
 from fpdf import FPDF
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
-from litellm import token_counter
-import httpx
 import concurrent.futures
 import time
 
@@ -59,38 +56,34 @@ configure_langsmith()
 import matplotlib
 matplotlib.use('Agg') # Non-interactive backend
 import matplotlib.pyplot as plt
+from langchain_openai import ChatOpenAI
 import numpy as np
 import tempfile
 
-def setup_langchain_model(model_name, is_chat=False):
-    # Force httpx to ignore system proxies
-    http_client = httpx.Client(trust_env=False, timeout=120.0)
-    
-    if is_chat:
-        base_url = os.getenv("CHAT_OPENAI_BASE_URL", os.getenv("GROQ_OPENAI_BASE_URL", "http://vllm:8000/v1"))
-        api_key = os.getenv("CHAT_API_KEY", os.getenv("GROQ_API_KEY", "not-needed"))
-    else:
-        base_url = os.getenv("GROQ_OPENAI_BASE_URL", "http://vllm:8000/v1")
-        api_key = os.getenv("GROQ_API_KEY", "not-needed")
-        
-    if not api_key:
-        print("[WARNING] API_KEY is not set! LLM calls will fail.")
-        
+def setup_litellm_model(model_name, is_chat=False):
+    """Create a LangChain-compatible LLM specifically for Groq API."""
     temp = 0.7 if is_chat else 0.1
+    print(f"[INFO] Setting up Groq model: {model_name} (chat={is_chat}, temp={temp})")
     
+    clean_model_name = model_name
+    if '/' in model_name:
+        _, clean_model_name = model_name.split('/', 1)
+
     return ChatOpenAI(
-        api_key=api_key or "not-needed",
-        base_url=base_url,
-        model=model_name,
-        http_client=http_client,
-        temperature=temp
+        model=clean_model_name,
+        temperature=temp,
+        api_key=os.getenv("GROQ_API_KEY", "not-needed"),
+        base_url="https://api.groq.com/openai/v1",
+        request_timeout=120,
+        max_retries=3
     )
 
-REPORT_MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
-CHAT_MODEL_NAME = os.getenv("CHAT_MODEL_NAME", "Qwen/Qwen2.5-1.5B-Instruct")
+# Model names for Groq exclusively
+REPORT_MODEL_NAME = os.getenv("REPORT_MODEL") or os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+CHAT_MODEL_NAME = os.getenv("CHAT_MODEL") or os.getenv("CHAT_MODEL_NAME", "llama-3.1-8b-instant")
 
-report_llm = setup_langchain_model(REPORT_MODEL_NAME, is_chat=False)
-chat_llm = setup_langchain_model(CHAT_MODEL_NAME, is_chat=True)
+report_llm = setup_litellm_model(REPORT_MODEL_NAME, is_chat=False)
+chat_llm = setup_litellm_model(CHAT_MODEL_NAME, is_chat=True)
 
 prompt_template = PromptTemplate(template="{prompt}", input_variables=["prompt"])
 
@@ -100,7 +93,7 @@ MODEL_NAME = REPORT_MODEL_NAME
 def count_request_tokens(messages, model=None):
     if model is None: model = REPORT_MODEL_NAME
     try:
-        return token_counter(model=model, messages=messages)
+        return len(str(messages)) // 4
     except Exception as e:
         print(f"[TOKEN] request token count failed: {e}", flush=True)
         return 0
@@ -109,7 +102,7 @@ def count_request_tokens(messages, model=None):
 def count_response_tokens(text, model=None):
     if model is None: model = REPORT_MODEL_NAME
     try:
-        return token_counter(model=model, text=text, count_response_tokens=True)
+        return len(str(text)) // 4
     except Exception as e:
         print(f"[TOKEN] response token count failed: {e}", flush=True)
         return 0
@@ -672,7 +665,25 @@ The [AI CHARACTER]'s responses are ONLY context for understanding how the [HUMAN
 Every score, quote, and insight MUST be about the [HUMAN LEARNER]'s words and actions ONLY.
 ===
 
-Use encouraging plain English. Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise reasoning (1-2 sentences).
+=== STRICT SCORING CALIBRATION (MANDATORY) ===
+You are a TOUGH but FAIR evaluator. Do NOT give inflated scores. Apply these criteria rigorously:
+
+SCORE 1-3 (Poor): The [HUMAN LEARNER]'s response is off-topic, irrelevant to their role as "{role}", vague, dismissive, or shows no understanding of the scenario. Generic/filler responses ("okay", "sure", "let's go") with no substance score here.
+SCORE 4-5 (Below Average): The [HUMAN LEARNER] stays somewhat in role but responses are shallow, lack specificity, miss key aspects of the scenario, or fail to demonstrate the skill being assessed. Surface-level engagement without depth.
+SCORE 6-7 (Average/Good): The [HUMAN LEARNER] is clearly in role, addresses the scenario appropriately, shows reasonable skill application, but may miss nuances, lack depth in certain areas, or have room for improvement in technique.
+SCORE 8-9 (Very Good): The [HUMAN LEARNER] demonstrates strong role alignment, uses specific and convincing language, shows clear mastery of the skill dimension, and produces a meaningful impact on the conversation. Must have STRONG transcript evidence.
+SCORE 10 (Exceptional): Reserved for truly outstanding performance with flawless execution, deep emotional intelligence, and transformative impact. Extremely rare — requires exceptional transcript evidence.
+
+KEY PRINCIPLES:
+- A high score MUST be EARNED through demonstrated skill, not given by default.
+- If the [HUMAN LEARNER] says very little, gives generic responses, or doesn't engage meaningfully with the scenario, scores MUST reflect that (1-4 range).
+- Role alignment is CRITICAL: the [HUMAN LEARNER] must speak and act convincingly as "{role}". If they break character, give off-topic responses, or don't fulfill their role's responsibilities, penalize accordingly.
+- Convincingness matters: vague platitudes score lower than specific, actionable, and contextually appropriate responses.
+- The overall_grade should be the WEIGHTED AVERAGE of scorecard dimensions, not an arbitrary number.
+- Do NOT be generous to "encourage" the learner. Honest, evidence-based feedback helps them grow.
+===
+
+Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise reasoning (1-2 sentences) explaining WHY that specific score was given.
 
 **Scorecard**: Evaluate the [HUMAN LEARNER]'s performance on these 6 dimensions (1-10): {scorecard_dimensions}
 
@@ -703,6 +714,7 @@ RULES:
 - ideal_questions must have 3-5 NEW questions (not repeats) that the [HUMAN LEARNER] could have asked.
 - ALL quotes MUST come from [HUMAN LEARNER] lines. NEVER quote [AI CHARACTER] lines as evidence.
 - TONE: Use balanced, objective, and constructive language. Do NOT use overly harsh, dramatic, or exaggerated phrasing in summaries (e.g., avoid "completely failed").
+- SCORING INTEGRITY: Do NOT default to 7-8 range. Use the FULL 1-10 scale based on actual evidence. A mediocre performance should get 4-5, not 7.
 """
 
     # ANALYST PERSONA (compressed)

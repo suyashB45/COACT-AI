@@ -37,65 +37,7 @@ services:
     volumes:
       - mongodb_data:/data/db
 
-  # --- LOCAL AI: Big LLM (Qwen2.5-14B) — Report Generation & Evaluation ---
-  # Heavy model for deep analysis, report writing, and evaluation scoring
-  vllm:
-    image: vllm/vllm-openai:latest
-    init: true
-    restart: always
-    ports:
-      - "8001:8000"
-    command: >
-      --model Qwen/Qwen2.5-14B-Instruct
-      --max-model-len 8192
-      --gpu-memory-utilization 0.85
-      --enable-chunked-prefill
-      --dtype auto
-      --trust-remote-code
-      --kv-cache-dtype fp8
-    volumes:
-      - huggingface_cache:/root/.cache/huggingface
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "3"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
-
-
-  # --- LOCAL AI: Speech-to-Text (Faster Whisper) ---
-  # Runs whisper-small.en locally on GPU for ultra-low-latency STT
-  whisper:
-    image: fedirz/faster-whisper-server:latest-cuda
-    restart: always
-    ports:
-      - "8002:8000"
-    environment:
-      - WHISPER__MODEL=Systran/faster-whisper-small.en
-      - WHISPER__DEVICE=cuda
-      - WHISPER__COMPUTE_TYPE=float16
-    volumes:
-      - whisper_cache:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   backend:
     build:
@@ -106,34 +48,21 @@ services:
     volumes:
       - ./inter-ai-backend/reports:/app/reports
       - ./inter-ai-backend/data:/app/data
-      - ./piper_models:/app/models
       - backend-db:/app/db
     environment:
       - MONGODB_URI=mongodb://admin:Coact%40ai2026@mongodb:27017/coact?authSource=admin
       - PORT=8000
       - MPLCONFIGDIR=/tmp
-      - MODEL_NAME=${MODEL_NAME:-Qwen/Qwen2.5-14B-Instruct}
-      - CHAT_MODEL_NAME=${CHAT_MODEL_NAME:-Qwen/Qwen2.5-14B-Instruct}
-      - GROQ_OPENAI_BASE_URL=${GROQ_OPENAI_BASE_URL:-http://vllm:8000/v1}
-      - GROQ_API_KEY=${GROQ_API_KEY:-not-needed}
-      - CHAT_OPENAI_BASE_URL=${CHAT_OPENAI_BASE_URL:-http://vllm:8000/v1}
-      - CHAT_API_KEY=${CHAT_API_KEY:-not-needed}
-      - OLLAMA_API_URL=${OLLAMA_API_URL:-http://host.docker.internal:11434}
-      - WHISPER_API_URL=${WHISPER_API_URL:-http://whisper:8000/v1/audio/transcriptions}
-      - WHISPER_CMD=whisper
-      - PIPER_CMD=/app/piper/piper
-      - PIPER_MODEL_PATH=${PIPER_MODEL_PATH:-/app/models/en_US-lessac-medium.onnx}
-      - PIPER_MODEL_PATH_BOY=${PIPER_MODEL_PATH_BOY:-/app/models/en_US-lessac-medium.onnx}
-      - PIPER_MODEL_PATH_GIRL=${PIPER_MODEL_PATH_GIRL:-/app/models/en_US-lessac-medium.onnx}
-      - JWT_SECRET=${JWT_SECRET:-super-secret-production-key}
+      - REPORT_MODEL=${REPORT_MODEL:-llama-3.3-70b-versatile}
+      - CHAT_MODEL=${CHAT_MODEL:-llama-3.1-8b-instant}
+      - GROQ_WHISPER_MODEL=${GROQ_WHISPER_MODEL:-whisper-large-v3-turbo}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - SARVAM_API_KEY=${SARVAM_API_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:-ea0139cf2e1976456dca25ae16ad43f7b313cd82f8b2dbb26a77d66e94c78fb7}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://coact-ai.com,https://www.coact-ai.com,http://coact-ai.com}
-      - SARVAM_API_KEY=${SARVAM_API_KEY:-not-needed}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-not-needed}
       - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
     depends_on:
       - mongodb
-      - vllm
-      - whisper
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
@@ -146,13 +75,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   certbot:
     image: certbot/certbot
@@ -163,5 +85,3 @@ services:
 volumes:
   backend-db:
   mongodb_data:
-  huggingface_cache:
-  whisper_cache:

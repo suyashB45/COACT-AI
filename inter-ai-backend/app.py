@@ -15,14 +15,12 @@ from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import io
 from dotenv import load_dotenv
-from openai import OpenAI
 from cachetools import TTLCache
 from functools import lru_cache
 from fastapi import HTTPException
 from langsmith import traceable
 
 load_dotenv()
-
 # ---------------------------------------------------------
 # Structured Logging Configuration
 # ---------------------------------------------------------
@@ -65,6 +63,7 @@ def sanitize_input(text: str, max_length: int = 2000) -> str:
     # Remove null bytes and other control characters (except newlines/tabs)
     cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
     return cleaned[:max_length].strip()
+
 
 # Proxy config moved to top
 
@@ -161,7 +160,14 @@ class TokenBucketLimiter:
 login_limiter = TokenBucketLimiter(capacity=5, refill_rate_per_sec=5.0 / 60.0)
 standard_limiter = TokenBucketLimiter(capacity=30, refill_rate_per_sec=30.0 / 60.0)
 
-app = FastAPI(lifespan=lifespan)
+is_prod = os.environ.get("FLASK_ENV") == "production"
+
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url=None if is_prod else "/docs",
+    redoc_url=None if is_prod else "/redoc",
+    openapi_url=None if is_prod else "/openapi.json"
+)
 # Enable CORS
 cors_origins_raw = os.getenv("CORS_ORIGINS", "https://coact-ai.com,https://www.coact-ai.com")
 # SECURITY: Never allow wildcard CORS in production
@@ -379,28 +385,9 @@ QUESTIONS_FILE = os.path.join(BASE_DIR, "framework_questions.json")
 
 MAX_TURNS = 12 
 
-base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
-api_key = os.getenv("GROQ_API_KEY", "your_groq_api_key_here")
+GROQ_WHISPER_MODEL = os.getenv("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo")
 
-client = OpenAI(
-    api_key=api_key or "not-set",
-    base_url=base_url
-)
-logger.info(f"LLM client initialized with base URL: {base_url}")
-
-# Local Whisper STT URL (faster-whisper-server container)
-WHISPER_API_URL = os.getenv("WHISPER_API_URL", "http://whisper:8000/v1/audio/transcriptions")
-logger.info(f"Local Whisper STT URL: {WHISPER_API_URL}")
-
-# Local Piper TTS configuration
-PIPER_CMD = os.getenv("PIPER_CMD", "/app/piper/piper")
-PIPER_MODEL_PATH = os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx")
-PIPER_MODEL_PATH_BOY = os.getenv("PIPER_MODEL_PATH_BOY", PIPER_MODEL_PATH)
-PIPER_MODEL_PATH_GIRL = os.getenv("PIPER_MODEL_PATH_GIRL", PIPER_MODEL_PATH)
-logger.info(f"Local Piper TTS: {PIPER_CMD} with model {PIPER_MODEL_PATH}")
-
-
-
+logger.info(f"Groq Whisper STT Model: {GROQ_WHISPER_MODEL}")
 
 # ---------------------------------------------------------
 # Load Questions from JSON (RAG)
@@ -1237,76 +1224,9 @@ async def contact_sales(request: Request):
 @app.websocket("/api/transcribe/stream")
 async def websocket_transcribe_stream(websocket: WebSocket):
     await websocket.accept()
-    sarvam_key = os.getenv("SARVAM_API_KEY")
-    if not sarvam_key:
-        await websocket.close(code=1008, reason="API Key not configured")
-        return
-
-    from sarvamai import AsyncSarvamAI
-    import base64
-    
-    client = AsyncSarvamAI(api_subscription_key=sarvam_key)
-    
-    try:
-        async with client.speech_to_text_streaming.connect(
-            model="saaras:v3",
-            mode="transcribe",
-            language_code="en-IN",
-            high_vad_sensitivity=True
-        ) as sarvam_ws:
-            logger.info(" [INFO] Connected to Sarvam Streaming STT via SDK")
-            
-            async def receive_from_client():
-                try:
-                    while True:
-                        # Frontend sends raw PCM bytes
-                        data = await websocket.receive_bytes()
-                        audio_data = base64.b64encode(data).decode("utf-8")
-                        await sarvam_ws.transcribe(audio=audio_data)
-                except WebSocketDisconnect:
-                    logger.info(" [INFO] Client disconnected from streaming STT")
-                except Exception as e:
-                    logger.info(f" [ERROR] Client receive error: {e}")
-
-            async def receive_from_sarvam():
-                try:
-                    while True:
-                        response = await sarvam_ws.recv()
-                        # response is a model object or dictionary
-                        # Safely convert to dict
-                        resp_data = response.model_dump() if hasattr(response, "model_dump") else response.dict() if hasattr(response, "dict") else response if isinstance(response, dict) else {"raw": str(response)}
-                        
-                        transcript = ""
-                        if "transcript" in resp_data:
-                            transcript = resp_data["transcript"]
-                        elif hasattr(response, "transcript"):
-                            transcript = getattr(response, "transcript")
-                            
-                        # Send JSON format expected by frontend
-                        if transcript:
-                            await websocket.send_text(json.dumps({"data": {"transcript": transcript}}))
-                            
-                except Exception as e:
-                    if str(e) != "timeout":
-                        logger.info(f" [ERROR] Sarvam receive error: {e}")
-
-            task1 = asyncio.create_task(receive_from_client())
-            task2 = asyncio.create_task(receive_from_sarvam())
-            
-            done, pending = await asyncio.wait(
-                [task1, task2],
-                return_when=asyncio.FIRST_COMPLETED
-            )
-            
-            for p in pending:
-                p.cancel()
-            
-    except Exception as e:
-        logger.info(f" [ERROR] Streaming STT failed: {e}")
-        try:
-            await websocket.close(code=1011, reason="Streaming connection failed")
-        except Exception:
-            pass
+    logger.info(" [INFO] /api/transcribe/stream called. Streaming STT is deprecated.")
+    await websocket.send_json({"error": "Streaming STT (Sarvam) has been replaced by Groq Whisper REST API (/api/transcribe)."})
+    await websocket.close(code=1000, reason="Streaming STT deprecated")
 
 
 @app.post("/api/transcribe")
@@ -1370,46 +1290,48 @@ async def transcribe_audio(request: Request):
         audio_url = None
         
         try:
-            logger.info(f" [INFO] Transcribing audio with Local Whisper Server...")
-            import httpx
-            whisper_url = os.getenv("WHISPER_API_URL", "http://whisper:8000/v1/audio/transcriptions")
-                
-            # Use the global connection pool for local Whisper STT
-            if shared_httpx_client is None:
-                raise Exception("Shared HTTPX client not initialized")
-                
-            @traceable(run_type="llm", name="whisper_stt")
-            async def _call_whisper_api(filepath: str):
+            logger.info(f" [INFO] Transcribing audio with Groq Whisper API...")
+            
+            # Use Groq's OpenAI-compatible Whisper API
+            groq_whisper_model = os.getenv("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo")
+            groq_api_key = os.getenv("GROQ_API_KEY", "")
+            
+            if not groq_api_key or groq_api_key == "your_groq_api_key_here":
+                return JSONResponse(content={"error": "GROQ_API_KEY not configured"}, status_code=500)
+            
+            @traceable(run_type="llm", name="groq_whisper_stt")
+            async def _call_groq_whisper(filepath: str):
+                if shared_httpx_client is None:
+                    raise Exception("Shared HTTPX client not initialized")
                 with open(filepath, "rb") as f:
                     try:
                         return await shared_httpx_client.post(
-                            whisper_url,
+                            "https://api.groq.com/openai/v1/audio/transcriptions",
+                            headers={"Authorization": f"Bearer {groq_api_key}"},
                             files={"file": (os.path.basename(filepath), f, "audio/webm")},
                             data={
-                                "model": "Systran/faster-whisper-small.en",
+                                "model": groq_whisper_model,
                                 "response_format": "json",
                                 "language": "en",
-                                "temperature": "0.0",
-                                "condition_on_previous_text": "false",
-                                "prompt": "This is a professional roleplay conversation between a coach and a client."
+                                "temperature": "0.0"
                             },
                             timeout=300.0
                         )
                     except httpx.ConnectError:
-                        logger.error(f"Failed to connect to Whisper API at {whisper_url}")
+                        logger.error("Failed to connect to Groq Whisper API")
                         return None
                     except Exception as e:
-                        logger.error(f"Whisper API error: {e}")
+                        logger.error(f"Groq Whisper API error: {e}")
                         return None
             
-            resp = await _call_whisper_api(read_path)
+            resp = await _call_groq_whisper(read_path)
                     
             if resp is None:
-                return JSONResponse(content={"error": "Transcription server is currently unreachable. Please ensure the whisper container is running."}, status_code=500)
+                return JSONResponse(content={"error": "Groq Whisper API is currently unreachable. Please check your GROQ_API_KEY."}, status_code=500)
                 
             if resp.status_code != 200:
-                logger.info(f" [ERROR] Local Whisper STT Error: {resp.status_code} {resp.text}")
-                return JSONResponse(content={"error": "Local Whisper STT failed"}, status_code=500)
+                logger.info(f" [ERROR] Groq Whisper STT Error: {resp.status_code} {resp.text}")
+                return JSONResponse(content={"error": "Groq Whisper STT failed"}, status_code=500)
                 
             response_json = resp.json()
             # The API returns {"text": "transcribed text"}
@@ -1514,7 +1436,7 @@ async def transcribe_audio(request: Request):
 
 @app.post("/api/speak")
 async def speak_text(request: Request, _ = Depends(standard_limiter)):
-    """Text-to-Speech using Piper (local) with fallback to edge-tts (Microsoft Edge free TTS)."""
+    """Text-to-Speech using Sarvam AI."""
     text = ""
     voice = "alloy"
     try:
@@ -1525,106 +1447,57 @@ async def speak_text(request: Request, _ = Depends(standard_limiter)):
         if not text:
             return JSONResponse(content={"error": "No text provided"}, status_code=400)
 
-        # 1. Try Piper TTS first (Works offline, no IP blocks)
-        piper_cmd = os.getenv("PIPER_CMD", "/app/piper/piper")
-        if voice.lower() in ["nova", "shimmer"]:
-            piper_model = os.getenv("PIPER_MODEL_PATH_GIRL", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
-        else:
-            piper_model = os.getenv("PIPER_MODEL_PATH_BOY", os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx"))
-            
-        # Auto-download Piper model if missing
-        import urllib.request
-        model_dir = os.path.dirname(piper_model)
-        if os.path.exists(piper_cmd) and not os.path.exists(piper_model):
-            logger.info(f" [INFO] Piper model missing. Downloading to {piper_model}...")
-            os.makedirs(model_dir, exist_ok=True)
-            try:
-                base_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
-                urllib.request.urlretrieve(base_url, piper_model)
-                urllib.request.urlretrieve(base_url + ".json", piper_model + ".json")
-                logger.info(" [SUCCESS] Piper model downloaded successfully.")
-            except Exception as e:
-                logger.error(f"Failed to download Piper model: {e}")
-
-        use_piper = os.path.exists(piper_cmd) and os.path.exists(piper_model)
-        
-        import tempfile
-        
-        if use_piper:
-            import subprocess
-            logger.info(f" [INFO] Generating TTS via Local Piper for: '{text[:80]}...'")
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
-                tmp_wav_path = tmp_wav.name
-            
-            try:
-                # Run Piper TTS subprocess
-                process = subprocess.run(
-                    [piper_cmd, "--model", piper_model, "--output_file", tmp_wav_path],
-                    input=text[:2500],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                
-                if process.returncode != 0:
-                    logger.warning(f" [WARNING] Piper TTS Error: {process.stderr}")
-                    raise Exception("Local TTS failed")
-                
-                with open(tmp_wav_path, "rb") as f:
-                    audio_data = f.read()
-                
-                if not audio_data or len(audio_data) < 100:
-                    logger.warning(" [WARNING] Piper TTS Error: No audio generated")
-                    raise Exception("No audio generated")
-                
-                logger.info(f" [SUCCESS] Local Piper TTS generated {len(audio_data)} bytes")
-                return Response(audio_data, media_type="audio/wav", headers={"Content-Length": str(len(audio_data))})
-            finally:
-                if os.path.exists(tmp_wav_path):
-                    try:
-                        os.unlink(tmp_wav_path)
-                    except Exception:
-                        pass
-        
-        # 2. Fallback to edge-tts (Fails in Cloud due to IP blocks)
-        import edge_tts
-        # Map voice parameter to Microsoft Edge TTS voice names (Indian Accent)
+        # Map voice parameter to Sarvam speakers
         VOICE_MAP = {
-            "nova": "en-IN-NeerjaExpressiveNeural",      # Female voice (Expressive Indian)
-            "shimmer": "en-IN-NeerjaExpressiveNeural",    # Female voice (Expressive Indian)
-            "fable": "en-IN-PrabhatNeural",               # Male voice (Indian)
-            "alloy": "en-IN-PrabhatNeural",               # Male voice (Indian)
+            "nova": "ritu",         # Female voice
+            "shimmer": "ritu",      # Female voice
+            "fable": "aditya",      # Male voice
+            "alloy": "aditya",      # Male voice
         }
-        edge_voice = VOICE_MAP.get(voice.lower(), "en-IN-NeerjaExpressiveNeural")
+        sarvam_speaker = VOICE_MAP.get(voice.lower(), "ritu")
+        sarvam_key = os.getenv("SARVAM_API_KEY", "")
 
-        logger.info(f" [INFO] Generating TTS via edge-tts ({edge_voice}) for: '{text[:80]}...'")
+        if not sarvam_key or sarvam_key == "your_sarvam_api_key_here":
+            logger.warning(" [WARNING] SARVAM_API_KEY is not configured.")
+            return JSONResponse(content={"error": "TTS engine misconfigured"}, status_code=500)
 
-        # Generate audio using edge-tts
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_mp3:
-            tmp_mp3_path = tmp_mp3.name
+        logger.info(f" [INFO] Generating TTS via Sarvam AI ({sarvam_speaker}) for: '{text[:80]}...'")
+
+        payload = {
+            "inputs": [text[:500]],
+            "target_language_code": "en-IN",
+            "speaker": sarvam_speaker,
+            "pace": 1.0,
+            "speech_sample_rate": 22050,
+            "enable_preprocessing": True,
+            "model": "bulbul:v3"
+        }
+        headers = {
+            "api-subscription-key": sarvam_key,
+            "Content-Type": "application/json"
+        }
 
         try:
-            communicate = edge_tts.Communicate(text[:2500], edge_voice)
-            await communicate.save(tmp_mp3_path)
-
-            # Read the generated MP3 file
-            with open(tmp_mp3_path, "rb") as f:
-                audio_data = f.read()
-
-            if not audio_data or len(audio_data) < 100:
-                logger.warning(" [WARNING] edge-tts: No audio generated")
+            if shared_httpx_client is None:
+                raise RuntimeError("Shared HTTPX client is not initialized")
+            resp = await shared_httpx_client.post("https://api.sarvam.ai/text-to-speech", json=payload, headers=headers, timeout=30.0)
+            if resp.status_code != 200:
+                logger.error(f" [ERROR] Sarvam API returned {resp.status_code}: {resp.text}")
+                return JSONResponse(content={"error": "TTS engine error"}, status_code=500)
+                
+            resp_data = resp.json()
+            b64_audio = resp_data.get("audios", [""])[0]
+            
+            if not b64_audio:
+                logger.warning(" [WARNING] Sarvam API returned no audio data")
                 return JSONResponse(content={"error": "No audio generated"}, status_code=500)
 
-            logger.info(f" [SUCCESS] edge-tts generated {len(audio_data)} bytes")
-            return Response(audio_data, media_type="audio/mpeg", headers={"Content-Length": str(len(audio_data))})
-
-        finally:
-            # Always clean up temp file
-            if os.path.exists(tmp_mp3_path):
-                try:
-                    os.unlink(tmp_mp3_path)
-                except Exception:
-                    pass
+            audio_data = base64.b64decode(b64_audio)
+            logger.info(f" [SUCCESS] Sarvam AI generated {len(audio_data)} bytes")
+            return Response(audio_data, media_type="audio/wav", headers={"Content-Length": str(len(audio_data))})
+        except Exception as req_e:
+            logger.error(f" [ERROR] Failed to contact Sarvam AI: {req_e}")
+            return JSONResponse(content={"error": "TTS request failed"}, status_code=500)
 
     except Exception as e:
         logger.info(f" [ERROR] TTS Endpoint Error: {e}")
@@ -1985,6 +1858,19 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
     if not sess: 
         return JSONResponse(content={"error": "Session not found"}, status_code=404)
     
+    # 10-Minute Hard Limit Check
+    import datetime as dt
+    created_at_str = sess.get("created_at")
+    if created_at_str:
+        try:
+            created_at = dt.datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            # Make now timezone-aware if created_at is timezone-aware
+            now = dt.datetime.now(dt.timezone.utc) if created_at.tzinfo else dt.datetime.now()
+            if (now - created_at).total_seconds() > 600:
+                return JSONResponse(content={"error": "Time limit exceeded. This session has exceeded the maximum duration of 10 minutes."}, status_code=403)
+        except Exception as e:
+            logger.error(f"Error parsing created_at timestamp: {e}")
+            
     # Verify session ownership
     user = get_authenticated_user(request)
     session_user_id = sess.get("user_id")
@@ -2776,11 +2662,6 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
     await websocket.accept()
     audio_buffer = bytearray()
     
-    # Setup Piper TTS paths
-    piper_cmd = os.getenv("PIPER_CMD", "/app/piper/piper")
-    piper_model = os.getenv("PIPER_MODEL_PATH", "/app/models/en_US-lessac-medium.onnx")
-    use_piper = os.path.exists(piper_cmd) and os.path.exists(piper_model)
-    
     tts_queue = asyncio.Queue()
     
     async def tts_worker():
@@ -2790,36 +2671,35 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                 break
                 
             try:
-                if use_piper:
-                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
-                        tmp_wav_path = tmp_wav.name
-                        
-                    process = await asyncio.create_subprocess_exec(
-                        piper_cmd, "--model", piper_model, "--output_file", tmp_wav_path,
-                        stdin=asyncio.subprocess.PIPE,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    await process.communicate(input=sentence.encode("utf-8"))
+                sarvam_key = os.getenv("SARVAM_API_KEY", "")
+                if not sarvam_key or sarvam_key == "your_sarvam_api_key_here":
+                    logger.warning("TTS Worker skipped: SARVAM_API_KEY not configured")
+                    continue
                     
-                    with open(tmp_wav_path, "rb") as f:
-                        audio_data = f.read()
-                    os.unlink(tmp_wav_path)
+                payload = {
+                    "inputs": [sentence[:500]],
+                    "target_language_code": "en-IN",
+                    "speaker": "aditya",
+                    "pace": 1.0,
+                    "speech_sample_rate": 22050,
+                    "enable_preprocessing": True,
+                    "model": "bulbul:v3"
+                }
+                headers = {
+                    "api-subscription-key": sarvam_key,
+                    "Content-Type": "application/json"
+                }
+                
+                if shared_httpx_client is None:
+                    raise RuntimeError("Shared HTTPX client is not initialized")
+                resp = await shared_httpx_client.post("https://api.sarvam.ai/text-to-speech", json=payload, headers=headers, timeout=30.0)
+                if resp.status_code == 200:
+                    resp_data = resp.json()
+                    b64_audio = resp_data.get("audios", [""])[0]
+                    if b64_audio:
+                        await websocket.send_json({"type": "tts_audio", "audio": b64_audio})
                 else:
-                    # Fallback to edge-tts
-                    import edge_tts
-                    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_mp3:
-                        tmp_mp3_path = tmp_mp3.name
-                    communicate = edge_tts.Communicate(sentence, "en-US-GuyNeural")
-                    await communicate.save(tmp_mp3_path)
-                    
-                    with open(tmp_mp3_path, "rb") as f:
-                        audio_data = f.read()
-                    os.unlink(tmp_mp3_path)
-                    
-                if audio_data:
-                    b64_audio = base64.b64encode(audio_data).decode("utf-8")
-                    await websocket.send_json({"type": "tts_audio", "audio": b64_audio})
+                    logger.error(f"Sarvam API Error in TTS Worker: {resp.status_code} {resp.text}")
             except Exception as e:
                 logger.error(f"TTS Worker Error: {e}")
             finally:
@@ -2841,7 +2721,7 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                     if len(audio_buffer) < 500:
                         continue
                         
-                    # 1. Transcribe
+                    # 1. Transcribe using Groq Whisper API
                     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_audio:
                         tmp_audio.write(audio_buffer)
                         tmp_audio_path = tmp_audio.name
@@ -2849,26 +2729,33 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                     audio_buffer = bytearray()
                     await websocket.send_json({"type": "status", "status": "transcribing"})
                     
-                    whisper_url = os.getenv("WHISPER_API_URL", "http://whisper:8000/v1/audio/transcriptions")
+                    groq_api_key = os.getenv("GROQ_API_KEY", "")
+                    groq_whisper_model = os.getenv("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo")
                     with open(tmp_audio_path, "rb") as f:
                         if shared_httpx_client is None:
                             raise Exception("Shared HTTPX client not initialized")
                         resp = await shared_httpx_client.post(
-                            whisper_url,
+                            "https://api.groq.com/openai/v1/audio/transcriptions",
+                            headers={"Authorization": f"Bearer {groq_api_key}"},
                             files={"file": (os.path.basename(tmp_audio_path), f, "audio/webm")},
                             data={
-                                "model": "Systran/faster-whisper-small.en",
+                                "model": groq_whisper_model,
                                 "response_format": "json",
                                 "language": "en",
-                                "temperature": "0.0",
-                                "condition_on_previous_text": "false",
-                                "prompt": "This is a professional roleplay conversation."
+                                "temperature": "0.0"
                             },
                             timeout=60.0
                         )
                     os.unlink(tmp_audio_path)
                     
                     transcribed_text = resp.json().get("text", "").strip()
+                    
+                    # Filter out common Whisper hallucinations
+                    lower_text = transcribed_text.lower()
+                    hallucinations = ["thank you", "thanks for watching", "please subscribe", "professional roleplay", "between a coach", "next stage", "great time to do this", "amara.org", "subtitle"]
+                    if any(h in lower_text for h in hallucinations) and len(transcribed_text) < 150:
+                        transcribed_text = ""
+                        
                     if not transcribed_text:
                         await websocket.send_json({"type": "status", "status": "listening"})
                         continue

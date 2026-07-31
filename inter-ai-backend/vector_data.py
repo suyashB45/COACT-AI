@@ -1,3 +1,9 @@
+"""
+Standalone offline script for building FAISS index from framework questions.
+NOT imported or used at runtime by app.py or any other module.
+Run manually when you need to regenerate the embedding index:
+    python vector_data.py
+"""
 import json
 import faiss
 import numpy as np
@@ -10,10 +16,10 @@ load_dotenv()
 # -------------------
 # 1. Setup
 # -------------------
-base_url = os.getenv("GROQ_OPENAI_BASE_URL", "http://vllm:8000/v1")
+base_url = os.getenv("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
 api_key = os.getenv("GROQ_API_KEY", "not-needed")
 if not api_key or api_key == "not-needed":
-    print("[INFO] Using local vLLM for embeddings (no external API key needed).")
+    print("[INFO] GROQ_API_KEY not set. Embedding generation may fail.")
 
 client = OpenAI(
     api_key=api_key or "not-needed",

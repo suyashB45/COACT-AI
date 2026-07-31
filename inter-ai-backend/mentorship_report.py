@@ -10,7 +10,7 @@ Handles both:
 import datetime as dt
 from cli_report import (
     COLORS, DashboardPDF, sanitize_text, parse_json_robustly,
-    detect_scenario_type, setup_langchain_model, report_llm,
+    detect_scenario_type, setup_litellm_model, report_llm,
 )
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser

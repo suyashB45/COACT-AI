@@ -3,86 +3,95 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* LIGHT MODE - Enterprise SaaS (Deep Blue, Slate Gray, Clean White) */
-  --background: oklch(0.99 0 0); /* Pure White */
-  --foreground: oklch(0.2 0.01 240); /* Deep Slate */
+  /* LIGHT MODE - Warm, editorial feel */
+  --background: oklch(0.985 0.005 80); /* Warm off-white, not sterile */
+  --foreground: oklch(0.18 0.015 50); /* Warm dark brown, not cold black */
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.01 240);
+  --card: oklch(0.995 0.003 80);
+  --card-foreground: oklch(0.18 0.015 50);
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.01 240);
+  --popover: oklch(0.995 0.003 80);
+  --popover-foreground: oklch(0.18 0.015 50);
 
-  /* Deep Blue (#2563EB) */
-  --primary: oklch(0.55 0.2 260);
+  /* Warm Indigo Primary */
+  --primary: oklch(0.52 0.2 270);
   --primary-foreground: oklch(1 0 0);
 
-  /* Slate Gray (#64748B) */
-  --secondary: oklch(0.96 0.01 240);
-  --secondary-foreground: oklch(0.45 0.02 240);
+  /* Warm Stone Gray */
+  --secondary: oklch(0.955 0.008 70);
+  --secondary-foreground: oklch(0.42 0.02 50);
 
-  --muted: oklch(0.96 0.01 240);
-  --muted-foreground: oklch(0.5 0.02 240);
+  --muted: oklch(0.955 0.008 70);
+  --muted-foreground: oklch(0.48 0.015 50);
 
-  --accent: oklch(0.96 0.01 240);
-  --accent-foreground: oklch(0.2 0.01 240);
+  --accent: oklch(0.955 0.008 70);
+  --accent-foreground: oklch(0.18 0.015 50);
 
-  /* Green Success (#22C55E) */
-  --destructive: oklch(0.6 0.18 20);
+  /* Warm Red Destructive */
+  --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(1 0 0);
-  --success: oklch(0.65 0.18 140);
+  --success: oklch(0.62 0.19 145);
   --success-foreground: oklch(1 0 0);
 
-  --border: oklch(0.92 0.01 240);
-  --input: oklch(0.92 0.01 240);
-  --ring: oklch(0.55 0.2 260);
+  --border: oklch(0.91 0.008 70);
+  --input: oklch(0.91 0.008 70);
+  --ring: oklch(0.52 0.2 270);
 
-  --radius: 0.5rem; /* Tighter radius for professional look */
+  --radius: 0.625rem;
 
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(226, 232, 240, 0.8);
-  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  /* Warm highlights */
+  --highlight: oklch(0.92 0.12 90); /* Warm yellow marker */
+  --annotation: oklch(0.55 0.15 25); /* Warm terracotta for annotations */
+
+  --glass-bg: rgba(255, 253, 248, 0.88);
+  --glass-border: rgba(220, 210, 195, 0.6);
+  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
 }
 
 .dark {
-  /* DARK MODE - Clean Slate Midnight */
-  --background: oklch(0.15 0.01 240); /* Very Dark Slate */
-  --foreground: oklch(0.98 0 0);
+  /* DARK MODE - Warm charcoal, not cold slate */
+  --background: oklch(0.16 0.012 60); /* Warm charcoal */
+  --foreground: oklch(0.95 0.005 80); /* Warm cream white */
 
-  --card: oklch(0.18 0.01 240);
-  --card-foreground: oklch(0.98 0 0);
+  --card: oklch(0.19 0.012 60);
+  --card-foreground: oklch(0.95 0.005 80);
 
-  --popover: oklch(0.18 0.01 240);
-  --popover-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.19 0.012 60);
+  --popover-foreground: oklch(0.95 0.005 80);
 
-  --primary: oklch(0.65 0.2 260); /* Brighter Blue for Dark Mode */
+  --primary: oklch(0.68 0.18 270); /* Brighter warm indigo */
   --primary-foreground: oklch(1 0 0);
 
-  --secondary: oklch(0.22 0.01 240);
-  --secondary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.23 0.012 60);
+  --secondary-foreground: oklch(0.95 0.005 80);
 
-  --muted: oklch(0.2 0.01 240);
-  --muted-foreground: oklch(0.7 0.01 240);
+  --muted: oklch(0.22 0.012 60);
+  --muted-foreground: oklch(0.65 0.01 60);
 
-  --accent: oklch(0.25 0.01 240);
-  --accent-foreground: oklch(0.98 0 0);
+  --accent: oklch(0.26 0.012 60);
+  --accent-foreground: oklch(0.95 0.005 80);
 
-  --destructive: oklch(0.5 0.18 20);
-  --destructive-foreground: oklch(0.98 0 0);
-  --success: oklch(0.55 0.18 140);
+  --destructive: oklch(0.5 0.18 25);
+  --destructive-foreground: oklch(0.95 0.005 80);
+  --success: oklch(0.55 0.18 145);
   --success-foreground: oklch(1 0 0);
 
-  --border: oklch(0.25 0.01 240);
-  --input: oklch(0.25 0.01 240);
-  --ring: oklch(0.65 0.2 260);
+  --border: oklch(0.27 0.012 60);
+  --input: oklch(0.27 0.012 60);
+  --ring: oklch(0.68 0.18 270);
 
-  --glass-bg: rgba(30, 41, 59, 0.85);
-  --glass-border: rgba(51, 65, 85, 0.8);
-  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --highlight: oklch(0.35 0.08 85);
+  --annotation: oklch(0.7 0.12 30);
+
+  --glass-bg: rgba(40, 36, 30, 0.88);
+  --glass-border: rgba(60, 54, 45, 0.6);
+  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
 }
 
 @theme inline {
   --font-sans: "Inter", "Geist", system-ui, -apple-system, sans-serif;
+  --font-display: "Outfit", "Inter", system-ui, sans-serif;
+  --font-hand: "Caveat", cursive;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -103,6 +112,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-highlight: var(--highlight);
+  --color-annotation: var(--annotation);
 
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
@@ -119,12 +130,105 @@
     overflow-x: hidden;
   }
 
-  /* Clean up legacy utility classes so old components don't break immediately */
+  /* ═══════════════════════════════════════════════════════════════
+     Paper Grain Texture — makes the background feel tactile
+     ═══════════════════════════════════════════════════════════════ */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  .dark body::before {
+    opacity: 0.04;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     Hand-drawn / Editorial Design Elements
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Handwriting annotation style */
+  .hand-note {
+    font-family: var(--font-hand);
+    color: var(--color-annotation);
+    font-weight: 500;
+  }
+
+  /* Ink-bleed text highlight — like a marker was dragged over text */
+  .ink-highlight {
+    background: linear-gradient(
+      104deg,
+      transparent 0.9%,
+      var(--color-highlight) 2.4%,
+      var(--color-highlight) 97.5%,
+      transparent 98%
+    );
+    padding: 0.12em 0.35em;
+    margin: -0.12em -0.1em;
+    border-radius: 0.6em 0.3em 0.5em 0.4em;
+    display: inline;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* Squiggly underline for nav items */
+  .squiggle-underline {
+    position: relative;
+    text-decoration: none;
+  }
+  .squiggle-underline::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 8'%3E%3Cpath d='M0 4 Q 12.5 0, 25 4 T 50 4 T 75 4 T 100 4' fill='none' stroke='currentColor' stroke-width='2'/%3E%3C/svg%3E") repeat-x;
+    background-size: 20px 4px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .squiggle-underline:hover::after,
+  .squiggle-underline.active::after {
+    opacity: 0.7;
+  }
+
+  /* Rough circle highlight — drawn around a word/element */
+  .rough-circle {
+    position: relative;
+  }
+  .rough-circle::before {
+    content: '';
+    position: absolute;
+    inset: -8px -12px;
+    border: 2.5px solid var(--color-annotation);
+    border-radius: 58% 42% 55% 45% / 48% 52% 48% 52%;
+    opacity: 0.5;
+    transform: rotate(-2deg);
+    pointer-events: none;
+  }
+
+  /* Editorial card with slight tilt for personality */
+  .card-tilt-1 { transform: rotate(-0.8deg); }
+  .card-tilt-2 { transform: rotate(0.6deg); }
+  .card-tilt-3 { transform: rotate(-0.4deg); }
+  .card-tilt-1:hover, .card-tilt-2:hover, .card-tilt-3:hover {
+    transform: rotate(0deg) translateY(-4px);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     Legacy Component Compat — keep existing pages working
+     ═══════════════════════════════════════════════════════════════ */
   .glass {
     @apply bg-[var(--glass-bg)] border border-[var(--glass-border)] backdrop-blur-md shadow-sm;
   }
 
-  /* Legacy overrides to flatten UI */
   .card-ultra-glass {
     @apply bg-card border border-border shadow-sm rounded-xl p-6 transition-all duration-200;
   }
@@ -161,7 +265,7 @@
     @apply bg-background;
   }
 
-  /* Legacy component helpers */
+  /* Legacy color helpers */
   .bg-slate-950 { @apply bg-background; }
   .text-white { @apply text-foreground; }
   .text-slate-400 { @apply text-muted-foreground; }
@@ -190,8 +294,6 @@
 /* ═══════════════════════════════════════════════════════════════
    Conversation AI UI - Clean Professional View
    ═══════════════════════════════════════════════════════════════ */
-
-/* Minimal AI indicator replacing the huge orb */
 .ai-indicator-idle {
   width: 60px;
   height: 60px;
@@ -246,10 +348,102 @@ html {
 }
 
 .stat-shimmer {
-  background: linear-gradient(90deg, var(--color-primary) 0%, oklch(0.75 0.15 260) 50%, var(--color-primary) 100%);
+  background: linear-gradient(90deg, var(--color-primary) 0%, oklch(0.75 0.15 270) 50%, var(--color-primary) 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmer 3s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hand-drawn Connecting Lines (SVG dashed path style)
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes dash-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+.hand-drawn-line {
+  stroke-dasharray: 8 8;
+  stroke-linecap: round;
+  animation: dash-flow 1.5s linear infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Bento Grid — Asymmetric Feature Layout
+   ═══════════════════════════════════════════════════════════════ */
+.bento-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: minmax(180px, auto);
+}
+
+.bento-hero {
+  grid-column: span 2;
+  grid-row: span 1;
+}
+
+@media (max-width: 768px) {
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+  .bento-hero {
+    grid-column: span 1;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Typing Cursor Animation for Badge
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typing-cursor::after {
+  content: '|';
+  animation: blink-cursor 0.8s ease-in-out infinite;
+  margin-left: 1px;
+  color: var(--color-primary);
+  font-weight: 300;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Organic Blob Shapes
+   ═══════════════════════════════════════════════════════════════ */
+.organic-blob {
+  border-radius: 62% 38% 46% 54% / 60% 44% 56% 40%;
+}
+
+.organic-blob-2 {
+  border-radius: 44% 56% 38% 62% / 52% 60% 40% 48%;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Annotation Arrow (pure CSS)
+   ═══════════════════════════════════════════════════════════════ */
+.annotation-arrow {
+  position: relative;
+}
+.annotation-arrow::before {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 20px;
+  border-bottom: 2px solid var(--color-annotation);
+  border-left: 2px solid var(--color-annotation);
+  border-radius: 0 0 0 12px;
+  top: -18px;
+  left: -32px;
+  transform: rotate(5deg);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Newsletter Input Focus Ring
+   ═══════════════════════════════════════════════════════════════ */
+.newsletter-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px oklch(from var(--color-primary) l c h / 0.15);
 }

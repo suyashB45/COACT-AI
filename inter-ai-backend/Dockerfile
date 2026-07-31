@@ -4,10 +4,9 @@ FROM python:3.13-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for FAISS and other libraries
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
-    g++ \
     libfontconfig1 \
     libfreetype6 \
     curl \
@@ -19,8 +18,6 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download Piper TTS binary
-RUN curl -L https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz | tar -xz -C /app
 
 # Copy application files
 COPY . .

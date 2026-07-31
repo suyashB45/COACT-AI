@@ -12,12 +12,12 @@ def send_2fa_code(recipient_email: str, code: str, username: str = "User"):
     Sends a 2FA code to the specified email address.
     If SMTP credentials are not configured, prints the code to the console for development.
     """
-    smtp_server = os.environ.get("SMTP_SERVER")
+    smtp_server = os.environ.get("SMTP_SERVER") or os.environ.get("SMTP_HOST")
     smtp_port = os.environ.get("SMTP_PORT")
     smtp_user = os.environ.get("SMTP_USER")
-    smtp_password = os.environ.get("SMTP_PASSWORD")
+    smtp_password = os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS")
     
-    sender_email = os.environ.get("SMTP_FROM_EMAIL", "noreply@coact.ai")
+    sender_email = os.environ.get("SMTP_FROM_EMAIL") or os.environ.get("SMTP_ADMIN_EMAIL", "noreply@coact.ai")
 
     # If SMTP is not configured, fallback to console (useful for dev)
     if not all([smtp_server, smtp_port, smtp_user, smtp_password]):
@@ -142,10 +142,15 @@ def send_2fa_code(recipient_email: str, code: str, username: str = "User"):
         msg.attach(MIMEText(html_body, 'html'))
 
         # Connect and send
-        with smtplib.SMTP(str(smtp_server), int(str(smtp_port)), timeout=SMTP_TIMEOUT) as server:
-            server.starttls()
-            server.login(str(smtp_user), str(smtp_password))
-            server.send_message(msg)
+        if int(str(smtp_port)) == 465:
+            with smtplib.SMTP_SSL(str(smtp_server), int(str(smtp_port)), timeout=SMTP_TIMEOUT) as server:
+                server.login(str(smtp_user), str(smtp_password))
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(str(smtp_server), int(str(smtp_port)), timeout=SMTP_TIMEOUT) as server:
+                server.starttls()
+                server.login(str(smtp_user), str(smtp_password))
+                server.send_message(msg)
             
         logger.info(f"2FA Email sent to {recipient_email}")
         return True
@@ -160,11 +165,11 @@ def send_security_alert_email(recipient_email: str, action: str, username: str =
     """
     Sends a security alert email when password is changed or account is deleted.
     """
-    smtp_server = os.environ.get("SMTP_SERVER")
+    smtp_server = os.environ.get("SMTP_SERVER") or os.environ.get("SMTP_HOST")
     smtp_port = os.environ.get("SMTP_PORT")
     smtp_user = os.environ.get("SMTP_USER")
-    smtp_password = os.environ.get("SMTP_PASSWORD")
-    sender_email = os.environ.get("SMTP_FROM_EMAIL", "noreply@coact.ai")
+    smtp_password = os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS")
+    sender_email = os.environ.get("SMTP_FROM_EMAIL") or os.environ.get("SMTP_ADMIN_EMAIL", "noreply@coact.ai")
 
     if not (smtp_server and smtp_port and smtp_user and smtp_password):
         print(f"\n{'='*50}")
@@ -242,10 +247,15 @@ def send_security_alert_email(recipient_email: str, action: str, username: str =
         msg.attach(MIMEText(text_body, 'plain'))
         msg.attach(MIMEText(html_body, 'html'))
 
-        with smtplib.SMTP(smtp_server, int(smtp_port), timeout=SMTP_TIMEOUT) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+        if int(smtp_port) == 465:
+            with smtplib.SMTP_SSL(smtp_server, int(smtp_port), timeout=SMTP_TIMEOUT) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_server, int(smtp_port), timeout=SMTP_TIMEOUT) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
             
         logger.info(f"Security Alert Email sent to {recipient_email}")
         return True
@@ -260,11 +270,11 @@ def send_otp_email(recipient_email: str, code: str, action: str, username: str =
     """
     Sends an OTP email for a specific sensitive action.
     """
-    smtp_server = os.environ.get("SMTP_SERVER")
+    smtp_server = os.environ.get("SMTP_SERVER") or os.environ.get("SMTP_HOST")
     smtp_port = os.environ.get("SMTP_PORT")
     smtp_user = os.environ.get("SMTP_USER")
-    smtp_password = os.environ.get("SMTP_PASSWORD")
-    sender_email = os.environ.get("SMTP_FROM_EMAIL", "noreply@coact.ai")
+    smtp_password = os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS")
+    sender_email = os.environ.get("SMTP_FROM_EMAIL") or os.environ.get("SMTP_ADMIN_EMAIL", "noreply@coact.ai")
 
     if not (smtp_server and smtp_port and smtp_user and smtp_password):
         print(f"\n{'='*50}")
@@ -346,10 +356,15 @@ def send_otp_email(recipient_email: str, code: str, action: str, username: str =
         msg.attach(MIMEText(text_body, 'plain'))
         msg.attach(MIMEText(html_body, 'html'))
 
-        with smtplib.SMTP(smtp_server, int(smtp_port), timeout=SMTP_TIMEOUT) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+        if int(smtp_port) == 465:
+            with smtplib.SMTP_SSL(smtp_server, int(smtp_port), timeout=SMTP_TIMEOUT) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_server, int(smtp_port), timeout=SMTP_TIMEOUT) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
             
         logger.info(f"OTP Email sent to {recipient_email}")
         return True

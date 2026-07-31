@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Square, ArrowLeft, Clock, User, History, X, Loader2, Video, VideoOff, Phone, Mic, MicOff } from "lucide-react"
+import { Square, ArrowLeft, Clock, User, History, X, Loader2, Video, VideoOff, Phone, Mic, MicOff, Send, Edit3, Volume2, VolumeX } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { getApiUrl, getAuthHeaders } from "@/lib/api"
 
@@ -87,9 +87,25 @@ export default function Conversation() {
     const [multiCharacters, setMultiCharacters] = useState(false)
     const [characters, setCharacters] = useState<CharacterConfig[]>([])
 
+    // Pending transcription state — text waits here until user clicks Send
+    const [pendingTranscript, setPendingTranscript] = useState("")
+    const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null)
+    const [isTranscribing, setIsTranscribing] = useState(false)
+
     // Video call state
     const [isVideoOn, setIsVideoOn] = useState(true)
     const [userStream, setUserStream] = useState<MediaStream | null>(null)
+    const [isAiMuted, setIsAiMuted] = useState(false)
+    const isAiMutedRef = useRef(false)
+
+    const toggleAiMute = useCallback(() => {
+        const newMuted = !isAiMuted
+        setIsAiMuted(newMuted)
+        isAiMutedRef.current = newMuted
+        if (aiAudioRef.current) {
+            aiAudioRef.current.muted = newMuted
+        }
+    }, [isAiMuted])
     const userVideoRef = useRef<HTMLVideoElement>(null)
 
     useEffect(() => {
@@ -214,29 +230,13 @@ export default function Conversation() {
     useEffect(() => {
         const timer = setInterval(() => {
             setState(prev => {
-                const newSecs = prev.elapsedSeconds + 1
-                // Show warning at 5 minutes (2 minutes remaining)
-                if (newSecs === 300) {
-                    setTimeout(() => toast.warning("2 Minutes Remaining", {
-                        description: "This conversation is limited to 7 minutes. Please wrap up your thoughts.",
-                        duration: 5000
-                    }), 0)
-                }
-                return { ...prev, elapsedSeconds: newSecs }
+                return { ...prev, elapsedSeconds: prev.elapsedSeconds + 1 }
             })
         }, 1000)
         return () => clearInterval(timer)
     }, [])
-
-    // Second effect to auto-end session at 7 minutes
-    useEffect(() => {
-        if (state.elapsedSeconds >= 420 && !isEnding && !sessionEndedRef.current) {
-            toast.error("Time Limit Reached", {
-                description: "The 7-minute conversation limit has been reached."
-            })
-            handleEndConversation()
-        }
-    }, [state.elapsedSeconds, isEnding])
+    
+    // Media recording and audio playback references
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     const audioChunksRef = useRef<Blob[]>([])
@@ -246,6 +246,62 @@ export default function Conversation() {
 
     // Audio playback for AI response
     const aiAudioRef = useRef<HTMLAudioElement | null>(null)
+    const audioUnlockedRef = useRef(false)
+
+    // Unlock browser audio on first user interaction
+    useEffect(() => {
+        const unlock = () => {
+            if (audioUnlockedRef.current) return
+            const silentAudio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=')
+            silentAudio.volume = 0
+            silentAudio.play().then(() => {
+                audioUnlockedRef.current = true
+                console.log('[TTS] Audio unlocked via user gesture')
+            }).catch(() => {})
+        }
+        document.addEventListener('click', unlock, { once: true })
+        document.addEventListener('touchstart', unlock, { once: true })
+        document.addEventListener('keydown', unlock, { once: true })
+        return () => {
+            document.removeEventListener('click', unlock)
+            document.removeEventListener('touchstart', unlock)
+            document.removeEventListener('keydown', unlock)
+        }
+    }, [])
+
+    // Shared helper to play an audio blob URL reliably
+    const playAudioUrl = (url: string): Promise<void> => {
+        return new Promise((resolve) => {
+            if (sessionEndedRef.current) {
+                URL.revokeObjectURL(url)
+                return resolve()
+            }
+            const audio = new Audio(url)
+            audio.muted = isAiMutedRef.current
+            aiAudioRef.current = audio
+
+            audio.onended = () => {
+                URL.revokeObjectURL(url)
+                resolve()
+            }
+            audio.onerror = (e) => {
+                console.error('[TTS] Audio playback error:', e)
+                URL.revokeObjectURL(url)
+                resolve()
+            }
+            audio.play().catch((err) => {
+                console.error('[TTS] audio.play() rejected:', err)
+                // Retry once after a short delay (gives browser time to process user gesture)
+                setTimeout(() => {
+                    audio.play().catch((err2) => {
+                        console.error('[TTS] Retry also failed:', err2)
+                        URL.revokeObjectURL(url)
+                        resolve()
+                    })
+                }, 100)
+            })
+        })
+    }
 
     const speakText = async (text: string, forcedCharacter?: string, forceVoice?: string) => {
         // Don't start TTS if session has ended
@@ -265,57 +321,38 @@ export default function Conversation() {
             const ttsController = new AbortController()
             ttsAbortRef.current = ttsController
 
-            console.log("[TTS] Fetching audio...", { voice, textLen: text.length })
-            const response = await fetch(getApiUrl('/api/speak'), {
-                method: 'POST',
-                headers: { ...getAuthHeaders() },
-                body: JSON.stringify({ text, voice }),
-                signal: ttsController.signal
-            })
-
-            if (!response.ok) throw new Error(`TTS failed: ${response.status}`)
-
-            // Don't play if session ended while fetching
-            if (sessionEndedRef.current) {
-                setIsAiSpeaking(false)
-                return
-            }
-
-            const blob = await response.blob()
-            console.log("[TTS] Audio received:", blob.size, "bytes, type:", blob.type)
-            const url = URL.createObjectURL(blob)
-
-            if (aiAudioRef.current) {
-                aiAudioRef.current.pause()
-                aiAudioRef.current = null
-            }
-
-            const audio = new Audio(url)
-            aiAudioRef.current = audio
-
-            // Wait for audio to finish playing before resolving
-            // This ensures sequential playback in multi-character mode
-            await new Promise<void>((resolve) => {
-                audio.onended = () => {
-                    setIsAiSpeaking(false)
-                    URL.revokeObjectURL(url)
-                    resolve()
-                }
-
-                audio.onerror = (e) => {
-                    setIsAiSpeaking(false)
-                    console.error("[TTS] Audio playback error:", e)
-                    URL.revokeObjectURL(url)
-                    resolve()
-                }
-
-                audio.play().catch((err) => {
-                    setIsAiSpeaking(false)
-                    console.error("[TTS] audio.play() rejected:", err)
-                    URL.revokeObjectURL(url)
-                    resolve()
+            // Chunk text by sentences to stream playback faster
+            const sentences = text.match(/[^.!?\n]+[.!?\n]+/g) || [text];
+            
+            const audioUrlPromises = sentences.filter(s => s.trim().length > 0).map(async (sentence) => {
+                const response = await fetch(getApiUrl('/api/speak'), {
+                    method: 'POST',
+                    headers: { ...getAuthHeaders() },
+                    body: JSON.stringify({ text: sentence.trim(), voice }),
+                    signal: ttsController.signal
                 })
+                if (!response.ok) throw new Error(`TTS failed: ${response.status}`)
+                const blob = await response.blob()
+                return URL.createObjectURL(blob)
             })
+
+            for (const promise of audioUrlPromises) {
+                if (sessionEndedRef.current || ttsController.signal.aborted) break;
+                try {
+                    const url = await promise;
+                    if (sessionEndedRef.current || ttsController.signal.aborted) break;
+                    
+                    if (aiAudioRef.current) {
+                        aiAudioRef.current.pause()
+                        aiAudioRef.current = null
+                    }
+                    await playAudioUrl(url)
+                } catch(e) {
+                    console.error("Chunk failed", e)
+                }
+            }
+
+            setIsAiSpeaking(false)
 
         } catch (error) {
             console.error("TTS Error:", error)
@@ -352,30 +389,7 @@ export default function Conversation() {
             for (let i = 0; i < parts.length; i++) {
                 if (sessionEndedRef.current) break
                 const url = await audioUrlPromises[i]
-                
-                await new Promise<void>((resolve) => {
-                    if (sessionEndedRef.current) {
-                        URL.revokeObjectURL(url)
-                        return resolve()
-                    }
-                    
-                    const audio = new Audio(url)
-                    aiAudioRef.current = audio
-                    
-                    audio.onended = () => {
-                        URL.revokeObjectURL(url)
-                        resolve()
-                    }
-                    audio.onerror = () => {
-                        URL.revokeObjectURL(url)
-                        resolve()
-                    }
-                    audio.play().catch(err => {
-                        console.error("Audio playback error:", err)
-                        URL.revokeObjectURL(url)
-                        resolve()
-                    })
-                })
+                await playAudioUrl(url)
             }
         } catch (e) {
             console.error("Multi TTS Error", e)
@@ -421,16 +435,21 @@ export default function Conversation() {
                 setCharacters(sessionData.characters)
             }
 
-            // Speak initial message
+            // Speak initial message automatically (1.5s delay to let page load and mic init)
             const latestMsg = initialTranscript[initialTranscript.length - 1]
             if (latestMsg.role === 'assistant' && initialTranscript.length === 1) {
-                const timer = setTimeout(() => {
+                const timer = setTimeout(async () => {
                     if (sessionData.multi_characters && sessionData.characters) {
-                        speakMultiCharacter(latestMsg.content, sessionData.characters)
+                        await speakMultiCharacter(latestMsg.content, sessionData.characters)
                     } else {
-                        speakText(latestMsg.content, sessionData.ai_character)
+                        await speakText(latestMsg.content, sessionData.ai_character)
                     }
-                }, 500)
+                    
+                    // Auto-start Live Mode only AFTER AI finishes speaking
+                    if (!isLiveMode && !sessionEndedRef.current) {
+                        await toggleLiveMode()
+                    }
+                }, 1500)
                 return () => clearTimeout(timer)
             }
         }
@@ -569,22 +588,8 @@ export default function Conversation() {
                 while (audioUrlQueue.length > 0) {
                     if (sessionEndedRef.current || abortControllerRef.current?.signal.aborted) break
                     const url = audioUrlQueue.shift()!
-                    
-                    await new Promise<void>((resolve) => {
-                        setIsAiSpeaking(true)
-                        const audio = new Audio(url)
-                        aiAudioRef.current = audio
-                        
-                        audio.onended = () => {
-                            URL.revokeObjectURL(url)
-                            resolve()
-                        }
-                        audio.onerror = () => {
-                            URL.revokeObjectURL(url)
-                            resolve()
-                        }
-                        audio.play().catch(() => resolve())
-                    })
+                    setIsAiSpeaking(true)
+                    await playAudioUrl(url)
                 }
                 setIsAiSpeaking(false)
                 isPlayingQueue = false
@@ -762,8 +767,10 @@ export default function Conversation() {
             
             const THRESHOLD = 20 
             
-            if (average > THRESHOLD) {
-                if (isAiSpeakingRef.current || isProcessingRef.current) {
+            if (isAiSpeakingRef.current) {
+                // Wait for AI to finish before listening to user
+            } else if (average > THRESHOLD) {
+                if (isProcessingRef.current) {
                     handleInterrupt()
                 }
 
@@ -776,7 +783,8 @@ export default function Conversation() {
                 silenceTimerRef.current = setTimeout(() => {
                     setIsUserSpeaking(false)
                     liveRecordingActive.current = false
-                    setState(prev => ({ ...prev, isRecording: false, interimText: "Processing..." }))
+                    setIsTranscribing(true)
+                    setState(prev => ({ ...prev, isRecording: false, interimText: "Transcribing..." }))
                     
                     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
                         mediaRecorderRef.current.onstop = async () => {
@@ -801,19 +809,23 @@ export default function Conversation() {
                                 const data = await res.json()
                                 
                                 setState(prev => ({ ...prev, interimText: "" }))
+                                setIsTranscribing(false)
                                 if (data.text && data.text.trim().length > 0) {
-                                    submitMessage(data.text, data.audio_url || null)
+                                    // Store transcribed text for user review instead of auto-sending
+                                    setPendingTranscript(data.text)
+                                    setPendingAudioUrl(data.audio_url || null)
                                 }
                             } catch (e) {
                                 console.error("Transcription error:", e)
                                 setState(prev => ({ ...prev, interimText: "" }))
+                                setIsTranscribing(false)
                             }
                         }
                         mediaRecorderRef.current.stop()
                     } else {
                         setState(prev => ({ ...prev, interimText: "" }))
                     }
-                }, 250) // 250ms silence triggers send (was 400ms — lower = faster response)
+                }, 5000) // 5000ms silence triggers STT
             }
             
             animationFrameRef.current = requestAnimationFrame(checkAudio)
@@ -867,23 +879,7 @@ export default function Conversation() {
         }
     }
 
-    // Auto-start Live Mode on mount
-    useEffect(() => {
-        let mounted = true;
-        const initLiveMode = async () => {
-            if (!isLiveMode) {
-                await toggleLiveMode();
-            }
-        };
-        // Small delay to ensure refs and elements are ready
-        const timer = setTimeout(() => {
-            if (mounted) initLiveMode();
-        }, 1000);
-        return () => { 
-            mounted = false;
-            clearTimeout(timer);
-        };
-    }, []);
+
 
     const handleEndConversation = async () => {
         if (isEnding) return // Prevent double-clicks
@@ -1228,7 +1224,72 @@ export default function Conversation() {
             </div>
 
             {/* ===== BOTTOM CONTROL BAR (Glass Dock) ===== */}
-            <div className="relative z-30 px-4 pb-6 sm:pb-8 w-full flex justify-center">
+            <div className="relative z-30 px-4 pb-6 sm:pb-8 w-full flex flex-col items-center gap-3">
+                
+                {/* Pending transcript input + Send button */}
+                <AnimatePresence>
+                    {(pendingTranscript || isTranscribing) && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="w-full max-w-2xl"
+                        >
+                            <div className="bg-card border border-border shadow-lg rounded-2xl px-4 py-3 flex items-center gap-3">
+                                {isTranscribing ? (
+                                    <div className="flex-1 flex items-center gap-2">
+                                        <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                                        <span className="text-sm text-white/60">Transcribing your speech...</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <Edit3 className="w-4 h-4 text-white/40 shrink-0" />
+                                        <input
+                                            type="text"
+                                            value={pendingTranscript}
+                                            onChange={(e) => setPendingTranscript(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && pendingTranscript.trim()) {
+                                                    submitMessage(pendingTranscript.trim(), pendingAudioUrl)
+                                                    setPendingTranscript("")
+                                                    setPendingAudioUrl(null)
+                                                }
+                                            }}
+                                            className="flex-1 bg-transparent text-sm sm:text-base text-white/90 placeholder-white/30 outline-none border-none font-medium"
+                                            placeholder="Edit your message..."
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                setPendingTranscript("")
+                                                setPendingAudioUrl(null)
+                                            }}
+                                            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-all"
+                                            title="Discard"
+                                        >
+                                            <X className="w-4 h-4 text-white/50" />
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (pendingTranscript.trim()) {
+                                                    submitMessage(pendingTranscript.trim(), pendingAudioUrl)
+                                                    setPendingTranscript("")
+                                                    setPendingAudioUrl(null)
+                                                }
+                                            }}
+                                            disabled={!pendingTranscript.trim() || state.isProcessing}
+                                            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary hover:bg-primary/80 flex items-center justify-center transition-all disabled:opacity-40 hover:scale-105 shadow-lg shadow-primary/30"
+                                            title="Send Message"
+                                        >
+                                            <Send className="w-5 h-5 text-white" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 <div className="bg-card border border-border shadow-md rounded-[2rem] px-4 py-3 sm:px-6 sm:py-4 flex items-center gap-3 sm:gap-5 transition-all">
                     
                     {/* Transcript Toggle */}
@@ -1255,6 +1316,23 @@ export default function Conversation() {
                         {isLiveMode
                             ? <Mic className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
                             : <MicOff className="w-5 h-5" />
+                        }
+                    </button>
+
+                    {/* AI Mute Toggle */}
+                    <button
+                        onClick={toggleAiMute}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 group ${
+                            !isAiMuted
+                                ? 'bg-white/5 hover:bg-white/10 border border-white/10'
+                                : 'bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30'
+                        }`}
+                        title={!isAiMuted ? "Mute AI" : "Unmute AI"}
+                        aria-label={!isAiMuted ? "Mute AI" : "Unmute AI"}
+                    >
+                        {!isAiMuted
+                            ? <Volume2 className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
+                            : <VolumeX className="w-5 h-5" />
                         }
                     </button>
 

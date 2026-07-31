@@ -27,10 +27,10 @@ graph TD
         DB[(MongoDB Container - Authenticated)]
     end
 
-    subgraph Local AI Engine [GPU Accelerated via Docker]
-        LocalSTT[Faster Whisper Small.en]
-        UnifiedLLM[vLLM Unified Serving: Qwen2.5-14B]
-        TTS[Piper Local TTS / Edge TTS]
+    subgraph Cloud AI Engine [API Based Services]
+        GroqSTT[Groq Whisper API STT]
+        GroqLLM[Groq API LLM]
+        TTS[Sarvam AI TTS]
     end
 
     Web <-->|HTTP / WebSockets / Proxy| API
@@ -39,8 +39,8 @@ graph TD
     API <--> Cache
     API <--> DB
     
-    API <-->|Audio Transcription| LocalSTT
-    API <-->|Reasoning & Live Chat| UnifiedLLM
+    API <-->|Audio Transcription| GroqSTT
+    API <-->|Reasoning & Live Chat| GroqLLM
     API -->|Voice Synthesis| TTS
 ```
 
@@ -55,25 +55,26 @@ graph TD
    - Connects directly to the backend IP/Port.
 3. **Backend API Server (`inter-ai-backend`)**:
    - Built with **Python (FastAPI)**.
+   - **Production Hardened**: Runs as a non-root user via Docker, configured with Gunicorn worker scaling, strict CORS, HSTS security headers, and global unhandled exception masking.
    - **Authentication**: JWT-based session security via custom tokens.
    - **Rate Limiting**: Custom Token Bucket Rate Limiter to prevent API abuse.
    - **Caching**: Unified Cache supporting local in-memory TTLCache and Redis for session state management.
-   - **Database**: SQLite (SQLAlchemy) for rapid local development; MongoDB Atlas for production data persistence.
-4. **AI Processing Layer (Fully Local & GPU Accelerated)**:
-   - **Speech-to-Text (STT)**: Hosted locally using `faster-whisper-small.en` for zero-latency, private transcription.
-   - **Reasoning & Live Chat**: Unified `vLLM` server running `Qwen2.5-14B-Instruct`. Employs chunked-prefill to generate massive PDF reports in the background without causing any latency in live roleplay chats.
-   - **Text-to-Speech (TTS)**: Local `Piper` models or `edge-tts` for high-speed streaming voice audio.
-   - **Report Generation**: Employs parallel threaded processing to evaluate transcripts across multiple criteria (EQ, STAR, GROW) simultaneously, generating a secure PDF report.
+   - **Database**: Local MongoDB container for dev, MongoDB Atlas for production data persistence.
+4. **AI Processing Layer (API Based Architecture)**:
+   - **Speech-to-Text (STT)**: Uses `Groq Whisper API` for fast streaming transcription.
+   - **Reasoning & Live Chat**: Uses `Groq API` for blazing fast text generation.
+   - **Text-to-Speech (TTS)**: Uses `Sarvam AI` API for high-speed streaming voice audio.
+   - **Report Generation**: Employs parallel threaded processing to evaluate transcripts across multiple criteria (EQ, STAR, GROW) simultaneously, generating a secure PDF report via Groq.
 
 ---
 
 ## 2. Environment Configuration
 
-The application is configured to run **fully locally** without relying on external APIs for its core AI functionality.
+The application is configured to use blazing fast Cloud API providers for its core AI functionality.
 
-### Core Architecture Components (Local)
-- **Unified LLM**: Powered by `vLLM` running `Qwen2.5-14B-Instruct`.
-- **Speech-to-Text**: Powered by `faster-whisper-small.en`.
+### Core Architecture Components
+- **Unified LLM**: Powered by `Groq API` running `Llama-3.3-70b-versatile`.
+- **Speech-to-Text**: Powered by `Groq Whisper API`.
 - **Database**: Local `MongoDB` container (authenticated).
 
 ### Environment Files Setup
@@ -82,13 +83,10 @@ From the project root, duplicate the `.env.example` file to create your `.env` f
 copy .env.example .env
 ```
 
-Ensure the following critical variables are set in your `.env` for the local GPU architecture:
+Ensure the following critical variables are set in your `.env` for the cloud API architecture:
 ```env
-USE_LOCAL_AI=true
-GROQ_OPENAI_BASE_URL=http://vllm:8000/v1
-CHAT_OPENAI_BASE_URL=http://vllm:8000/v1
-MODEL_NAME=Qwen/Qwen2.5-14B-Instruct
-CHAT_MODEL_NAME=Qwen/Qwen2.5-14B-Instruct
+GROQ_API_KEY=gsk_your_groq_key_here
+SARVAM_API_KEY=your_sarvam_api_key_here
 MONGODB_URI=mongodb://admin:coact_secure_db_pass_2026@mongodb:27017/coact?authSource=admin
 JWT_SECRET=your_secure_64_character_hex_string
 ```
@@ -101,11 +99,9 @@ The entire stack is containerized using Docker, allowing you to easily spin up t
 
 ### Prerequisites
 - **Docker & Docker Compose** installed.
-- **NVIDIA GPU** with at least 48GB VRAM (e.g., RTX 6000 Ada / A6000) for local AI models.
-- **NVIDIA Container Toolkit** installed to allow Docker to access the GPU.
 
 ### Starting the Full Stack
-To spin up the entire application (including the heavily optimized vLLM server, Whisper STT, secured MongoDB, FastAPI backend, and React frontend), simply run:
+To spin up the entire application (including the secured MongoDB, FastAPI backend, and React frontend), simply run:
 
 ```bash
 docker compose up -d --build
@@ -171,7 +167,7 @@ Here is a preview of the CoAct.AI dashboard interface and brand theme mockup:
 
 Additional detailed guides are located in the **[Docs](file:///d:/GH%20INDUCTION/COACT%20PROJECT/Docs)** folder:
 
-- **[Detailed Environment Setup Guide](file:///d:/GH%20INDUCTION/COACT%20PROJECT/Docs/ENV_SETUP.md)** — In-depth guide to obtaining Groq, Sarvam, OpenAI, and MongoDB keys and configuring `.env` files.
+- **[Detailed Environment Setup Guide](file:///d:/GH%20INDUCTION/COACT%20PROJECT/Docs/ENV_SETUP.md)** — In-depth guide to obtaining Groq, OpenAI, and MongoDB keys and configuring `.env` files.
 - **[Production Server Deployment Guide](file:///d:/GH%20INDUCTION/COACT%20PROJECT/Docs/DEPLOYMENT.md)** — Step-by-step production deployment using Docker & Nginx.
 - **[Mobile Integration Blueprint](file:///d:/GH%20INDUCTION/COACT%20PROJECT/Docs/MOBILE_REACT_NATIVE_BLUEPRINT.md)** — Detailed specification for the React Native implementation.
 - **[SSL Certificate Configuration](file:///d:/GH%20INDUCTION/COACT%20PROJECT/Docs/SSL_SETUP.md)** — How to set up HTTPS and Let's Encrypt certificates.
