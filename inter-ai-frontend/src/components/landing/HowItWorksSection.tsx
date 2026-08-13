@@ -1,100 +1,103 @@
 import { Mic, MessageSquare, BarChart3 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
+import { useRef } from 'react';
 
 const steps = [
     {
         icon: Mic,
-        label: "First",
-        title: "Pick a scenario",
-        description: "Choose from pre-built sales calls, negotiations, performance reviews — or create your own. Set the difficulty, the persona, the stakes. You're in control.",
-        annotation: "takes ~10 seconds",
+        label: "Step 1",
+        title: "Pick your scenario",
+        description: "Choose from 50+ pre-built scenarios — cold calls, salary negotiations, performance reviews, client escalations — or describe your own situation in plain English. Set the difficulty and the persona you want to practice against.",
     },
     {
         icon: MessageSquare,
-        label: "Then",
-        title: "Have a real conversation",
-        description: "Speak naturally. The AI listens, responds, pushes back, changes tone — just like a real person would. No scripts. No multiple choice. Just talk.",
-        annotation: "this is the fun part",
+        label: "Step 2",
+        title: "Have the conversation",
+        description: "Just talk. Use your mic or type — whatever feels natural. The AI responds in real time, picks up on your tone, throws curveballs, and doesn't follow a script. It feels surprisingly real (our users' words, not ours).",
     },
     {
         icon: BarChart3,
-        label: "Finally",
-        title: "See what you nailed (and what you didn't)",
-        description: "Get a detailed breakdown: sentiment analysis, confidence score, pacing, filler words, and specific coaching notes. All within seconds.",
-        annotation: "honest, not sugarcoated",
+        label: "Step 3",
+        title: "Get your breakdown",
+        description: "Within 10 seconds of finishing, you'll see exactly how you did: confidence trajectory, moments where you hesitated, pacing analysis, filler word count, and specific coaching notes on what to try differently next time.",
     }
 ];
 
 const HowItWorksSection = () => {
-    return (
-        <section className="py-24 md:py-32 bg-muted/20 border-y border-border relative overflow-hidden" id="how-it-works">
-            {/* Background accent */}
-            <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[600px] h-[400px] opacity-[0.03] bg-primary blur-[120px] rounded-full pointer-events-none" />
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { scrollYProgress } = useScroll({
+        target: containerRef,
+        offset: ["start center", "end center"]
+    });
 
-            <div className="container mx-auto px-6 relative z-10">
-                {/* Header — editorial, left-aligned on large screens */}
+    // Animate the height of the highlighted line based on scroll
+    const lineHeight = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+
+    return (
+        <section className="py-28 md:py-36 bg-secondary/10 border-b border-border relative overflow-hidden" id="how-it-works">
+            <div className="container mx-auto px-6 max-w-5xl relative z-10">
                 <motion.div
-                    className="max-w-2xl mb-20"
+                    className="max-w-2xl mb-24"
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5 }}
                 >
-                    <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">How it works</p>
-                    <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground tracking-tight leading-[1.1] mb-4" style={{ fontFamily: 'var(--font-display)' }}>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/80 border border-border/80 text-[12px] font-semibold uppercase tracking-widest text-foreground/70 mb-6">
+                        How it works
+                    </div>
+                    <h2 className="text-4xl md:text-5xl font-bold text-foreground tracking-tight leading-[1.1] mb-6" style={{ fontFamily: 'var(--font-display)' }}>
                         Three steps.{' '}
-                        <span className="text-muted-foreground">No onboarding call needed.</span>
+                        <span className="text-muted-foreground">Under five minutes.</span>
                     </h2>
+                    <p className="text-lg text-muted-foreground leading-relaxed">
+                        No onboarding calls, no "implementation timeline." Sign up, pick a scenario, and start practicing. Seriously — it takes less time than making coffee.
+                    </p>
                 </motion.div>
 
-                {/* Editorial Timeline */}
-                <div className="relative max-w-4xl mx-auto">
-                    {/* Connecting line — hand-drawn feel */}
-                    <div className="hidden md:block absolute left-[39px] top-0 bottom-0 w-px">
-                        <svg className="w-full h-full" preserveAspectRatio="none">
-                            <line
-                                x1="0" y1="0" x2="0" y2="100%"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                className="text-border hand-drawn-line"
-                            />
-                        </svg>
-                    </div>
+                {/* Linear Timeline */}
+                <div className="relative mx-auto" ref={containerRef}>
+                    {/* Background line */}
+                    <div className="hidden md:block absolute left-[39px] top-4 bottom-12 w-px bg-border overflow-hidden" />
+                    
+                    {/* Foreground Animated Line */}
+                    <motion.div 
+                        className="hidden md:block absolute left-[39px] top-4 w-px bg-foreground origin-top"
+                        style={{ height: lineHeight, bottom: "3rem" }}
+                    />
 
-                    <div className="space-y-16 md:space-y-20">
+                    <div className="space-y-16 md:space-y-24">
                         {steps.map((step, index) => (
                             <motion.div
                                 key={index}
-                                className="relative flex flex-col md:flex-row gap-6 md:gap-10 group"
-                                initial={{ opacity: 0, y: 35 }}
+                                className="relative flex flex-col md:flex-row gap-8 md:gap-16 group"
+                                initial={{ opacity: 0, y: 20 }}
                                 whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true, margin: "-60px" }}
-                                transition={{ duration: 0.6, delay: index * 0.15, ease: [0.22, 1, 0.36, 1] }}
+                                viewport={{ once: true, margin: "-100px" }}
+                                transition={{ duration: 0.5, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
                             >
                                 {/* Step Icon */}
                                 <div className="relative shrink-0">
-                                    <div className="w-20 h-20 bg-background border-2 border-border shadow-sm rounded-2xl flex items-center justify-center text-primary transition-all duration-300 group-hover:border-primary/40 group-hover:shadow-lg group-hover:shadow-primary/5 group-hover:-translate-y-1 relative z-10">
-                                        <step.icon className="w-8 h-8" />
+                                    <div className="w-20 h-20 bg-background border border-border rounded-xl flex items-center justify-center transition-all duration-500 group-hover:border-foreground/30 relative z-10 shadow-sm overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                        <step.icon className="w-7 h-7 text-foreground/80 group-hover:text-foreground transition-colors duration-300 relative z-10" />
                                     </div>
-                                    {/* Step number — tucked into corner */}
-                                    <div className="absolute -top-2 -right-2 w-7 h-7 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold shadow-sm z-20">
-                                        {index + 1}
+                                    <div className="absolute -top-3 -right-3 w-8 h-8 bg-foreground text-background rounded-md flex items-center justify-center text-[11px] font-bold shadow-md z-20">
+                                        0{index + 1}
                                     </div>
                                 </div>
 
                                 {/* Step Content */}
-                                <div className="flex-1 pt-1">
-                                    <span className="hand-note text-base mb-1 block">{step.label},</span>
-                                    <h3 className="text-xl md:text-2xl font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-display)' }}>
+                                <div className="flex-1 pt-2">
+                                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest block mb-3">
+                                        {step.label}
+                                    </span>
+                                    <h3 className="text-2xl font-bold text-foreground mb-4 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
                                         {step.title}
                                     </h3>
-                                    <p className="text-muted-foreground leading-relaxed text-[15px] max-w-lg mb-3">
+                                    <p className="text-muted-foreground leading-relaxed text-base max-w-lg">
                                         {step.description}
                                     </p>
-                                    {/* Handwritten annotation */}
-                                    <span className="hand-note text-sm -rotate-1 inline-block opacity-70">
-                                        ↳ {step.annotation}
-                                    </span>
                                 </div>
                             </motion.div>
                         ))}

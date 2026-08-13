@@ -1,134 +1,73 @@
+import { BriefcaseBusiness, Handshake, MessageSquare, UsersRound } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Star } from 'lucide-react';
 
-interface Testimonial {
-    quote: string;
-    name: string;
-    role: string;
-    company: string;
-    avatar: string;
-    rating: number;
-    featured?: boolean;
-}
-
-const testimonials: Testimonial[] = [
+const useCases = [
     {
-        quote: "I used to dread client objection calls. After two weeks with CoAct, I actually started looking forward to them. The AI catches things about my tone that I'd never notice myself.",
-        name: "Sarah Chen",
-        role: "Senior Account Executive",
-        company: "Meridian Corp",
-        avatar: "/sarah.png",
-        rating: 5,
-        featured: true,
+        title: 'Prepare for an objection',
+        description: 'Practice a buyer who is skeptical about price, timing, or switching tools. Try a few approaches before the real call.',
+        prompt: '“We already have a solution.”',
+        icon: Handshake,
     },
     {
-        quote: "We rolled this out to our entire sales floor. Average close rate went up 18% in the first quarter. That's not a typo.",
-        name: "Alex Rivera",
-        role: "VP of Revenue",
-        company: "Vertex Partners",
-        avatar: "/alex.png",
-        rating: 5,
-        featured: false,
+        title: 'Rehearse difficult feedback',
+        description: 'Work through a sensitive conversation with a direct report or colleague, and find language that is clear without being cold.',
+        prompt: '“I want to talk about what happened in the meeting.”',
+        icon: UsersRound,
     },
     {
-        quote: "The feedback is surprisingly honest. It told me I use 'um' 47 times in a 10-minute call. Painful, but exactly what I needed to hear.",
-        name: "Jordan Park",
-        role: "Team Lead",
-        company: "GlobalTech",
-        avatar: "",
-        rating: 5,
-        featured: false,
-    },
-    {
-        quote: "Finally, a coaching tool that doesn't feel like a corporate training video from 2003. My team actually uses this voluntarily.",
-        name: "Priya Sharma",
-        role: "L&D Director",
-        company: "EduPro Academy",
-        avatar: "",
-        rating: 5,
-        featured: true,
+        title: 'Walk into an interview ready',
+        description: 'Answer follow-up questions, explain your experience, and get comfortable speaking about your work without memorising a script.',
+        prompt: '“Tell me about a time you changed someone’s mind.”',
+        icon: BriefcaseBusiness,
     },
 ];
 
-const tiltClasses = ['', 'card-tilt-2', 'card-tilt-1', 'card-tilt-3'];
-
-const TestimonialsSection = () => {
-    return (
-        <section className="py-24 md:py-32 bg-background relative overflow-hidden">
-            {/* Subtle background accent */}
-            <div className="absolute left-0 top-1/4 w-[350px] h-[350px] opacity-[0.04] bg-annotation organic-blob blur-[100px] pointer-events-none" />
-
-            <div className="container mx-auto px-6">
-                {/* Header */}
-                <motion.div
-                    className="max-w-2xl mb-14"
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5 }}
-                >
-                    <p className="hand-note text-xl md:text-2xl mb-3 -rotate-1">Don't take our word for it →</p>
-                    <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground tracking-tight leading-[1.1]" style={{ fontFamily: 'var(--font-display)' }}>
-                        People who use CoAct{' '}
-                        <span className="text-muted-foreground">have things to say about it.</span>
-                    </h2>
-                </motion.div>
-
-                {/* Testimonial Wall — varied sizes */}
-                <div className="grid md:grid-cols-2 gap-5">
-                    {testimonials.map((t, index) => (
-                        <motion.div
-                            key={index}
-                            initial={{ opacity: 0, y: 25 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true, margin: "-40px" }}
-                            transition={{ duration: 0.5, delay: index * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                            className={`
-                                relative bg-card border border-border rounded-2xl transition-all duration-300
-                                hover:shadow-lg hover:border-primary/20
-                                ${t.featured ? 'p-8 md:p-10' : 'p-7'}
-                                ${tiltClasses[index]}
-                            `}
-                        >
-                            {/* Stars */}
-                            <div className="flex gap-0.5 mb-4">
-                                {Array.from({ length: t.rating }).map((_, i) => (
-                                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                                ))}
-                            </div>
-
-                            {/* Quote — with hand-drawn style quote mark */}
-                            <div className="relative mb-6">
-                                <span className="hand-note text-5xl md:text-6xl text-primary/15 absolute -top-6 -left-2 select-none">"</span>
-                                <p className={`text-foreground leading-relaxed relative z-10 ${t.featured ? 'text-base md:text-lg' : 'text-sm md:text-base'}`}>
-                                    {t.quote}
-                                </p>
-                            </div>
-
-                            {/* Author */}
-                            <div className="flex items-center gap-3">
-                                {t.avatar ? (
-                                    <img
-                                        src={t.avatar}
-                                        alt={t.name}
-                                        className="w-10 h-10 rounded-full object-cover border-2 border-border"
-                                    />
-                                ) : (
-                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm" style={{ fontFamily: 'var(--font-display)' }}>
-                                        {t.name.split(' ').map(n => n[0]).join('')}
-                                    </div>
-                                )}
-                                <div>
-                                    <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                                    <p className="text-xs text-muted-foreground">{t.role}, {t.company}</p>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
+const TestimonialsSection = () => (
+    <section className="py-20 md:py-28 bg-background relative overflow-hidden border-b border-border">
+        <div className="container mx-auto px-6 max-w-6xl">
+            <motion.div
+                className="max-w-2xl mb-14 md:mb-16"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+            >
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/50 border border-border/80 text-[12px] font-semibold uppercase tracking-widest text-foreground/70 mb-6">
+                    Put it to work
                 </div>
+                <h2 className="text-4xl md:text-5xl font-bold text-foreground tracking-tight leading-[1.1]" style={{ fontFamily: 'var(--font-display)' }}>
+                    Practice the conversation,{' '}
+                    <span className="text-muted-foreground">not a generic script.</span>
+                </h2>
+                <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
+                    Start with a real situation and give the other side a point of view. CoAct gives you a low-pressure place to try, adjust, and try again.
+                </p>
+            </motion.div>
+
+            <div className="grid gap-5 md:grid-cols-3">
+                {useCases.map((useCase, index) => (
+                    <motion.article
+                        key={useCase.title}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: '-40px' }}
+                        transition={{ duration: 0.45, delay: index * 0.08 }}
+                        className="group rounded-xl border border-border bg-background p-7 transition-all duration-300 hover:-translate-y-1 hover:border-foreground/20 hover:shadow-md"
+                    >
+                        <div className="mb-8 flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-secondary/50 text-foreground">
+                            <useCase.icon className="h-5 w-5" />
+                        </div>
+                        <h3 className="text-xl font-semibold tracking-tight text-foreground">{useCase.title}</h3>
+                        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{useCase.description}</p>
+                        <div className="mt-7 rounded-lg border border-border bg-secondary/35 px-4 py-3 text-sm leading-relaxed text-foreground/80">
+                            <MessageSquare className="mr-2 inline-block h-4 w-4 -translate-y-px text-electric-blue" />
+                            {useCase.prompt}
+                        </div>
+                    </motion.article>
+                ))}
             </div>
-        </section>
-    );
-};
+        </div>
+    </section>
+);
 
 export default TestimonialsSection;

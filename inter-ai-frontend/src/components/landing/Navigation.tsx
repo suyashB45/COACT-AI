@@ -79,12 +79,12 @@ const Navigation = () => {
     }, [location]);
 
     return (
-        <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-            scrolled
-                ? 'bg-background/95 backdrop-blur-lg border-b border-border shadow-sm'
-                : 'bg-background/70 backdrop-blur-sm border-b border-transparent'
-        }`}>
-            <div className="container mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="fixed top-0 left-0 right-0 z-50 flex justify-center w-full px-4 sm:px-6 transition-all duration-500 ease-out pointer-events-none" style={{ paddingTop: scrolled ? '1rem' : '0' }}>
+            <nav className={`pointer-events-auto transition-all duration-500 ease-out flex items-center justify-between w-full ${
+                scrolled
+                    ? 'max-w-6xl h-14 bg-background/70 backdrop-blur-xl border border-border shadow-glass rounded-full px-6'
+                    : 'max-w-7xl h-20 bg-background/40 backdrop-blur-md border-b border-border/50 px-6 sm:px-8 rounded-b-2xl'
+            }`}>
 
                 <div className="flex items-center gap-8">
                     {/* Logo with Easter egg bounce */}
@@ -101,35 +101,39 @@ const Navigation = () => {
                         <img
                             src="/logo.png"
                             alt="CoAct.AI Logo"
-                            className="h-9 w-auto object-contain group-hover:scale-110 group-active:scale-90 transition-transform duration-200"
+                            className="h-9 w-auto object-contain group-hover:scale-105 group-active:scale-95 transition-transform duration-200"
                         />
                         <span className="text-lg font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-                            CoAct<span className="text-primary">.AI</span>
+                            CoAct<span className="text-electric-blue">.AI</span>
                         </span>
                     </Link>
 
-                    {/* Nav Items with squiggle underlines */}
+                    {/* Nav Items with animated hover pill */}
                     <div className="hidden md:flex items-center gap-1">
                         {navItems.map((item) => (
                             <button
                                 key={item.name}
                                 onClick={() => handleNavClick(item)}
-                                className="squiggle-underline text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-2"
+                                className="relative group text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-4 py-2 rounded-full overflow-hidden"
                             >
-                                {item.name}
+                                <span className="relative z-10">{item.name}</span>
+                                <span className="absolute inset-0 bg-secondary/80 rounded-full scale-50 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-300 ease-out" />
                             </button>
                         ))}
                         {user && appItems.map((item) => (
                             <button
                                 key={item.name}
                                 onClick={() => handleNavClick(item)}
-                                className={`squiggle-underline text-sm font-medium transition-colors px-3 py-2 ${
+                                className={`relative group text-sm font-medium transition-colors px-4 py-2 rounded-full overflow-hidden ${
                                     location.pathname === item.page
-                                        ? 'text-primary active'
+                                        ? 'text-electric-blue'
                                         : 'text-muted-foreground hover:text-foreground'
                                 }`}
                             >
-                                {item.name}
+                                <span className="relative z-10">{item.name}</span>
+                                <span className={`absolute inset-0 rounded-full transition-all duration-300 ease-out ${
+                                    location.pathname === item.page ? 'bg-electric-blue/10 scale-100 opacity-100' : 'bg-secondary/80 scale-50 opacity-0 group-hover:scale-100 group-hover:opacity-100'
+                                }`} />
                             </button>
                         ))}
                     </div>
@@ -155,6 +159,10 @@ const Navigation = () => {
                             </div>
                         ) : (
                             <div className="flex items-center gap-3">
+                                <span className="hidden lg:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/60 font-medium mr-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 status-dot"></span>
+                                    Operational
+                                </span>
                                 <button
                                     className="text-sm font-medium text-foreground hover:text-primary transition-colors px-3 py-2"
                                     onClick={() => navigate('/login')}
@@ -162,7 +170,7 @@ const Navigation = () => {
                                     Sign In
                                 </button>
                                 <button
-                                    className="text-sm font-medium bg-foreground text-background px-5 py-2 rounded-full hover:bg-foreground/90 hover:rotate-[-1deg] transition-all duration-200"
+                                    className="text-sm font-medium bg-foreground text-background px-5 py-2 rounded-full hover:bg-foreground/90 transition-all duration-200"
                                     onClick={() => navigate('/login')}
                                 >
                                     Get Started
@@ -181,7 +189,7 @@ const Navigation = () => {
                         {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                     </button>
                 </div>
-            </div>
+            </nav>
 
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
@@ -219,7 +227,7 @@ const Navigation = () => {
                     </div>
                 </div>
             )}
-        </nav>
+        </div>
     );
 };
 

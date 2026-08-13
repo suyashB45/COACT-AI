@@ -1,47 +1,51 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
+import { motion, useMotionValue, useSpring } from 'framer-motion';
 
 /**
- * Custom dot cursor with trailing glow — desktop only.
- * Gives the page a hand-crafted, boutique feel.
+ * Custom pointer aura using Framer Motion springs.
+ * Enhances the premium feel without replacing the native cursor.
  */
 const CustomCursor = () => {
-    const dotRef = useRef<HTMLDivElement>(null);
-    const glowRef = useRef<HTMLDivElement>(null);
-    const pos = useRef({ x: 0, y: 0 });
-    const glowPos = useRef({ x: 0, y: 0 });
+    const [isVisible, setIsVisible] = useState(false);
+    const [isHoveringClickable, setIsHoveringClickable] = useState(false);
+    
+    const cursorX = useMotionValue(-100);
+    const cursorY = useMotionValue(-100);
+    
+    // Spring physics for smooth following
+    const springConfig = { damping: 25, stiffness: 150, mass: 0.5 };
+    const cursorXSpring = useSpring(cursorX, springConfig);
+    const cursorYSpring = useSpring(cursorY, springConfig);
 
     useEffect(() => {
-        // Only on devices with a fine pointer (mouse)
+        // Only enable on devices with a fine pointer (mouse)
         const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
         if (!mq.matches) return;
 
-        const onMove = (e: MouseEvent) => {
-            pos.current = { x: e.clientX, y: e.clientY };
+        const moveCursor = (e: MouseEvent) => {
+            cursorX.set(e.clientX - 16); // Center the 32px aura
+            cursorY.set(e.clientY - 16);
+            if (!isVisible) setIsVisible(true);
+            
+            // Check if hovering over a clickable element
+            const target = e.target as HTMLElement;
+            const isClickable = !!target.closest('a, button, [role="button"], input, select, textarea');
+            setIsHoveringClickable(isClickable);
         };
 
-        let raf: number;
-        const animate = () => {
-            // Dot follows instantly
-            if (dotRef.current) {
-                dotRef.current.style.transform = `translate(${pos.current.x - 5}px, ${pos.current.y - 5}px)`;
-            }
-            // Glow trails behind with lerp
-            glowPos.current.x += (pos.current.x - glowPos.current.x) * 0.15;
-            glowPos.current.y += (pos.current.y - glowPos.current.y) * 0.15;
-            if (glowRef.current) {
-                glowRef.current.style.transform = `translate(${glowPos.current.x - 18}px, ${glowPos.current.y - 18}px)`;
-            }
-            raf = requestAnimationFrame(animate);
-        };
+        const handleMouseLeave = () => setIsVisible(false);
+        const handleMouseEnter = () => setIsVisible(true);
 
-        window.addEventListener('mousemove', onMove);
-        raf = requestAnimationFrame(animate);
+        window.addEventListener('mousemove', moveCursor);
+        document.body.addEventListener('mouseleave', handleMouseLeave);
+        document.body.addEventListener('mouseenter', handleMouseEnter);
 
         return () => {
-            window.removeEventListener('mousemove', onMove);
-            cancelAnimationFrame(raf);
+            window.removeEventListener('mousemove', moveCursor);
+            document.body.removeEventListener('mouseleave', handleMouseLeave);
+            document.body.removeEventListener('mouseenter', handleMouseEnter);
         };
-    }, []);
+    }, [cursorX, cursorY, isVisible]);
 
     // Don't render on touch devices
     if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
@@ -49,26 +53,22 @@ const CustomCursor = () => {
     }
 
     return (
-        <>
-            {/* Dot */}
-            <div
-                ref={dotRef}
-                className="fixed top-0 left-0 z-[100000] pointer-events-none mix-blend-difference"
-                style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'white', willChange: 'transform' }}
-            />
-            {/* Trailing glow */}
-            <div
-                ref={glowRef}
-                className="fixed top-0 left-0 z-[99999] pointer-events-none"
-                style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '50%',
-                    background: 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%)',
-                    willChange: 'transform',
-                }}
-            />
-        </>
+        <motion.div
+            className="fixed top-0 left-0 z-[99999] pointer-events-none rounded-full mix-blend-difference"
+            animate={{
+                scale: isHoveringClickable ? 1.8 : 1,
+                opacity: isVisible ? 1 : 0,
+            }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            style={{
+                x: cursorXSpring,
+                y: cursorYSpring,
+                width: 32,
+                height: 32,
+                backgroundColor: isHoveringClickable ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)',
+                border: '1px solid rgba(255,255,255,0.4)',
+            }}
+        />
     );
 };
 

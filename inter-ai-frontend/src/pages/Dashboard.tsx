@@ -151,7 +151,7 @@ export default function Dashboard() {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-center py-24 bg-card rounded-3xl border border-border border-dashed"
+                        className="text-center py-24 glass-panel border-dashed"
                     >
                         <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6 text-muted-foreground border border-border">
                             <BarChart3 className="w-10 h-10" />
@@ -162,7 +162,7 @@ export default function Dashboard() {
                         </p>
                         <button
                             onClick={() => navigate("/practice")}
-                            className="px-8 py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
+                            className="px-8 py-3 rounded-xl font-bold bg-electric-blue text-white hover:bg-blue-600 transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] inline-flex items-center gap-2"
                         >
                             <Sparkles className="w-4 h-4" /> Start First Session
                         </button>
@@ -207,8 +207,8 @@ export default function Dashboard() {
                                 label="Total Sessions"
                                 value={data.session_counts.total.toString()}
                                 icon={Activity}
-                                colorClass="text-primary"
-                                bgClass="bg-primary/10"
+                                colorClass="text-electric-blue"
+                                bgClass="bg-electric-blue/10"
                                 delay={0}
                             />
                             <StatCard
@@ -251,10 +251,10 @@ export default function Dashboard() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.15 }}
-                                className="bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-5 p-6 md:p-8 shadow-sm"
+                                className="bg-primary/5 border border-electric-blue/20 rounded-xl flex items-center gap-5 p-6 md:p-8 shadow-sm"
                             >
-                                <div className="p-4 rounded-full bg-primary/20 ring-1 ring-primary/30 hidden sm:block">
-                                    <Lightbulb className="w-8 h-8 text-primary drop-shadow-md" />
+                                <div className="p-4 rounded-full bg-electric-blue/20 ring-1 ring-electric-blue/30 hidden sm:block">
+                                    <Lightbulb className="w-8 h-8 text-electric-blue drop-shadow-[0_0_10px_rgba(37,99,235,0.5)]" />
                                 </div>
                                 <div className="flex-1">
                                     <h3 className="font-black text-xl text-foreground mb-1 flex items-center gap-2">
@@ -264,7 +264,7 @@ export default function Dashboard() {
                                 </div>
                                 <button 
                                     onClick={() => navigate("/practice")}
-                                    className="hidden md:flex px-6 py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors items-center gap-2 shadow-lg shadow-primary/20 shrink-0"
+                                    className="hidden md:flex px-6 py-3 rounded-xl font-bold bg-electric-blue text-white hover:bg-blue-600 transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] items-center gap-2 shadow-lg shadow-electric-blue/30 shrink-0"
                                 >
                                     Practice Now <ArrowRight className="w-4 h-4" />
                                 </button>
@@ -277,11 +277,11 @@ export default function Dashboard() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.2 }}
-                                className="bg-card border border-border shadow-sm rounded-xl p-6 md:p-8"
+                                className="glass-panel p-6 md:p-8"
                             >
                                 <div className="flex items-center gap-4 mb-6">
-                                    <div className="p-3 rounded-xl bg-primary/10 ring-1 ring-border/50">
-                                        <TrendingUp className="w-6 h-6 text-primary" />
+                                    <div className="p-3 rounded-xl bg-electric-blue/10 ring-1 ring-border/50">
+                                        <TrendingUp className="w-6 h-6 text-electric-blue" />
                                     </div>
                                     <div>
                                         <h2 className="text-xl font-bold text-foreground tracking-wide uppercase">Performance Trend</h2>
@@ -351,7 +351,7 @@ export default function Dashboard() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.25 }}
-                                className="bg-card border border-border shadow-sm rounded-xl p-6 md:p-8"
+                                className="glass-panel p-6 md:p-8"
                             >
                                 <div className="flex items-center gap-4 mb-6">
                                     <div className="p-3 rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20">
@@ -414,7 +414,7 @@ export default function Dashboard() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.3 }}
-                                    className="bg-card border border-border shadow-sm rounded-xl p-6"
+                                    className="glass-panel p-6"
                                 >
                                     <div className="flex items-center gap-3 mb-6">
                                         <div className="p-2.5 rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
@@ -451,7 +451,7 @@ export default function Dashboard() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.4 }}
-                                    className="bg-card border border-border shadow-sm rounded-xl p-6"
+                                    className="glass-panel p-6"
                                 >
                                     <div className="flex items-center gap-3 mb-6">
                                         <div className="p-2.5 rounded-xl bg-rose-500/10 ring-1 ring-rose-500/20">
@@ -490,7 +490,7 @@ export default function Dashboard() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.45 }}
-                                className="bg-card border border-border shadow-sm rounded-xl p-6"
+                                className="glass-panel p-6"
                             >
                                 <div className="flex items-center gap-3 mb-6">
                                     <div className="p-2.5 rounded-xl bg-purple-500/10 ring-1 ring-purple-500/20">
@@ -544,13 +544,13 @@ export default function Dashboard() {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.5 }}
                                 onClick={() => navigate("/practice")}
-                                className="group p-6 bg-primary/5 hover:bg-primary/10 border border-border shadow-sm rounded-xl text-left flex items-center justify-between"
+                                className="group p-6 bg-primary/5 hover:bg-electric-blue/10 border border-border shadow-sm rounded-xl text-left flex items-center justify-between"
                             >
                                 <div>
-                                    <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">Start New Session</h3>
+                                    <h3 className="font-bold text-foreground group-hover:text-electric-blue transition-colors">Start New Session</h3>
                                     <p className="text-sm text-muted-foreground">Practice and improve your weakest areas</p>
                                 </div>
-                                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-electric-blue group-hover:translate-x-1 transition-all" />
                             </motion.button>
                             <motion.button
                                 initial={{ opacity: 0, y: 20 }}
@@ -560,10 +560,10 @@ export default function Dashboard() {
                                 className="group p-6 bg-purple-500/5 hover:bg-purple-500/10 border border-border shadow-sm rounded-xl text-left flex items-center justify-between"
                             >
                                 <div>
-                                    <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">View All Sessions</h3>
+                                    <h3 className="font-bold text-foreground group-hover:text-electric-blue transition-colors">View All Sessions</h3>
                                     <p className="text-sm text-muted-foreground">Review past reports and performance</p>
                                 </div>
-                                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-electric-blue group-hover:translate-x-1 transition-all" />
                             </motion.button>
                         </div>
 
@@ -573,7 +573,7 @@ export default function Dashboard() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.6 }}
-                                className="bg-card border border-border shadow-sm rounded-xl p-0 overflow-hidden"
+                                className="glass-panel p-0 overflow-hidden"
                             >
                                 <div className="p-6 md:p-8 border-b border-border/50 flex items-center justify-between">
                                     <div className="flex items-center gap-4">
@@ -587,7 +587,7 @@ export default function Dashboard() {
                                     </div>
                                     <button 
                                         onClick={() => navigate("/history")}
-                                        className="text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+                                        className="text-sm font-semibold text-electric-blue hover:text-electric-blue/80 flex items-center gap-1 transition-colors"
                                     >
                                         View All <ArrowRight className="w-4 h-4" />
                                     </button>
@@ -618,12 +618,12 @@ export default function Dashboard() {
                                                     )}
                                                 </div>
                                                 
-                                                <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                                                <h3 className="text-lg font-bold text-foreground group-hover:text-electric-blue transition-colors line-clamp-1">
                                                     {session.title || session.scenario || "Untitled Scenario"}
                                                 </h3>
 
                                                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                                    <span className="flex items-center gap-1.5"><User className="w-4 h-4 text-primary" /> {session.role}</span>
+                                                    <span className="flex items-center gap-1.5"><User className="w-4 h-4 text-electric-blue" /> {session.role}</span>
                                                     <span className="text-border text-xs hidden sm:inline">•</span>
                                                     <span className="flex items-center gap-1.5"><Bot className="w-4 h-4 text-purple-400" /> {session.ai_role}</span>
                                                 </div>
@@ -640,7 +640,7 @@ export default function Dashboard() {
 
                                                 <button
                                                     onClick={() => navigate(`/report/${session.id || session.session_id}`)}
-                                                    className="px-5 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all btn-press bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border border-primary/20"
+                                                    className="px-5 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all btn-press bg-electric-blue/10 hover:bg-primary text-electric-blue hover:text-primary-foreground border border-electric-blue/20"
                                                     aria-label={`View full report for ${session.title || 'session'}`}
                                                 >
                                                     <Trophy className="w-4 h-4" /> Report
@@ -674,7 +674,7 @@ const StatCard = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay }}
-            className={`bg-card border border-border shadow-sm rounded-xl flex flex-col gap-3 group ${glowClass} relative overflow-hidden`}
+            className={`glass-panel flex flex-col gap-3 group ${glowClass} relative overflow-hidden`}
         >
             <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full blur-[40px] opacity-20 ${bgClass.split(' ')[0]}`} />
             

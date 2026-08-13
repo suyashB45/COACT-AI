@@ -23,8 +23,8 @@ from langchain_core.output_parsers import JsonOutputParser
 def build_mentorship_prompt(role, ai_role, scenario, scenario_type):
     """Return the mentorship‑specific LLM instruction string."""
     return f"""
-### MENTORSHIP REFLECTION REPORT - OBSERVATION-BASED LEARNING (NO SCORES)
-OBJECTIVE: Analyze what the AI DEMONSTRATED in this practice simulation to help the participant learn through observation. Focus ONLY on AI techniques and interaction patterns, NOT on evaluating the user. Absolutely NO numerical scores anywhere.
+### MENTORSHIP REFLECTION REPORT (NO SCORES)
+OBJECTIVE: Analyze what the PARTICIPANT demonstrated in this practice simulation and provide coaching insights. Provide a qualitative reflection that provides actionable coaching insights. Absolutely NO numerical scores anywhere.
 
 Return JSON with this EXACT structure:
 {{
@@ -39,105 +39,59 @@ Return JSON with this EXACT structure:
   "type": "mentorship_reflection",
   "conversation_snapshot": {{
     "simulation_context": {{
-      "your_role": "{role}",
-      "ai_role": "{ai_role}",
+      "your_role": "Role of the participant",
+      "ai_role": "Role of AI",
       "scenario_type": "{scenario_type}",
-      "primary_skill_focus": "The main skill being practiced (e.g., Conflict Resolution, Negotiation, Feedback Delivery)"
+      "primary_skill_focus": "Primary skill focus"
     }},
-    "conversation_flow_overview": "A structured narrative (5-7 lines max) covering: how the conversation started, emotional tone evolution, major turning points, and final outcome. This should NARRATE the flow, NOT repeat content."
+    "conversation_flow_overview": "Summary of how the conversation progressed."
   }},
-  "interaction_highlights": {{
-    "ai_response_strategy_observed": [
-      "Strategy 1 - e.g. Emotional labeling before solution",
-      "Strategy 2 - e.g. Calm boundary setting",
-      "Strategy 3 - e.g. Reframing aggressive statements",
-      "Strategy 4 - e.g. Asking layered probing questions",
-      "Strategy 5 - e.g. Offering structured negotiation alternatives"
-    ],
-    "questioning_techniques_used_by_ai": [
-      "Technique 1 - e.g. Open-ended exploration",
-      "Technique 2 - e.g. Reflective paraphrasing",
-      "Technique 3 - e.g. Assumption testing",
-      "Technique 4 - e.g. Perspective shifting",
-      "Technique 5 - e.g. 'What outcome are you aiming for?' style questions"
-    ],
-    "emotional_handling_patterns": [
-      "Pattern 1 - e.g. Managed escalation without reacting",
-      "Pattern 2 - e.g. Acknowledged emotion before facts",
-      "Pattern 3 - e.g. Avoided defensive language",
-      "Pattern 4 - e.g. Separated behaviour from identity"
-    ]
-  }},
+  "ai_response_strategy_observed": [
+    "Strategy 1",
+    "Strategy 2"
+  ],
+  "questioning_techniques_used_by_ai": [
+    "Technique 1"
+  ],
+  "emotional_handling_patterns": [
+    "Pattern 1"
+  ],
   "turning_points": [
     {{
       "point_number": 1,
-      "title": "Short title of the turning point",
-      "description": "When the conversation shifted from confrontation to clarification.",
-      "ai_technique_used": "The specific technique the AI used",
-      "impact": "How this changed the direction of the conversation"
-    }},
+      "title": "Title",
+      "description": "Description",
+      "ai_technique_used": "Technique",
+      "impact": "Impact"
+    }}
+  ],
+  "example_phrases_demonstrated": [
     {{
-      "point_number": 2,
-      "title": "Short title",
-      "description": "When a reframing question reduced emotional intensity.",
-      "ai_technique_used": "Technique name",
-      "impact": "Result of that shift"
-    }},
-    {{
-      "point_number": 3,
-      "title": "Short title",
-      "description": "When options were introduced instead of positional arguments.",
-      "ai_technique_used": "Technique name",
-      "impact": "Result"
+      "phrase": "Phrase",
+      "context": "Context",
+      "technique": "Technique"
     }}
   ],
   "learning_takeaways": {{
     "what_you_can_observe_and_practice": [
-      "How emotional acknowledgment changes tone",
-      "How structured questioning slows escalation",
-      "How boundary language protects position",
-      "How reframing shifts negotiation energy"
+      "Takeaway 1"
     ]
   }},
-  "example_phrases_demonstrated": [
-    {{
-      "phrase": "Help me understand what's most important to you here.",
-      "context": "When/why the AI used this phrase",
-      "technique": "Open-ended exploration"
-    }},
-    {{
-      "phrase": "Let's separate the issue from the emotion for a moment.",
-      "context": "Context of usage",
-      "technique": "De-escalation framing"
-    }}
-  ],
   "alternative_pathways": {{
-    "note": "Based on this scenario, other effective approaches could include:",
+    "note": "Here are some other ways the conversation could have been guided.",
     "alternatives": [
-      "Collaborative problem framing",
-      "Option-based negotiation",
-      "De-escalation pause technique"
+      "Alternative 1"
     ]
   }},
   "closing_reflection_prompts": [
-    "At what moment did the emotional tone shift?",
-    "Which question changed the direction of the conversation?",
-    "What would you try differently in a real-world version?"
+    "Prompt 1"
   ]
 }}
 
 KEY INSTRUCTIONS:
-1. Provide 4-6 AI response strategies that were actually demonstrated in the transcript
-2. List 4-5 specific questioning techniques the AI used
-3. Identify 3-4 emotional handling patterns from the conversation
-4. Find exactly 2-3 key turning points where the conversation shifted direction
-5. Extract 5-8 VERBATIM example phrases the AI actually said in the transcript
-6. Provide 3-4 alternative approaches that could also work for this scenario
-7. End with exactly 3 reflection questions
-8. Use observational language throughout: 'The AI demonstrated...', 'Notice how...'
-9. Ground ALL observations in specific transcript moments
-10. NO evaluation of the user. NO scores. NO ratings. Focus on AI strategy ONLY.
-11. The conversation_flow_overview should NARRATE the flow (how it started, evolved, concluded) - NOT repeat dialogue.
+1. NO evaluation of the user using numbers. NO scores. NO ratings. Focus on development and role progression.
+2. The language should reflect a mentor observing a mentee's growth and providing constructive path forward.
+3. Keep the tone professional, objective, encouraging, and insight-driven.
 """
 
 
@@ -383,307 +337,168 @@ def draw_mentorship_cover(pdf):
 
 def draw_mentorship_body(pdf, data):
     """
-    Render all 7 sections of the Mentorship Reflection Report on *pdf*.
-
-    Sections:
-      1. Conversation Snapshot (Context + Flow Overview)
-      2. Interaction Highlights (AI Strategy, Questioning, Emotional Handling)
-      3. Turning Points in the Discussion
-      4. Learning Takeaways for Practice
-      5. Example Phrases Demonstrated by AI
-      6. Alternative Pathways
-      7. Closing Reflection Prompt
+    Renders the Mentorship Report focusing on development, mentoring, and role progression.
+    NO numerical scores are included.
     """
+    SLATE = (30, 41, 59)
+    EMERALD = (16, 185, 129)
+    BLUE = (59, 130, 246)
+    AMBER = (245, 158, 11)
+    INDIGO = (99, 102, 241)
+    PURPLE = (168, 85, 247)
+    ROSE = (244, 63, 94)
+    TEAL = (20, 184, 166)
+    LIGHT_BG = (248, 250, 252)
+    TEXT_MAIN = _TEXT_MAIN
+    TEXT_LIGHT = _TEXT_LIGHT
+    CONTENT_LEFT = _CONTENT_LEFT
+    CONTENT_WIDTH = _CONTENT_WIDTH
 
-    # ═══════════════════════════════════════════════════════════════
-    # SECTION 1: CONVERSATION SNAPSHOT
-    # ═══════════════════════════════════════════════════════════════
-    snapshot = data.get("conversation_snapshot", {})
-    if snapshot:
-        _section_title(pdf, "Conversation Snapshot", _BLUE)
+    def block_title(title, color):
+        pdf.check_space(18)
+        pdf.ln(6)
+        pdf.set_fill_color(*color)
+        pdf.rect(10, pdf.get_y(), 3, 9, 'F')
+        pdf.set_xy(16, pdf.get_y() + 1)
+        pdf.set_font('helvetica', 'B', 11)
+        pdf.set_text_color(*color)
+        pdf.cell(0, 7, title.upper(), 0, 1)
+        pdf.ln(2)
 
-        # ── Simulation Context Card ──
-        sim = snapshot.get("simulation_context", {})
-        if sim:
-            _sub_label(pdf, "Simulation Context", _BLUE)
-            card_y = pdf.get_y()
-            pdf.set_fill_color(*_LIGHT_BG)
-            pdf.rect(10, card_y, 190, 34, "F")
-            pdf.set_draw_color(226, 232, 240)
-            pdf.rect(10, card_y, 190, 34, "D")
+    def small_label(text, color=None):
+        pdf.set_x(12)
+        pdf.set_font('helvetica', 'B', 8)
+        pdf.set_text_color(*(color or TEXT_LIGHT))
+        pdf.cell(0, 5, text.upper(), 0, 1)
 
-            # Row 1
-            pdf.set_xy(15, card_y + 3)
-            pdf.set_font("helvetica", "B", 7.5)
-            pdf.set_text_color(*_TEXT_LIGHT)
-            FPDF_cell(pdf, 90, 4, "YOUR ROLE", 0, 0)
-            FPDF_cell(pdf, 0, 4, "AI ROLE", 0, 1)
+    def body_text(text):
+        pdf.set_x(12)
+        pdf.set_font('helvetica', '', 9)
+        pdf.set_text_color(*TEXT_MAIN)
+        pdf.multi_cell(186, 5, sanitize_text(str(text)))
 
-            pdf.set_xy(15, card_y + 8)
-            pdf.set_font("helvetica", "", 9.5)
-            pdf.set_text_color(*_TEXT_MAIN)
-            FPDF_cell(pdf, 90, 5, sanitize_text(str(sim.get("your_role", "-"))), 0, 0)
-            FPDF_cell(pdf, 0, 5, sanitize_text(str(sim.get("ai_role", "-"))), 0, 1)
+    def divider():
+        pdf.ln(4)
+        pdf.set_draw_color(226, 232, 240)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(3)
 
-            # Row 2
-            pdf.set_xy(15, card_y + 17)
-            pdf.set_font("helvetica", "B", 7.5)
-            pdf.set_text_color(*_TEXT_LIGHT)
-            FPDF_cell(pdf, 90, 4, "SCENARIO TYPE", 0, 0)
-            FPDF_cell(pdf, 0, 4, "PRIMARY SKILL FOCUS", 0, 1)
+    # 1. Session Overview
+    conv_snapshot = data.get('conversation_snapshot', {})
+    if conv_snapshot.get('conversation_flow_overview'):
+        block_title("1. Session Overview", BLUE)
+        body_text(conv_snapshot['conversation_flow_overview'])
+        divider()
 
-            pdf.set_xy(15, card_y + 22)
-            pdf.set_font("helvetica", "", 9.5)
-            pdf.set_text_color(*_TEXT_MAIN)
-            FPDF_cell(pdf, 90, 5, sanitize_text(str(sim.get("scenario_type", "-"))), 0, 0)
-            FPDF_cell(pdf, 0, 5, sanitize_text(str(sim.get("primary_skill_focus", "-"))), 0, 1)
+    # 2. Response Strategies
+    strategies = data.get('ai_response_strategy_observed', [])
+    if strategies:
+        block_title("2. Response Strategies", EMERALD)
+        for s in strategies:
+            pdf.set_x(15)
+            pdf.set_font('helvetica', '', 9)
+            pdf.set_text_color(*TEXT_MAIN)
+            pdf.multi_cell(180, 5, "• " + sanitize_text(str(s)))
+        divider()
 
-            pdf.set_y(card_y + 37)
+    # 3. Questioning Techniques
+    techniques = data.get('questioning_techniques_used_by_ai', [])
+    if techniques:
+        block_title("3. Questioning Techniques", PURPLE)
+        for t in techniques:
+            pdf.set_x(15)
+            pdf.set_font('helvetica', '', 9)
+            pdf.set_text_color(*TEXT_MAIN)
+            pdf.multi_cell(180, 5, "• " + sanitize_text(str(t)))
+        divider()
 
-        # ── Conversation Flow Overview ──
-        flow = snapshot.get("conversation_flow_overview", "")
-        if flow:
-            _sub_label(pdf, "Conversation Flow Overview", _BLUE)
-            pdf.set_font("helvetica", "", 9)
-            pdf.set_text_color(*_TEXT_MAIN)
-            y = pdf.draw_wrapped_text(_CONTENT_LEFT, pdf.get_y(), _CONTENT_WIDTH, 5, str(flow))
-            pdf.set_y(y)
+    # 4. Emotional Handling Patterns
+    patterns = data.get('emotional_handling_patterns', [])
+    if patterns:
+        block_title("4. Emotional Handling Patterns", ROSE)
+        for p in patterns:
+            pdf.set_x(15)
+            pdf.set_font('helvetica', '', 9)
+            pdf.set_text_color(*TEXT_MAIN)
+            pdf.multi_cell(180, 5, "• " + sanitize_text(str(p)))
+        divider()
 
-        _divider(pdf)
-
-    # ═══════════════════════════════════════════════════════════════
-    # SECTION 2: INTERACTION HIGHLIGHTS
-    # ═══════════════════════════════════════════════════════════════
-    highlights = data.get("interaction_highlights", {})
-    if highlights:
-        _section_title(pdf, "Interaction Highlights", _EMERALD)
-
-        # 2.1 AI Response Strategy Observed
-        strategies = highlights.get("ai_response_strategy_observed", [])
-        if strategies:
-            _sub_label(pdf, "AI Response Strategy Observed", _EMERALD)
-            pdf.set_x(_CONTENT_LEFT)
-            pdf.set_font("helvetica", "I", 8.5)
-            pdf.set_text_color(*_TEXT_LIGHT)
-            FPDF_cell(pdf, 0, 5, "What techniques did the AI demonstrate?", 0, 1)
+    # 5. Key Turning Points
+    turning_points = data.get('turning_points', [])
+    if turning_points:
+        block_title("5. Key Turning Points", AMBER)
+        for tp in turning_points:
+            small_label(f"Point {tp.get('point_number', '')}: {tp.get('title', '')}", AMBER)
+            body_text(tp.get('description', ''))
             pdf.ln(1)
-            for s in strategies:
-                _bullet_item(pdf, s, "+", _EMERALD)
+            pdf.set_x(12)
+            pdf.set_font('helvetica', 'I', 9)
+            pdf.set_text_color(*TEXT_LIGHT)
+            pdf.multi_cell(186, 5, "Technique & Impact:")
+            pdf.set_x(12)
+            pdf.set_font('helvetica', '', 9)
+            pdf.set_text_color(*TEXT_MAIN)
+            impact_text = f"{sanitize_text(str(tp.get('ai_technique_used', '')))} - {sanitize_text(str(tp.get('impact', '')))}"
+            pdf.multi_cell(186, 5, impact_text)
             pdf.ln(3)
+        divider()
 
-        # 2.2 Questioning Techniques Used by AI
-        questions = highlights.get("questioning_techniques_used_by_ai", [])
-        if questions:
-            _sub_label(pdf, "Questioning Techniques Used by AI", _INDIGO)
-            for q in questions:
-                _bullet_item(pdf, q, "?", _INDIGO)
+    # 6. Phrases Demonstrated
+    phrases = data.get('example_phrases_demonstrated', [])
+    if phrases:
+        block_title("6. Phrases Demonstrated", TEAL)
+        for p in phrases:
+            pdf.set_x(12)
+            pdf.set_font('helvetica', 'B', 9)
+            pdf.set_text_color(*TEXT_MAIN)
+            pdf.multi_cell(186, 5, '"' + sanitize_text(str(p.get('phrase', ''))) + '"')
+            pdf.ln(1)
+            pdf.set_x(15)
+            pdf.set_font('helvetica', 'I', 8)
+            pdf.set_text_color(*TEXT_LIGHT)
+            pdf.multi_cell(180, 5, f"Context: {sanitize_text(str(p.get('context', '')))} | Technique: {sanitize_text(str(p.get('technique', '')))}")
             pdf.ln(3)
+        divider()
 
-        # 2.3 Emotional Handling Patterns
-        emotional = highlights.get("emotional_handling_patterns", [])
-        if emotional:
-            _sub_label(pdf, "Emotional Handling Patterns", _PURPLE)
-            for e in emotional:
-                _bullet_item(pdf, e, "*", _PURPLE)
-            pdf.ln(2)
+    # 7. Takeaways to Practice
+    takeaways = data.get('learning_takeaways', {}).get('what_you_can_observe_and_practice', [])
+    if takeaways:
+        block_title("7. Takeaways to Practice", BLUE)
+        for t in takeaways:
+            pdf.set_x(15)
+            pdf.set_font('helvetica', '', 9)
+            pdf.set_text_color(*TEXT_MAIN)
+            pdf.multi_cell(180, 5, "• " + sanitize_text(str(t)))
+        divider()
 
-        _divider(pdf)
+    # 8. Alternative Pathways
+    alt_pathways = data.get('alternative_pathways', {})
+    alternatives = alt_pathways.get('alternatives', []) if isinstance(alt_pathways, dict) else (alt_pathways if isinstance(alt_pathways, list) else [])
+    if alternatives:
+        block_title("8. Alternative Pathways", INDIGO)
+        if isinstance(alt_pathways, dict) and alt_pathways.get('note'):
+            body_text(alt_pathways['note'])
+            pdf.ln(1)
+        for a in alternatives:
+            pdf.set_x(15)
+            pdf.set_font('helvetica', '', 9)
+            pdf.set_text_color(*TEXT_MAIN)
+            pdf.multi_cell(180, 5, "• " + sanitize_text(str(a)))
+        divider()
 
-    # ═══════════════════════════════════════════════════════════════
-    # SECTION 3: TURNING POINTS IN THE DISCUSSION
-    # ═══════════════════════════════════════════════════════════════
-    turning = data.get("turning_points", [])
-    if turning:
-        _section_title(pdf, "Turning Points in the Discussion", _AMBER)
-
-        for tp in turning:
-            num = tp.get("point_number", "")
-            title = tp.get("title", "")
-            desc = tp.get("description", "")
-            technique = tp.get("ai_technique_used", "")
-            impact = tp.get("impact", "")
-
-            pdf.check_space(30)
-
-            # Header bar
-            tp_y = pdf.get_y()
-            pdf.set_fill_color(255, 251, 235)  # Amber-50
-            pdf.rect(10, tp_y, 190, 8, "F")
-            pdf.set_xy(15, tp_y + 1.5)
-            pdf.set_font("helvetica", "B", 10)
-            pdf.set_text_color(*_AMBER)
-            tp_label = f"Turning Point {num}"
-            if title:
-                tp_label += f":  {sanitize_text(str(title))}"
-            FPDF_cell(pdf, 0, 5, tp_label, 0, 1)
-            pdf.set_y(tp_y + 10)
-
-            if desc:
-                pdf.set_font("helvetica", "", 9)
-                pdf.set_text_color(*_TEXT_MAIN)
-                y = pdf.draw_wrapped_text(15, pdf.get_y(), 180, 5, str(desc))
-                pdf.set_y(y + 1)
-
-            if technique:
-                pdf.set_xy(15, pdf.get_y())
-                pdf.set_font("helvetica", "B", 8)
-                pdf.set_text_color(*_AMBER)
-                FPDF_cell(pdf, 28, 5, "AI Technique:", 0, 0)
-                pdf.set_font("helvetica", "I", 9)
-                pdf.set_text_color(*_TEXT_MAIN)
-                y = pdf.draw_wrapped_text(43, pdf.get_y(), 152, 5, str(technique))
-                pdf.set_y(y + 1)
-
-            if impact:
-                pdf.set_xy(15, pdf.get_y())
-                pdf.set_font("helvetica", "B", 8)
-                pdf.set_text_color(*_TEXT_LIGHT)
-                FPDF_cell(pdf, 16, 5, "Impact:", 0, 0)
-                pdf.set_font("helvetica", "", 9)
-                pdf.set_text_color(*_TEXT_LIGHT)
-                y = pdf.draw_wrapped_text(31, pdf.get_y(), 164, 5, str(impact))
-                pdf.set_y(y + 1)
-
-            pdf.ln(3)
-
-        _divider(pdf)
-
-    # ═══════════════════════════════════════════════════════════════
-    # SECTION 4: LEARNING TAKEAWAYS FOR PRACTICE
-    # ═══════════════════════════════════════════════════════════════
-    learning = data.get("learning_takeaways", {})
-    if learning:
-        _section_title(pdf, "Learning Takeaways for Practice", _TEAL)
-
-        takeaways = learning.get("what_you_can_observe_and_practice", []) if isinstance(learning, dict) else learning
-        if takeaways:
-            _sub_label(pdf, "What You Can Observe & Practice", _TEAL)
-            for t in takeaways:
-                _bullet_item(pdf, t, ">", _TEAL)
-
-        _divider(pdf)
-
-    # ═══════════════════════════════════════════════════════════════
-    # SECTION 5: EXAMPLE PHRASES DEMONSTRATED BY AI
-    # ═══════════════════════════════════════════════════════════════
-    examples = data.get("example_phrases_demonstrated", [])
-    if examples:
-        _section_title(pdf, "Example Phrases Demonstrated by AI", _BLUE)
-        _sub_label(pdf, "Specific Lines Used During Conversation", _BLUE)
-        pdf.ln(1)
-
-        for ex in examples:
-            phrase = ex.get("phrase", "")
-            context = ex.get("context", "")
-            technique = ex.get("technique", "")
-            if not phrase:
-                continue
-
-            pdf.check_space(22)
-
-            # Measure phrase height
-            pdf.set_font("helvetica", "I", 10)
-            words = str(phrase).split(" ")
-            lines = []
-            cur = ""
-            for w in words:
-                test = f"{cur} {w}".strip() if cur else w
-                if pdf.get_string_width(test) <= 172:
-                    cur = test
-                else:
-                    if cur:
-                        lines.append(cur)
-                    cur = w
-            if cur:
-                lines.append(cur)
-            phrase_h = max(len(lines) * 5.5, 8)
-            box_h = phrase_h + 6
-
-            quote_y = pdf.get_y()
-            pdf.set_fill_color(239, 246, 255)  # Blue-50
-            pdf.rect(12, quote_y, 186, box_h, "F")
-            pdf.set_fill_color(*_BLUE)
-            pdf.rect(12, quote_y, 2, box_h, "F")
-
-            pdf.set_font("helvetica", "I", 10)
-            pdf.set_text_color(*_BLUE)
-            y = pdf.draw_wrapped_text(18, quote_y + 3, 172, 5.5, f'"{sanitize_text(str(phrase))}"')
-            pdf.set_y(quote_y + box_h + 1)
-
-            if technique:
-                pdf.set_xy(16, pdf.get_y())
-                pdf.set_font("helvetica", "B", 8)
-                pdf.set_text_color(*_TEXT_LIGHT)
-                FPDF_cell(pdf, 22, 5, "TECHNIQUE:", 0, 0)
-                pdf.set_font("helvetica", "", 8)
-                pdf.set_text_color(*_TEXT_MAIN)
-                y = pdf.draw_wrapped_text(38, pdf.get_y(), 158, 5, str(technique))
-                pdf.set_y(y)
-
-            if context:
-                pdf.set_xy(16, pdf.get_y())
-                pdf.set_font("helvetica", "B", 8)
-                pdf.set_text_color(*_TEXT_LIGHT)
-                FPDF_cell(pdf, 22, 5, "CONTEXT:", 0, 0)
-                pdf.set_font("helvetica", "", 8)
-                pdf.set_text_color(*_TEXT_MAIN)
-                y = pdf.draw_wrapped_text(38, pdf.get_y(), 158, 5, str(context))
-                pdf.set_y(y)
-
-            pdf.ln(3)
-
-        _divider(pdf)
-
-    # ═══════════════════════════════════════════════════════════════
-    # SECTION 6: ALTERNATIVE PATHWAYS
-    # ═══════════════════════════════════════════════════════════════
-    alt = data.get("alternative_pathways", {})
-    if alt:
-        alternatives = alt.get("alternatives", [])
-        if alternatives:
-            _section_title(pdf, "Alternative Pathways", _PURPLE)
-
-            note = alt.get("note", "Based on this scenario, other effective approaches could include:")
-            pdf.set_x(_CONTENT_LEFT)
-            pdf.set_font("helvetica", "I", 9)
-            pdf.set_text_color(*_TEXT_LIGHT)
-            y = pdf.draw_wrapped_text(_CONTENT_LEFT, pdf.get_y(), _CONTENT_WIDTH, 5, str(note))
-            pdf.set_y(y + 2)
-
-            for a in alternatives:
-                _bullet_item(pdf, a, "~", _PURPLE)
-
-            _divider(pdf)
-
-    # ═══════════════════════════════════════════════════════════════
-    # SECTION 7: CLOSING REFLECTION PROMPT
-    # ═══════════════════════════════════════════════════════════════
-    prompts = data.get("closing_reflection_prompts", [])
+    # 9. Reflection Prompts
+    prompts = data.get('closing_reflection_prompts', [])
     if prompts:
-        _section_title(pdf, "Closing Reflection Prompt", _EMERALD)
+        block_title("9. Reflection Prompts", SLATE)
+        body_text("The participant may consider:")
+        pdf.ln(1)
+        for p in prompts:
+            pdf.set_x(15)
+            pdf.set_font('helvetica', '', 9)
+            pdf.set_text_color(*TEXT_MAIN)
+            pdf.multi_cell(180, 5, "? " + sanitize_text(str(p)))
+        divider()
 
-        bar_y = pdf.get_y()
-        pdf.set_fill_color(236, 253, 245)  # Emerald-50
-        pdf.rect(10, bar_y, 190, 8, "F")
-        pdf.set_xy(15, bar_y + 1.5)
-        pdf.set_font("helvetica", "B", 9)
-        pdf.set_text_color(*_EMERALD)
-        FPDF_cell(pdf, 0, 5, "Reflect on These Questions:", 0, 1)
-        pdf.set_y(bar_y + 11)
-
-        for i, prompt in enumerate(prompts, 1):
-            pdf.check_space(10)
-            pdf.set_xy(15, pdf.get_y())
-            pdf.set_font("helvetica", "B", 9)
-            pdf.set_text_color(*_EMERALD)
-            FPDF_cell(pdf, 8, 6, f"{i}.", 0, 0)
-            pdf.set_font("helvetica", "I", 9)
-            pdf.set_text_color(*_TEXT_MAIN)
-            y = pdf.draw_wrapped_text(23, pdf.get_y(), 173, 6, str(prompt))
-            pdf.set_y(y + 2)
-
-
-# ─────────────────────────────────────────────────────────────────────
 # 3. PUBLIC ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────
 

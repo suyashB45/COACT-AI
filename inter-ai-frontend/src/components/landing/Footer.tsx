@@ -24,10 +24,10 @@ const Footer = () => {
                     {/* Newsletter */}
                     <div className="p-7 bg-primary/[0.04] border border-primary/15 rounded-2xl">
                         <h4 className="font-semibold text-foreground text-base mb-1" style={{ fontFamily: 'var(--font-display)' }}>
-                            Get our monthly brain dump
+                            Stay in the loop
                         </h4>
                         <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-                            Tips on communication, AI coaching insights, and product updates. No spam — we promise.
+                            Product updates, communication tips, and the occasional behind-the-scenes look. One email a month, max.
                         </p>
                         <form onSubmit={handleNewsletter} className="flex gap-2">
                             <input
@@ -74,11 +74,12 @@ const Footer = () => {
                             </span>
                         </div>
                         <p className="text-sm text-muted-foreground mb-4 max-w-sm leading-relaxed">
-                            AI roleplay and coaching for ambitious teams. Master the conversations that actually matter.
+                            AI roleplay and coaching for teams that take preparation seriously. Practice the conversations that actually matter.
                         </p>
-                        {/* Human touch */}
-                        <p className="hand-note text-sm mb-6 -rotate-1">
-                            Built with ☕ and too many late nights
+                        {/* Address */}
+                        <p className="text-xs text-muted-foreground/60 mb-6 leading-relaxed">
+                            548 Market St, Suite 36879<br />
+                            San Francisco, CA 94104
                         </p>
                         {/* Social Icons */}
                         <div className="flex gap-3">
@@ -101,6 +102,12 @@ const Footer = () => {
                             <li><a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a></li>
                             <li><Link to="/practice" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Interactive Demo</Link></li>
                             <li><a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Changelog</a></li>
+                            <li>
+                                <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 status-dot"></span>
+                                    Status
+                                </a>
+                            </li>
                         </ul>
                     </div>
 
@@ -133,14 +140,18 @@ const Footer = () => {
                         <p className="text-xs text-muted-foreground">
                             &copy; {new Date().getFullYear()} CoAct AI, Inc. All rights reserved.
                         </p>
-                        {/* Version badge — feels like a real maintained product */}
+                        {/* Version badge */}
                         <span className="text-[10px] text-muted-foreground/50 bg-muted/50 px-2 py-0.5 rounded-full font-mono">
-                            v0.1.0
+                            v0.2.1
                         </span>
                     </div>
                     <div className="flex items-center gap-6">
                         <Link to="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</Link>
                         <Link to="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Terms of Service</Link>
+                        <span className="text-xs text-muted-foreground/50 inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 status-dot"></span>
+                            All systems operational
+                        </span>
                     </div>
                 </div>
             </div>

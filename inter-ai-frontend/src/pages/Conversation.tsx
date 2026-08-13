@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Square, ArrowLeft, Clock, User, History, X, Loader2, Video, VideoOff, Phone, Mic, MicOff, Send, Edit3, Volume2, VolumeX } from "lucide-react"
+import { Square, ArrowLeft, Clock, User, History, X, Loader2, Video, VideoOff, Phone, Mic, Send, Edit3, AlertCircle } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { getApiUrl, getAuthHeaders } from "@/lib/api"
 
@@ -83,6 +83,7 @@ export default function Conversation() {
     }, [isAiSpeaking])
 
     const [showEndConfirm, setShowEndConfirm] = useState(false)
+    const [showExitConfirm, setShowExitConfirm] = useState(false)
     const [isEnding, setIsEnding] = useState(false)
     const [multiCharacters, setMultiCharacters] = useState(false)
     const [characters, setCharacters] = useState<CharacterConfig[]>([])
@@ -92,12 +93,25 @@ export default function Conversation() {
     const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null)
     const [isTranscribing, setIsTranscribing] = useState(false)
 
+    // Intercept browser tab close / page refresh
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (!sessionEndedRef.current && !isEnding) {
+                e.preventDefault()
+                e.returnValue = ''
+            }
+        }
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    }, [isEnding])
+
     // Video call state
     const [isVideoOn, setIsVideoOn] = useState(true)
     const [userStream, setUserStream] = useState<MediaStream | null>(null)
     const [isAiMuted, setIsAiMuted] = useState(false)
     const isAiMutedRef = useRef(false)
 
+    // @ts-ignore
     const toggleAiMute = useCallback(() => {
         const newMuted = !isAiMuted
         setIsAiMuted(newMuted)
@@ -445,10 +459,7 @@ export default function Conversation() {
                         await speakText(latestMsg.content, sessionData.ai_character)
                     }
                     
-                    // Auto-start Live Mode only AFTER AI finishes speaking
-                    if (!isLiveMode && !sessionEndedRef.current) {
-                        await toggleLiveMode()
-                    }
+                    // Manual mode: user presses button to record
                 }, 1500)
                 return () => clearTimeout(timer)
             }
@@ -478,16 +489,15 @@ export default function Conversation() {
         }
     }, [])
 
-    // ===== VAD State and Refs =====
+    // ===== Manual Push-to-Talk State =====
     const [isLiveMode, setIsLiveMode] = useState(false)
     const [isUserSpeaking, setIsUserSpeaking] = useState(false)
     const liveRecordingActive = useRef(false)
-    
-    const audioContextRef = useRef<AudioContext | null>(null)
-    const analyserRef = useRef<AnalyserNode | null>(null)
-    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
     const vadStreamRef = useRef<MediaStream | null>(null)
     const animationFrameRef = useRef<number | null>(null)
+    const audioContextRef = useRef<AudioContext | null>(null)
+    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
+    const recordingStartTimeRef = useRef<number>(0)
 
     const stopLiveMode = useCallback(() => {
         setIsLiveMode(false)
@@ -514,6 +524,83 @@ export default function Conversation() {
         
         setState((prev) => ({ ...prev, isRecording: false }))
     }, [])
+
+    // Manual: Start recording
+    const startManualRecording = async () => {
+        if (state.isRecording || isTranscribing || state.isProcessing) return
+        // If AI is speaking, interrupt it first
+        handleInterrupt()
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+            vadStreamRef.current = stream
+            audioChunksRef.current = []
+            recordingStartTimeRef.current = Date.now()
+
+            const mediaRecorder = new MediaRecorder(stream)
+            mediaRecorderRef.current = mediaRecorder
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+            mediaRecorder.start(100)
+
+            setIsUserSpeaking(true)
+            setState(prev => ({ ...prev, isRecording: true }))
+        } catch (error) {
+            console.error("Microphone error:", error)
+            toast.error("Microphone Error", { description: "Unable to access microphone." })
+        }
+    }
+
+    // Manual: Stop recording and transcribe
+    const stopManualRecording = async () => {
+        if (!state.isRecording) return
+
+        setIsUserSpeaking(false)
+        setState(prev => ({ ...prev, isRecording: false }))
+
+        const durationSeconds = (Date.now() - recordingStartTimeRef.current) / 1000
+
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.onstop = async () => {
+                if (audioChunksRef.current.length === 0) return
+
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+                audioChunksRef.current = []
+
+                setIsTranscribing(true)
+
+                const formData = new FormData()
+                formData.append("file", audioBlob, "audio.webm")
+                formData.append("session_id", sessionId)
+                formData.append("duration_seconds", durationSeconds.toFixed(2))
+
+                try {
+                    const res = await fetch(getApiUrl('/api/transcribe'), { method: 'POST', body: formData })
+                    if (!res.ok) throw new Error("Transcription failed")
+                    const data = await res.json()
+                    setIsTranscribing(false)
+                    if (data.text && data.text.trim().length > 0) {
+                        // Place in pending box for user to review & send manually
+                        // Also close transcript drawer so user can see the pending box
+                        setPendingTranscript(data.text.trim())
+                        setState(prev => ({ ...prev, showTranscript: false }))
+                    } else {
+                        toast.info("No speech detected", { description: "Please try speaking again." })
+                    }
+                } catch (e) {
+                    console.error("Transcription error:", e)
+                    setIsTranscribing(false)
+                    toast.error("Transcription failed", { description: "Could not transcribe your audio." })
+                }
+            }
+            mediaRecorderRef.current.stop()
+        }
+
+        // Now safe to stop tracks since recorder stop has been initiated
+        if (vadStreamRef.current) {
+            vadStreamRef.current.getTracks().forEach(t => t.stop())
+            vadStreamRef.current = null
+        }
+    }
+
 
     // Global cleanup on unmount
     useEffect(() => {
@@ -732,152 +819,7 @@ export default function Conversation() {
         setState((prev) => ({ ...prev, isProcessing: false }));
     }, []);
 
-    const startVADRecording = () => {
-        if (liveRecordingActive.current || !vadStreamRef.current) return
-        liveRecordingActive.current = true
-        setState(prev => ({ ...prev, isRecording: true, interimText: "Listening..." }))
 
-        audioChunksRef.current = []
-        try {
-            const mediaRecorder = new MediaRecorder(vadStreamRef.current)
-            mediaRecorderRef.current = mediaRecorder
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    audioChunksRef.current.push(e.data)
-                }
-            }
-
-            mediaRecorder.start(100) // Get chunks every 100ms
-        } catch (e) {
-            console.error("MediaRecorder start error:", e)
-        }
-    }
-
-    const monitorVAD = () => {
-        if (!analyserRef.current) return
-        const analyser = analyserRef.current
-        const dataArray = new Uint8Array(analyser.frequencyBinCount)
-        
-        const checkAudio = () => {
-            analyser.getByteFrequencyData(dataArray)
-            let sum = 0
-            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
-            const average = sum / dataArray.length
-            
-            const THRESHOLD = 20 
-            
-            if (isAiSpeakingRef.current) {
-                // Wait for AI to finish before listening to user
-            } else if (average > THRESHOLD) {
-                if (isProcessingRef.current) {
-                    handleInterrupt()
-                }
-
-                if (!liveRecordingActive.current) {
-                    setIsUserSpeaking(true)
-                    startVADRecording()
-                }
-                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-                
-                silenceTimerRef.current = setTimeout(() => {
-                    setIsUserSpeaking(false)
-                    liveRecordingActive.current = false
-                    setIsTranscribing(true)
-                    setState(prev => ({ ...prev, isRecording: false, interimText: "Transcribing..." }))
-                    
-                    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-                        mediaRecorderRef.current.onstop = async () => {
-                            if (audioChunksRef.current.length === 0) {
-                                setState(prev => ({ ...prev, interimText: "" }))
-                                return
-                            }
-                            
-                            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-                            audioChunksRef.current = []
-                            
-                            const formData = new FormData()
-                            formData.append("file", audioBlob, "audio.webm")
-                            formData.append("session_id", sessionId)
-                            
-                            try {
-                                const res = await fetch(getApiUrl('/api/transcribe'), {
-                                    method: 'POST',
-                                    body: formData
-                                })
-                                if (!res.ok) throw new Error("Transcription failed")
-                                const data = await res.json()
-                                
-                                setState(prev => ({ ...prev, interimText: "" }))
-                                setIsTranscribing(false)
-                                if (data.text && data.text.trim().length > 0) {
-                                    // Store transcribed text for user review instead of auto-sending
-                                    setPendingTranscript(data.text)
-                                    setPendingAudioUrl(data.audio_url || null)
-                                }
-                            } catch (e) {
-                                console.error("Transcription error:", e)
-                                setState(prev => ({ ...prev, interimText: "" }))
-                                setIsTranscribing(false)
-                            }
-                        }
-                        mediaRecorderRef.current.stop()
-                    } else {
-                        setState(prev => ({ ...prev, interimText: "" }))
-                    }
-                }, 5000) // 5000ms silence triggers STT
-            }
-            
-            animationFrameRef.current = requestAnimationFrame(checkAudio)
-        }
-        
-        checkAudio()
-    }
-
-    const toggleLiveMode = async () => {
-        if (isLiveMode) {
-            stopLiveMode()
-            return
-        }
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            })
-            vadStreamRef.current = stream
-
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
-            const audioCtx = new AudioContextClass({ sampleRate: 16000 })
-            
-            // CRITICAL: Browsers suspend AudioContexts created without an active user gesture.
-            // We must resume it explicitly to guarantee audio flows to the VAD and Worklet.
-            if (audioCtx.state === 'suspended') {
-                await audioCtx.resume()
-            }
-            
-            audioContextRef.current = audioCtx
-
-            const source = audioCtx.createMediaStreamSource(stream)
-            const analyser = audioCtx.createAnalyser()
-            analyser.fftSize = 512
-            analyser.smoothingTimeConstant = 0.4
-            source.connect(analyser)
-            analyserRef.current = analyser
-            
-
-
-            setIsLiveMode(true)
-            monitorVAD()
-
-        } catch (error) {
-            console.error("VAD Microphone error:", error)
-            toast.error("Microphone Error", { description: "Unable to access microphone." })
-        }
-    }
 
 
 
@@ -948,6 +890,14 @@ export default function Conversation() {
         }
     }
 
+    // Auto-end session when time limit is reached (10 minutes = 600 seconds)
+    useEffect(() => {
+        if (state.elapsedSeconds >= 600 && !isEnding && !sessionEndedRef.current) {
+            toast.info("Time limit reached", { description: "The conversation has reached the 10-minute maximum duration." });
+            handleEndConversation();
+        }
+    }, [state.elapsedSeconds, isEnding]); // rely on state updates
+
     // Get the latest message for captioning
     const lastMessage = state.transcript.length > 0 ? state.transcript[state.transcript.length - 1] : null
 
@@ -960,7 +910,7 @@ export default function Conversation() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => navigate("/practice")}
+                        onClick={() => setShowExitConfirm(true)}
                         className="text-white/80 hover:text-white hover:bg-white/10 rounded-full w-9 h-9 shrink-0 transition-colors"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -1028,7 +978,17 @@ export default function Conversation() {
                             
                             {/* Status text */}
                             <div className="mt-4 sm:mt-8 flex items-center gap-2 sm:gap-3 bg-black/50 px-4 sm:px-6 py-2 sm:py-3 rounded-full border border-white/10 shadow-lg z-20 shrink-0">
-                                {isUserSpeaking ? (
+                                {state.isRecording ? (
+                                    <>
+                                        <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
+                                        <span className="text-xs sm:text-base font-semibold text-white/95">Recording...</span>
+                                    </>
+                                ) : isTranscribing ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-yellow-400 animate-spin" />
+                                        <span className="text-xs sm:text-base font-semibold text-white/95">Transcribing...</span>
+                                    </>
+                                ) : isUserSpeaking ? (
                                     <>
                                         <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
                                         <span className="text-xs sm:text-base font-semibold text-white/95">Listening...</span>
@@ -1046,12 +1006,12 @@ export default function Conversation() {
                                 ) : isLiveMode ? (
                                     <>
                                         <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]" />
-                                        <span className="text-xs sm:text-base font-semibold text-white/95">Live Mode On</span>
+                                        <span className="text-xs sm:text-base font-semibold text-white/95">Listening...</span>
                                     </>
                                 ) : (
                                     <>
                                         <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-gray-500 shadow-[0_0_12px_rgba(107,114,128,0.8)]" />
-                                        <span className="text-xs sm:text-base font-semibold text-white/50">Muted</span>
+                                        <span className="text-xs sm:text-base font-semibold text-white/50">Not Listening</span>
                                     </>
                                 )}
                             </div>
@@ -1123,7 +1083,7 @@ export default function Conversation() {
 
                 {/* Right Panel: User */}
                 <div className={`flex-1 rounded-3xl overflow-hidden bg-card backdrop-blur-sm border border-border relative shadow-sm transition-all duration-300 ${
-                    isUserSpeaking ? 'ring-2 ring-primary border-primary' : ''
+                    state.isRecording ? 'ring-2 ring-red-500 border-red-500/50' : isUserSpeaking ? 'ring-2 ring-primary border-primary' : ''
                 }`}>
                     {isVideoOn ? (
                         <video ref={userVideoRef} autoPlay muted playsInline className="w-full h-full object-cover mirror" />
@@ -1135,7 +1095,26 @@ export default function Conversation() {
                         </div>
                     )}
                     
-                    {isUserSpeaking && (
+                    {/* REC overlay while recording */}
+                    {state.isRecording ? (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm">
+                            <div className="flex flex-col items-center gap-3">
+                                <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-400 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.5)]">
+                                    <div className="w-5 h-5 rounded-full bg-red-500 animate-ping" />
+                                </div>
+                                <span className="text-sm font-bold text-white uppercase tracking-widest animate-pulse">Recording...</span>
+                                <span className="text-xs text-white/60">Release button when done</span>
+                            </div>
+                        </div>
+                    ) : isTranscribing ? (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm">
+                            <div className="flex flex-col items-center gap-3">
+                                <Loader2 className="w-10 h-10 text-yellow-400 animate-spin" />
+                                <span className="text-sm font-bold text-yellow-300 uppercase tracking-widest">Transcribing...</span>
+                                <span className="text-xs text-white/60">Your message will appear below</span>
+                            </div>
+                        </div>
+                    ) : isUserSpeaking && (
                         <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-500/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg">
                             <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
                             <span className="text-xs font-bold text-white uppercase tracking-wider">Live</span>
@@ -1224,7 +1203,7 @@ export default function Conversation() {
             </div>
 
             {/* ===== BOTTOM CONTROL BAR (Glass Dock) ===== */}
-            <div className="relative z-30 px-4 pb-6 sm:pb-8 w-full flex flex-col items-center gap-3">
+            <div className="relative z-[110] px-4 pb-6 sm:pb-8 w-full flex flex-col items-center gap-3">
                 
                 {/* Pending transcript input + Send button */}
                 <AnimatePresence>
@@ -1301,38 +1280,28 @@ export default function Conversation() {
                     >
                         <History className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
                     </button>
-
-                    {/* Mic Toggle */}
+                    {/* Manual Push-to-Talk Button */}
                     <button
-                        onClick={toggleLiveMode}
-                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 group ${
-                            isLiveMode
-                                ? 'bg-white/5 hover:bg-white/10 border border-white/10'
-                                : 'bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30'
+                        onMouseDown={startManualRecording}
+                        onMouseUp={stopManualRecording}
+                        onTouchStart={(e) => { e.preventDefault(); startManualRecording() }}
+                        onTouchEnd={(e) => { e.preventDefault(); stopManualRecording() }}
+                        disabled={isTranscribing || state.isProcessing || isAiSpeaking}
+                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all duration-200 select-none ${
+                            state.isRecording
+                                ? 'bg-red-500 border-2 border-red-300 shadow-[0_0_20px_rgba(239,68,68,0.6)] scale-110'
+                                : isTranscribing
+                                ? 'bg-yellow-500/20 border border-yellow-500/40 cursor-wait'
+                                : 'bg-primary/20 border border-primary/40 hover:bg-primary/30 hover:scale-105 active:scale-95'
                         }`}
-                        title={isLiveMode ? "Mute Microphone" : "Unmute Microphone"}
-                        aria-label={isLiveMode ? "Mute Microphone" : "Unmute Microphone"}
+                        title={state.isRecording ? "Release to send" : "Hold to record"}
+                        aria-label={state.isRecording ? "Recording — release to stop" : "Hold to record your voice"}
                     >
-                        {isLiveMode
-                            ? <Mic className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
-                            : <MicOff className="w-5 h-5" />
-                        }
-                    </button>
-
-                    {/* AI Mute Toggle */}
-                    <button
-                        onClick={toggleAiMute}
-                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 group ${
-                            !isAiMuted
-                                ? 'bg-white/5 hover:bg-white/10 border border-white/10'
-                                : 'bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30'
-                        }`}
-                        title={!isAiMuted ? "Mute AI" : "Unmute AI"}
-                        aria-label={!isAiMuted ? "Mute AI" : "Unmute AI"}
-                    >
-                        {!isAiMuted
-                            ? <Volume2 className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
-                            : <VolumeX className="w-5 h-5" />
+                        {isTranscribing
+                            ? <Loader2 className="w-6 h-6 text-yellow-400 animate-spin" />
+                            : state.isRecording
+                            ? <Square className="w-5 h-5 text-white fill-white" />
+                            : <Mic className="w-6 h-6 text-primary" />
                         }
                     </button>
 
@@ -1506,6 +1475,55 @@ export default function Conversation() {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Exit Early Confirmation Modal */}
+            <AnimatePresence>
+                {showExitConfirm && !isEnding && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowExitConfirm(false)}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                            className="relative bg-card border border-border rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl"
+                        >
+                            <div className="text-center">
+                                <div className="w-14 h-14 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mx-auto mb-5">
+                                    <AlertCircle className="w-6 h-6 text-orange-500" />
+                                </div>
+                                <h3 className="text-xl font-bold text-foreground mb-2">Exit Session?</h3>
+                                <p className="text-sm text-muted-foreground mb-8 leading-relaxed">
+                                    Are you sure you want to exit? Your progress will be lost and no report will be generated.
+                                </p>
+                                <div className="flex gap-3">
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => setShowExitConfirm(false)}
+                                        className="flex-1 rounded-xl border border-border hover:bg-muted/20 font-semibold"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() => navigate("/practice")}
+                                        className="flex-1 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
+                                    >
+                                        Yes, Exit
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
 
             {/* Full Page Generation Loader */}
             <AnimatePresence>

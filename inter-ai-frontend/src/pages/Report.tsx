@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { Download, AlertCircle, Target, History, Zap, Award, BookOpen, MessageSquare, ChevronRight, Check, X, ArrowLeft, ArrowRight, Clock, CheckCircle2, Brain, Quote, Lightbulb, Activity, Mic, TrendingUp } from "lucide-react"
+import { Download, AlertCircle, Target, History, Award, BookOpen, MessageSquare, ChevronRight, Check, X, ArrowLeft, ArrowRight, Clock, CheckCircle2, Brain, Quote, Lightbulb, Activity, Mic, TrendingUp, Zap, HelpCircle } from "lucide-react"
 import { motion, Variants } from "framer-motion"
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from "recharts"
 import { useQuery } from "@tanstack/react-query"
@@ -40,10 +40,19 @@ interface DetailedAnalysisItem {
     analysis: string
 }
 
+interface QuantitativeAnalytics {
+    coaching_questions: number;
+    empathy_statements: number;
+    action_items: number;
+    clarifying_questions: number;
+    user_talk_time_percentage?: number;
+}
+
 interface ScorecardItem {
     dimension: string
     score: string
     description?: string // Keeping for backward compatibility
+    rubric_criteria?: string // New explicit rubric
     reasoning?: string // New field for Proof of Marks
     quote?: string
     suggestion?: string
@@ -57,8 +66,8 @@ interface GenericReportData {
     behaviour_analysis?: BehaviourItem[]
     detailed_analysis?: DetailedAnalysisItem[] | string
     question_analysis?: QuestionAnalysis // NEW: Enhanced question analysis
-    mentorship_observations?: MentorshipObservation[]
-    learning_takeaways?: string[]
+    mentorship_observations?: any[]
+    learning_takeaways?: any
     reflection_prompts?: string[]
     comparison?: ComparisonData | null
     [key: string]: any
@@ -133,6 +142,7 @@ interface SimulationReportData extends GenericReportData {
     executive_summary?: ExecutiveSummary;
     goal_attainment?: GoalAttainment;
     deep_dive_analysis?: DeepDiveItem[]; // Override generic
+    quantitative_analytics?: QuantitativeAnalytics;
     scorecard?: ScorecardItem[]; // using existing
     missed_opportunities?: string[];
     action_plan?: ActionPlan;
@@ -156,64 +166,39 @@ interface SimulationReportData extends GenericReportData {
     };
 }
 
-// Mentorship-specific types
-interface MentorshipObservation {
-    observation: string
-    evidence_quote: string
-    significance: string
-    suggestion: string
-}
-
-// Mentorship Reflection Report types (new format)
-interface MentorshipConversationSnapshot {
-    simulation_context?: {
-        your_role: string
-        ai_role: string
-        scenario_type: string
-        primary_skill_focus: string
-    }
-    conversation_flow_overview?: string
-}
-
-interface MentorshipTurningPoint {
-    point_number?: number
-    title?: string
-    description: string
-    ai_technique_used?: string
-    impact?: string
-    // Legacy fields
-    point?: string
-    timestamp?: string
-}
-
-interface MentorshipExamplePhrase {
-    phrase: string
-    context: string
-    technique: string
-}
-
-interface MentorshipReflectionData extends Omit<GenericReportData, 'learning_takeaways'> {
-    type?: string
-    conversation_snapshot?: MentorshipConversationSnapshot
-    interaction_highlights?: {
-        note?: string
-        ai_response_strategy_observed?: string[]
-        questioning_techniques_used_by_ai?: string[]
-        emotional_handling_patterns?: string[]
-    }
-    turning_points?: MentorshipTurningPoint[]
-    learning_takeaways?: { what_you_can_observe_and_practice?: string[] } | string[]
-    example_phrases_demonstrated?: MentorshipExamplePhrase[]
+interface MentorshipReflectionData extends GenericReportData {
+    conversation_snapshot?: {
+        simulation_context?: {
+            your_role?: string;
+            ai_role?: string;
+            scenario_type?: string;
+            primary_skill_focus?: string;
+        };
+        conversation_flow_overview?: string;
+    };
+    ai_response_strategy_observed?: string[];
+    questioning_techniques_used_by_ai?: string[];
+    emotional_handling_patterns?: string[];
+    turning_points?: {
+        point_number?: number;
+        title?: string;
+        description?: string;
+        ai_technique_used?: string;
+        impact?: string;
+    }[];
+    example_phrases_demonstrated?: {
+        phrase?: string;
+        context?: string;
+        technique?: string;
+    }[];
+    learning_takeaways?: {
+        what_you_can_observe_and_practice?: string[];
+    };
     alternative_pathways?: {
-        note?: string
-        alternatives?: string[]
-    }
-    closing_reflection_prompts?: string[]
-    // Legacy fields
-    mentorship_observations?: MentorshipObservation[]
-    reflection_prompts?: string[]
-    executive_summary?: ExecutiveSummary
-    coaching_style?: { primary_style: string; description: string }
+        note?: string;
+        alternatives?: string[];
+    } | string[];
+    closing_reflection_prompts?: string[];
 }
 
 // Question Analysis (Backend Enhanced)
@@ -264,7 +249,7 @@ export default function Report() {
 
             const response = await fetch(getApiUrl(`/api/session/${sessionId}/report_data`), { headers: { ...headers, ...getAuthHeaders() } });
             
-            if (response.status === 400 || response.status === 404) {
+            if (response.status === 400 || response.status === 404 || response.status === 202) {
                 throw new Error("Report not ready");
             }
             if (!response.ok) throw new Error("Failed to fetch report data");
@@ -615,7 +600,7 @@ const ProgressBar = ({ value, colorClass = "bg-primary" }: { value: number, colo
 
 // --- CONVERSATION SNAPSHOT SECTION (shared by Assessment + Mentorship) ---
 const ConversationSnapshotSection = ({ data }: { data: any }) => {
-    const snap = data.conversation_snapshot as MentorshipConversationSnapshot | undefined
+    const snap = data.conversation_snapshot as any | undefined
     if (!snap) return null
     return (
         <div className="space-y-6">
@@ -775,6 +760,36 @@ const CompetencyHeatMap = ({ items }: { items: { dimension: string; score: numbe
 }
 
 
+const QuantitativeAnalyticsSection = ({ data }: { data: QuantitativeAnalytics }) => (
+    <GlassCard>
+        <SectionHeader icon={Activity} title="Quantitative Analytics" colorClass="text-sky-500" bgClass="bg-sky-500/10" />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="bg-background rounded-2xl p-4 border border-border flex flex-col items-center justify-center text-center shadow-sm">
+                <span className="text-3xl font-black text-sky-500 mb-1">{data.coaching_questions || 0}</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Coaching Questions</span>
+            </div>
+            <div className="bg-background rounded-2xl p-4 border border-border flex flex-col items-center justify-center text-center shadow-sm">
+                <span className="text-3xl font-black text-rose-400 mb-1">{data.empathy_statements || 0}</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Empathy Statements</span>
+            </div>
+            <div className="bg-background rounded-2xl p-4 border border-border flex flex-col items-center justify-center text-center shadow-sm">
+                <span className="text-3xl font-black text-emerald-500 mb-1">{data.action_items || 0}</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Action Items</span>
+            </div>
+            <div className="bg-background rounded-2xl p-4 border border-border flex flex-col items-center justify-center text-center shadow-sm">
+                <span className="text-3xl font-black text-amber-500 mb-1">{data.clarifying_questions || 0}</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Clarifying Questions</span>
+            </div>
+            {data.user_talk_time_percentage !== undefined && (
+                <div className="bg-background rounded-2xl p-4 border border-border flex flex-col items-center justify-center text-center shadow-sm">
+                    <span className="text-3xl font-black text-indigo-500 mb-1">{data.user_talk_time_percentage}%</span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Talk Time</span>
+                </div>
+            )}
+        </div>
+    </GlassCard>
+)
+
 const ScorecardSection = ({ items }: { items: ScorecardItem[] }) => (
     <GlassCard>
         <SectionHeader icon={Target} title="AI Assessment Scorecard" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
@@ -798,6 +813,18 @@ const ScorecardSection = ({ items }: { items: ScorecardItem[] }) => (
                         <ProgressBar value={numScore * 10} colorClass={color} />
 
                         <div className="mt-5 space-y-4">
+                            {/* RUBRIC */}
+                            {item.rubric_criteria && (
+                                <div className="bg-muted/10 rounded-xl p-4 border border-border/30">
+                                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 block flex items-center gap-2">
+                                        <BookOpen className="w-3.5 h-3.5" /> Scoring Rubric
+                                    </span>
+                                    <p className="text-sm text-foreground/80 leading-relaxed italic">
+                                        {item.rubric_criteria}
+                                    </p>
+                                </div>
+                            )}
+
                             {/* PROOF / REASONING */}
                             <div className="bg-muted/30 rounded-xl p-4 border border-border/50">
                                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 block">Proof of Marks</span>
@@ -851,138 +878,84 @@ const ScorecardSection = ({ items }: { items: ScorecardItem[] }) => (
 
 // --- MENTORSHIP REFLECTION VIEW (Observation-Based Learning) ---
 const MentorshipReflectionView = ({ data }: { data: MentorshipReflectionData }) => {
-    // Handle learning_takeaways which can be either string[] or { what_you_can_observe_and_practice: string[] }
-    const takeaways: string[] = Array.isArray(data.learning_takeaways)
-        ? data.learning_takeaways
-        : (data.learning_takeaways as any)?.what_you_can_observe_and_practice || []
+    const getAlternatives = () => {
+        if (!data.alternative_pathways) return [];
+        if (Array.isArray(data.alternative_pathways)) return data.alternative_pathways;
+        return data.alternative_pathways.alternatives || [];
+    };
 
-    const reflectionPrompts = data.closing_reflection_prompts || data.reflection_prompts || []
+    const alternatives = getAlternatives();
+    const note = !Array.isArray(data.alternative_pathways) ? data.alternative_pathways?.note : undefined;
 
     return (
         <div className="space-y-8">
-            {/* SECTION 1: Conversation Snapshot */}
+            {/* 1. Session Overview (Conversation Snapshot) */}
             <ConversationSnapshotSection data={data} />
 
-
-            {/* Legacy executive summary for backward compat */}
-            {!data.conversation_snapshot && data.executive_summary && (
-                <GlassCard className="border-l-4 border-l-purple-500">
-                    <SectionHeader icon={Activity} title="Mentorship Overview" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
-                    <p className="text-xl font-medium text-foreground/90 leading-relaxed mb-6">{data.executive_summary.snapshot}</p>
-                    <div className="bg-purple-500/5 border-purple-500/10 rounded-xl p-4 border">
-                        <span className="text-xs font-bold text-purple-500 uppercase tracking-widest block mb-2">Outcome Summary</span>
-                        <p className="text-sm text-foreground/80">{data.executive_summary.outcome_summary}</p>
-                    </div>
-                </GlassCard>
-            )}
-
-            {/* SECTION 2: Interaction Highlights */}
-            {data.interaction_highlights && (
-                <div className="space-y-6">
-                    <SectionHeader icon={Zap} title="Interaction Highlights" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
-                    {data.interaction_highlights.note && data.interaction_highlights.note !== "This replaces scoring â€” structured observation of key patterns." && (
-                        <p className="text-sm text-muted-foreground -mt-4">{data.interaction_highlights.note}</p>
-                    )}
-                    <div className="grid lg:grid-cols-3 gap-6">
-                    {data.interaction_highlights.ai_response_strategy_observed && data.interaction_highlights.ai_response_strategy_observed.length > 0 && (
-                        <GlassCard className="border-t-4 border-t-purple-500">
-                            <SectionHeader icon={Zap} title="3.1 AI Response Strategy Observed" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
-                            <p className="text-xs text-muted-foreground mb-3 italic">What techniques did the AI demonstrate?</p>
-                            <ul className="space-y-3">
-                                {data.interaction_highlights.ai_response_strategy_observed.map((s, i) => (
-                                    <li key={i} className="flex gap-3 text-sm text-foreground/90 bg-purple-500/5 p-3 rounded-lg border border-purple-500/10">
-                                        <ChevronRight className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" /> {s}
-                                    </li>
-                                ))}
-                            </ul>
-                        </GlassCard>
-                    )}
-                    {data.interaction_highlights.questioning_techniques_used_by_ai && data.interaction_highlights.questioning_techniques_used_by_ai.length > 0 && (
-                        <GlassCard className="border-t-4 border-t-blue-500">
-                            <SectionHeader icon={MessageSquare} title="3.2 Questioning Techniques Used by AI" colorClass="text-blue-500" bgClass="bg-blue-500/10" />
-                            <ul className="space-y-3">
-                                {data.interaction_highlights.questioning_techniques_used_by_ai.map((t, i) => (
-                                    <li key={i} className="flex gap-3 text-sm text-foreground/90 bg-blue-500/5 p-3 rounded-lg border border-blue-500/10">
-                                        <ChevronRight className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" /> {t}
-                                    </li>
-                                ))}
-                            </ul>
-                        </GlassCard>
-                    )}
-                    {data.interaction_highlights.emotional_handling_patterns && data.interaction_highlights.emotional_handling_patterns.length > 0 && (
-                        <GlassCard className="border-t-4 border-t-pink-500">
-                            <SectionHeader icon={Brain} title="3.3 Emotional Handling Patterns" colorClass="text-pink-500" bgClass="bg-pink-500/10" />
-                            <p className="text-xs text-muted-foreground mb-3 italic">How the AI handled tone and emotion:</p>
-                            <ul className="space-y-3">
-                                {data.interaction_highlights.emotional_handling_patterns.map((p, i) => (
-                                    <li key={i} className="flex gap-3 text-sm text-foreground/90 bg-pink-500/5 p-3 rounded-lg border border-pink-500/10">
-                                        <ChevronRight className="w-4 h-4 text-pink-500 shrink-0 mt-0.5" /> {p}
-                                    </li>
-                                ))}
-                            </ul>
-                        </GlassCard>
-                    )}
-                </div>
-                </div>
-            )}
-
-            {/* Legacy mentorship observations */}
-            {!data.interaction_highlights && data.mentorship_observations && data.mentorship_observations.length > 0 && (
-                <GlassCard className="border-l-4 border-l-purple-500">
-                    <SectionHeader icon={BookOpen} title="Mentorship Observations" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
-                    <div className="space-y-6">
-                        {data.mentorship_observations.map((obs, i) => (
-                            <div key={i} className="p-5 rounded-xl bg-purple-500/5 border border-purple-500/10">
-                                <h3 className="font-bold text-lg text-purple-600 mb-3">{obs.observation}</h3>
-                                {obs.evidence_quote && (
-                                    <div className="flex gap-3 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border-l-4 border-purple-500/20 italic mb-3">
-                                        <Quote className="w-4 h-4 shrink-0 opacity-50" /> "{obs.evidence_quote}"
+            {/* 2, 3, 4: Strategies, Techniques, Patterns */}
+            <div className="grid md:grid-cols-3 gap-6">
+                {data.ai_response_strategy_observed && data.ai_response_strategy_observed.length > 0 && (
+                    <GlassCard className="h-full border-t-4 border-t-emerald-500">
+                        <SectionHeader icon={CheckCircle2} title="Response Strategies" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
+                        <ul className="space-y-3 mt-4">
+                            {data.ai_response_strategy_observed.map((item, i) => (
+                                <li key={i} className="flex gap-3 text-sm text-foreground/80 items-start">
+                                    <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                     </div>
-                                )}
-                                <div className="flex gap-2 text-sm">
-                                    <span className="font-bold text-xs text-purple-600 uppercase tracking-wider shrink-0">Significance:</span>
-                                    <span className="text-foreground/80">{obs.significance}</span>
-                                </div>
-                                {obs.suggestion && (
-                                    <div className="flex gap-2 items-start mt-2 p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
-                                        <Lightbulb className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-                                        <span className="text-sm text-foreground/90 font-medium">{obs.suggestion}</span>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </GlassCard>
-            )}
+                                    <span>{item}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </GlassCard>
+                )}
 
-            {/* SECTION 3: Turning Points in the Discussion */}
+                {data.questioning_techniques_used_by_ai && data.questioning_techniques_used_by_ai.length > 0 && (
+                    <GlassCard className="h-full border-t-4 border-t-purple-500">
+                        <SectionHeader icon={MessageSquare} title="Questioning Techniques" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
+                        <ul className="space-y-3 mt-4">
+                            {data.questioning_techniques_used_by_ai.map((item, i) => (
+                                <li key={i} className="flex gap-3 text-sm text-foreground/80 items-start">
+                                    <div className="w-5 h-5 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                    </div>
+                                    <span>{item}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </GlassCard>
+                )}
+
+                {data.emotional_handling_patterns && data.emotional_handling_patterns.length > 0 && (
+                    <GlassCard className="h-full border-t-4 border-t-rose-500">
+                        <SectionHeader icon={Brain} title="Emotional Handling" colorClass="text-rose-500" bgClass="bg-rose-500/10" />
+                        <ul className="space-y-3 mt-4">
+                            {data.emotional_handling_patterns.map((item, i) => (
+                                <li key={i} className="flex gap-3 text-sm text-foreground/80 items-start">
+                                    <div className="w-5 h-5 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                    </div>
+                                    <span>{item}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </GlassCard>
+                )}
+            </div>
+
+            {/* 5. Key Turning Points */}
             {data.turning_points && data.turning_points.length > 0 && (
-                <GlassCard>
-                    <SectionHeader icon={History} title="Turning Points in the Discussion" colorClass="text-amber-500" bgClass="bg-amber-500/10" />
-                    <div className="space-y-6">
+                <GlassCard className="border-l-4 border-l-amber-500">
+                    <SectionHeader icon={Activity} title="Key Turning Points" colorClass="text-amber-500" bgClass="bg-amber-500/10" />
+                    <div className="grid md:grid-cols-2 gap-6 mt-6">
                         {data.turning_points.map((tp, i) => (
-                            <div key={i} className="relative pl-8 pb-6 border-l-2 border-amber-500/30 last:pb-0 last:border-l-transparent">
-                                <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-amber-500 border-2 border-background" />
-                                <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">
-                                            Turning Point {tp.point_number || i + 1}
-                                        </span>
-                                        {tp.title && <span className="text-sm font-bold text-foreground">{tp.title}</span>}
-                                    </div>
-                                    <p className="text-sm text-foreground/90 leading-relaxed mb-2">{tp.description || tp.point}</p>
-                                    {tp.ai_technique_used && (
-                                        <div className="text-sm mt-2">
-                                            <span className="font-bold text-amber-600">Technique:</span>{' '}
-                                            <span className="text-foreground/80">{tp.ai_technique_used}</span>
-                                        </div>
-                                    )}
-                                    {tp.impact && (
-                                        <div className="text-sm mt-1">
-                                            <span className="font-bold text-amber-600">Impact:</span>{' '}
-                                            <span className="text-foreground/80">{tp.impact}</span>
-                                        </div>
-                                    )}
+                            <div key={i} className="bg-amber-500/5 p-5 rounded-xl border border-amber-500/10 shadow-sm relative overflow-hidden flex flex-col h-full group hover:border-amber-500/30 transition-colors">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-amber-500/50 group-hover:bg-amber-500 transition-colors" />
+                                <h4 className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">Point {tp.point_number}: {tp.title}</h4>
+                                <p className="text-sm font-medium text-foreground mb-4 flex-1">{tp.description}</p>
+                                <div className="text-xs text-foreground/80 mt-auto pt-4 border-t border-amber-500/20">
+                                    <span className="font-bold block uppercase tracking-wider text-[10px] text-amber-500 mb-1">Technique & Impact</span>
+                                    <span className="italic">{tp.ai_technique_used} - {tp.impact}</span>
                                 </div>
                             </div>
                         ))}
@@ -990,41 +963,25 @@ const MentorshipReflectionView = ({ data }: { data: MentorshipReflectionData }) 
                 </GlassCard>
             )}
 
-            {/* SECTION 4: Learning Takeaways for Practice */}
-            {takeaways.length > 0 && (
-                <GlassCard>
-                    <SectionHeader icon={Lightbulb} title="Learning Takeaways for Practice" colorClass="text-teal-500" bgClass="bg-teal-500/10" />
-                    <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-3">What You Can Observe & Practice</p>
-                    <div className="space-y-3">
-                        {takeaways.map((takeaway, i) => (
-                            <div key={i} className="flex gap-3 text-sm text-foreground/90 bg-teal-500/5 p-4 rounded-lg border border-teal-500/10">
-                                <ChevronRight className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" />
-                                <span className="font-medium leading-relaxed">{takeaway}</span>
-                            </div>
-                        ))}
-                    </div>
-                </GlassCard>
-            )}
-
-            {/* SECTION 5: Example Phrases Demonstrated by AI */}
+            {/* 6. Phrases Demonstrated */}
             {data.example_phrases_demonstrated && data.example_phrases_demonstrated.length > 0 && (
-                <GlassCard>
-                    <SectionHeader icon={Quote} title="Example Phrases Demonstrated by AI" colorClass="text-indigo-500" bgClass="bg-indigo-500/10" />
-                    <p className="text-sm text-muted-foreground mb-4 italic">Specific lines used during the conversation â€” your practical toolkit.</p>
-                    <div className="space-y-4">
-                        {data.example_phrases_demonstrated.map((ep, i) => (
-                            <div key={i} className="p-4 rounded-xl bg-background border border-indigo-500/10 shadow-sm">
-                                <p className="text-base font-medium text-foreground italic mb-3 pl-4 border-l-4 border-indigo-500/40">
-                                    "{ep.phrase}"
-                                </p>
-                                <div className="grid md:grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <span className="font-bold text-indigo-600 text-xs uppercase tracking-wider">Context:</span>{' '}
-                                        <span className="text-foreground/80">{ep.context}</span>
-                                    </div>
-                                    <div>
-                                        <span className="font-bold text-indigo-600 text-xs uppercase tracking-wider">Technique:</span>{' '}
-                                        <span className="text-foreground/80">{ep.technique}</span>
+                <GlassCard className="border-l-4 border-l-teal-500">
+                    <SectionHeader icon={Quote} title="Phrases Demonstrated" colorClass="text-teal-500" bgClass="bg-teal-500/10" />
+                    <div className="space-y-4 mt-6">
+                        {data.example_phrases_demonstrated.map((phrase, i) => (
+                            <div key={i} className="flex gap-4 p-4 rounded-xl bg-background border border-border hover:border-teal-500/30 transition-colors">
+                                <div className="w-7 h-7 rounded-full bg-teal-500/10 text-teal-600 flex items-center justify-center text-xs font-black shrink-0 mt-0.5 border border-teal-500/20">{i + 1}</div>
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-foreground italic mb-3">"{phrase.phrase}"</p>
+                                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-teal-500 block mb-1">Context</span>
+                                            <span className="text-foreground/80">{phrase.context}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-teal-500 block mb-1">Technique</span>
+                                            <span className="text-foreground/80">{phrase.technique}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1033,42 +990,72 @@ const MentorshipReflectionView = ({ data }: { data: MentorshipReflectionData }) 
                 </GlassCard>
             )}
 
-            {/* SECTION 6: Alternative Pathways */}
-            {data.alternative_pathways && data.alternative_pathways.alternatives && data.alternative_pathways.alternatives.length > 0 && (
-                <GlassCard className="bg-card">
-                    <SectionHeader icon={TrendingUp} title="Alternative Pathways" colorClass="text-purple-500" bgClass="bg-purple-500/10" />
-                    {(() => {
-                        const altNote = data.alternative_pathways.note || 'Based on this scenario, other effective approaches could include:'
-                        if (altNote.trim() === 'No evaluation. Just exposure.') return null
-                        return (
-                            <p className="text-sm text-muted-foreground mb-4 italic">{altNote}</p>
-                        )
-                    })()}
-                    <div className="space-y-3">
-                        {data.alternative_pathways.alternatives.map((alt, i) => (
-                            <div key={i} className="flex gap-3 text-sm text-foreground/90 bg-purple-500/5 p-4 rounded-lg border border-purple-500/10">
-                                <ChevronRight className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
-                                <span className="font-medium">{alt}</span>
-                            </div>
+            {/* 7. Takeaways & 8. Alternative Pathways */}
+            <div className="grid md:grid-cols-2 gap-6">
+                {data.learning_takeaways?.what_you_can_observe_and_practice && data.learning_takeaways.what_you_can_observe_and_practice.length > 0 && (
+                    <GlassCard className="h-full border-t-4 border-t-blue-500">
+                        <SectionHeader icon={Zap} title="Takeaways to Practice" colorClass="text-blue-500" bgClass="bg-blue-500/10" />
+                        <ul className="space-y-3 mt-4">
+                            {data.learning_takeaways.what_you_can_observe_and_practice.map((takeaway, i) => (
+                                <li key={i} className="flex gap-3 text-sm text-foreground/80 items-start p-3 bg-blue-500/5 rounded-xl border border-blue-500/10">
+                                    <TrendingUp className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                                    {takeaway}
+                                </li>
+                            ))}
+                        </ul>
+                    </GlassCard>
+                )}
+
+                {alternatives.length > 0 && (
+                    <GlassCard className="h-full border-t-4 border-t-indigo-500">
+                        <SectionHeader icon={Lightbulb} title="Alternative Pathways" colorClass="text-indigo-500" bgClass="bg-indigo-500/10" />
+                        {note && <p className="text-sm text-foreground/70 mb-4 italic mt-4">{note}</p>}
+                        <ul className="space-y-3 mt-4">
+                            {alternatives.map((alt, i) => (
+                                <li key={i} className="flex gap-3 text-sm text-foreground/80 items-start p-3 bg-indigo-500/5 rounded-xl border border-indigo-500/10">
+                                    <Lightbulb className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                                    {alt}
+                                </li>
+                            ))}
+                        </ul>
+                    </GlassCard>
+                )}
+            </div>
+
+            {/* 9. Reflection Prompts & Closing */}
+            {data.closing_reflection_prompts && data.closing_reflection_prompts.length > 0 && (
+                <GlassCard className="border-l-4 border-l-slate-500">
+                    <SectionHeader icon={HelpCircle} title="Reflection Prompts" colorClass="text-slate-500" bgClass="bg-slate-500/10" />
+                    <p className="text-sm font-medium text-foreground/80 mb-4 mt-4">The participant may consider:</p>
+                    <ul className="space-y-3 mt-4">
+                        {data.closing_reflection_prompts.map((q, i) => (
+                            <li key={i} className="flex gap-3 text-sm text-foreground/80 items-start">
+                                <HelpCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                                <span>{q}</span>
+                            </li>
                         ))}
-                    </div>
+                    </ul>
                 </GlassCard>
             )}
 
-            {/* SECTION 7: Closing Reflection Prompt */}
-            {reflectionPrompts.length > 0 && (
-                <GlassCard className="bg-card">
-                    <SectionHeader icon={Brain} title="Closing Reflection Prompt" colorClass="text-emerald-500" bgClass="bg-emerald-500/10" />
-                    <p className="text-sm text-muted-foreground mb-4">Reflect on these questions to deepen your learning:</p>
-                    <div className="space-y-4">
-                        {reflectionPrompts.map((prompt, i) => (
-                            <div key={i} className="p-4 rounded-xl bg-background border border-indigo-500/10 text-foreground/90 italic font-medium text-base leading-relaxed pl-5 border-l-4 border-l-indigo-500/40">
-                                "{prompt}"
-                            </div>
-                        ))}
+            {/* 14. Closing Reflection Fixed Block */}
+            <GlassCard className="bg-indigo-500/5 border-indigo-500/20 border-l-4">
+                <SectionHeader icon={Brain} title="Closing Reflection" colorClass="text-indigo-500" bgClass="bg-indigo-500/10" />
+                <div className="mt-6 space-y-4">
+                    <div>
+                        <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-2">Key takeaway</h4>
+                        <p className="text-sm font-medium text-foreground leading-relaxed">
+                            Effective conflict management is not only about explaining one's position. It also requires listening, understanding different perspectives, acknowledging personal responsibility, and working toward a practical solution.
+                        </p>
                     </div>
-                </GlassCard>
-            )}
+                    <div className="pt-4 border-t border-indigo-500/10">
+                        <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-2">Next Practice Focus</h4>
+                        <p className="text-sm font-bold text-foreground">
+                            Listen → Clarify → Acknowledge → Explain → Collaborate → Resolve
+                        </p>
+                    </div>
+                </div>
+            </GlassCard>
         </div>
     )
 }
@@ -1109,6 +1096,11 @@ const SimulationView = ({ data }: { data: SimulationReportData }) => {
                         )}
                     </div>
                 </GlassCard>
+            )}
+
+            {/* 2.5) Quantitative Analytics */}
+            {data.quantitative_analytics && (
+                <QuantitativeAnalyticsSection data={data.quantitative_analytics} />
             )}
 
             {/* 3) Coaching Efficacy */}

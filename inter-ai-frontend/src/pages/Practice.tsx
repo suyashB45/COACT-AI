@@ -518,7 +518,7 @@ export default function Practice() {
                     transition={{ duration: 0.8 }}
                     className="text-center mb-16 relative z-10"
                 >
-                    <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-[0.15em] mb-6 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+                    <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-electric-blue/10 border border-electric-blue/20 text-electric-blue text-xs font-bold uppercase tracking-[0.15em] mb-6 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
                         <Sparkles className="w-3.5 h-3.5" /> AI Training Arena
                     </div>
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-black mb-6 tracking-tight text-foreground">
@@ -633,7 +633,7 @@ export default function Practice() {
                                 <button
                                     onClick={() => setGlobalMode("assessment")}
                                     className={`relative px-10 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${globalMode === "assessment"
-                                        ? "text-primary bg-primary/10 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-primary/20"
+                                        ? "text-electric-blue bg-electric-blue/10 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-primary/20"
                                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                         }`}
                                 >
@@ -724,8 +724,8 @@ export default function Practice() {
                                             >
                                                 {isStartingSession && startingScenarioTitle === scenario.title && (
                                                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
-                                                        <Loader2 className="w-8 h-8 text-primary animate-spin mb-2" />
-                                                        <span className="text-sm font-bold text-primary">Starting...</span>
+                                                        <Loader2 className="w-8 h-8 text-electric-blue animate-spin mb-2" />
+                                                        <span className="text-sm font-bold text-electric-blue">Starting...</span>
                                                     </div>
                                                 )}
 
@@ -740,7 +740,7 @@ export default function Practice() {
                                                         </div>
                                                     </div>
 
-                                                    <h4 className="text-lg font-bold text-foreground mb-2 group-hover:text-primary transition-colors">{scenario.title}</h4>
+                                                    <h4 className="text-lg font-bold text-foreground mb-2 group-hover:text-electric-blue transition-colors">{scenario.title}</h4>
                                                     <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{displayDescription}</p>
 
                                                     <div className="flex flex-col gap-2 mb-4">
@@ -750,7 +750,7 @@ export default function Practice() {
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs">
                                                             <span className="font-bold text-muted-foreground uppercase">Partner:</span>
-                                                            <span className="text-primary font-medium">{displayAiRole}</span>
+                                                            <span className="text-electric-blue font-medium">{displayAiRole}</span>
                                                         </div>
                                                     </div>
 
@@ -832,7 +832,7 @@ export default function Practice() {
                                     <button
                                         onClick={() => setCustomForm({ ...customForm, sessionType: "assessment" })}
                                         className={`relative px-10 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 ${customForm.sessionType === "assessment"
-                                            ? "text-primary bg-primary/10 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-primary/20"
+                                            ? "text-electric-blue bg-electric-blue/10 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-primary/20"
                                             : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                             }`}
                                     >
@@ -855,7 +855,7 @@ export default function Practice() {
                                 <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/30 via-purple-500/30 to-emerald-500/30 rounded-[2.5rem] blur opacity-30 group-hover:opacity-60 transition duration-1000 group-hover:duration-200" />
                                 
                                 <div className="bg-card border border-border/50 rounded-[2rem] p-8 sm:p-12 backdrop-blur-xl shadow-2xl relative overflow-hidden">
-                                    <div className="absolute -top-32 -right-32 w-96 h-96 bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+                                    <div className="absolute -top-32 -right-32 w-96 h-96 bg-electric-blue/10 rounded-full blur-[120px] pointer-events-none" />
                                     <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
 
                                     <div className="space-y-10 relative z-10">
@@ -866,7 +866,7 @@ export default function Practice() {
                                                 <div className="space-y-3">
                                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-2">Scenario Title</label>
                                                     <div className="relative group/input">
-                                                        <div className="absolute left-4 top-4 text-muted-foreground group-focus-within/input:text-primary transition-colors">
+                                                        <div className="absolute left-4 top-4 text-muted-foreground group-focus-within/input:text-electric-blue transition-colors">
                                                             <Type className="w-5 h-5" />
                                                         </div>
                                                         <input
@@ -918,7 +918,7 @@ export default function Practice() {
                                         <div className="space-y-3">
                                             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-2">Scenario Context</label>
                                             <div className="relative group/input">
-                                                <div className="absolute left-4 top-5 text-muted-foreground group-focus-within/input:text-primary transition-colors">
+                                                <div className="absolute left-4 top-5 text-muted-foreground group-focus-within/input:text-electric-blue transition-colors">
                                                     <MessageSquare className="w-5 h-5" />
                                                 </div>
                                                 <textarea
