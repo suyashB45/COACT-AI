@@ -5,6 +5,17 @@ echo.
 set PROJECT_ROOT=%~dp0
 set PROJECT_ROOT=%PROJECT_ROOT:~0,-1%
 
+:: Start the local MongoDB container first; session history depends on it.
+echo Starting local MongoDB...
+docker compose -f "%PROJECT_ROOT%\docker-compose.yml" up -d mongodb
+if errorlevel 1 (
+    echo.
+    echo MongoDB could not be started. Ensure Docker Desktop is running, then try again.
+    echo Session history will not persist until MongoDB is available.
+    pause
+    exit /b 1
+)
+
 :: Prepend local FFmpeg path to execution context
 set PATH=C:\Users\suyas\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin;%PATH%
 

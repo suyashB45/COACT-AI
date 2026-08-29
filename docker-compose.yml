@@ -26,16 +26,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  mongodb:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-    restart: always
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=Coact@ai2026
-    volumes:
-      - mongodb_data:/data/db
 
 
 
@@ -50,7 +40,7 @@ services:
       - ./inter-ai-backend/data:/app/data
       - backend-db:/app/db
     environment:
-      - MONGODB_URI=mongodb://admin:Coact%40ai2026@mongodb:27017/coact?authSource=admin
+      - MONGODB_URI=${MONGODB_URI}
       - PORT=8000
       - MPLCONFIGDIR=/tmp
       - REPORT_MODEL=${REPORT_MODEL:-llama-3.3-70b-versatile}
@@ -61,8 +51,13 @@ services:
       - JWT_SECRET=${JWT_SECRET:-ea0139cf2e1976456dca25ae16ad43f7b313cd82f8b2dbb26a77d66e94c78fb7}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://coact-ai.com,https://www.coact-ai.com,http://coact-ai.com}
       - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
-    depends_on:
-      - mongodb
+      - FLASK_ENV=production
+      - SMTP_HOST=${SMTP_HOST:-smtp.hostinger.com}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_ADMIN_EMAIL=${SMTP_ADMIN_EMAIL:-}
+      - SMTP_SENDER_NAME=${SMTP_SENDER_NAME:-CoactAI}
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
@@ -84,4 +79,3 @@ services:
 
 volumes:
   backend-db:
-  mongodb_data:

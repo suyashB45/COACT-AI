@@ -166,3 +166,23 @@ export const resetPassword = async (email: string, otp: string, newPassword: str
     
     return response.json();
 };
+
+export interface UserUsage {
+    tokens_used: number;
+    sessions_this_month: number;
+    monthly_token_limit: number;
+    monthly_session_limit: number;
+}
+
+export const getUserUsage = async (): Promise<UserUsage> => {
+    const response = await fetch(getApiUrl('/api/user/usage'), {
+        headers: { ...getAuthHeaders() }
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to load usage');
+    }
+
+    return response.json();
+};

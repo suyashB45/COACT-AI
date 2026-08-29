@@ -116,7 +116,7 @@ const FeaturesSection = () => {
                                     <h3 className={`font-semibold mb-2.5 text-foreground tracking-tight ${feature.size === 'hero' ? 'text-2xl' : 'text-lg'}`}>
                                         {feature.title}
                                     </h3>
-                                    <p className={`text-muted-foreground leading-relaxed ${feature.size === 'hero' ? 'text-lg' : 'text-sm'}`}>
+                                    <p className={`text-muted-foreground leading-relaxed ${feature.size === 'hero' ? 'text-lg' : 'text-[15px]'}`}>
                                         {feature.description}
                                     </p>
                                 </div>

@@ -84,7 +84,7 @@ const PracticePreview = () => {
                     <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-6">
                         <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-electric-blue text-white"><Mic className="h-4 w-4" /></div>
-                            <div><p className="text-sm font-semibold text-foreground">Practice session</p><p className="text-xs text-muted-foreground">{scenario.label}</p></div>
+                            <div><p className="text-sm font-semibold text-foreground">Practice session</p><p className="text-xs font-medium text-muted-foreground">{scenario.label}</p></div>
                         </div>
                         <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Ready</span>
                     </div>
@@ -94,10 +94,10 @@ const PracticePreview = () => {
                             <motion.div key={scenarioKey} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-5">
                                 <div className="flex items-end gap-3">
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground">{scenario.person[0]}</div>
-                                    <div><p className="mb-1.5 text-xs font-medium text-muted-foreground">{scenario.person} · {scenario.role}</p><p className="max-w-md rounded-2xl rounded-bl-sm bg-secondary px-4 py-3 text-sm leading-relaxed text-foreground">{scenario.opening}</p></div>
+                                    <div><p className="mb-1.5 text-xs font-semibold text-muted-foreground">{scenario.person} · {scenario.role}</p><p className="max-w-md rounded-2xl rounded-bl-sm bg-secondary px-4 py-3 text-[15px] leading-relaxed text-foreground">{scenario.opening}</p></div>
                                 </div>
 
-                                <div className="pl-11"><p className="mb-2 text-xs font-medium text-muted-foreground">Choose your response</p><div className="space-y-2">{scenario.choices.map((choice, index) => <button key={choice} disabled={selected !== null} onClick={() => chooseResponse(index)} className={`w-full rounded-lg border px-3.5 py-3 text-left text-sm transition-all ${selected === index ? 'border-electric-blue bg-electric-blue/10 text-foreground' : 'border-border text-muted-foreground hover:border-electric-blue/50 hover:bg-secondary/50 hover:text-foreground disabled:opacity-60'}`}>{choice}</button>)}</div></div>
+                                <div className="pl-11"><p className="mb-2 text-xs font-semibold text-muted-foreground">Choose your response</p><div className="space-y-2">{scenario.choices.map((choice, index) => <button key={choice} disabled={selected !== null} onClick={() => chooseResponse(index)} className={`w-full rounded-lg border px-3.5 py-3 text-left text-[15px] font-medium transition-all ${selected === index ? 'border-electric-blue bg-electric-blue/10 text-foreground' : 'border-border text-muted-foreground hover:border-electric-blue/50 hover:bg-secondary/50 hover:text-foreground disabled:opacity-60'}`}>{choice}</button>)}</div></div>
 
                                 {selected !== null && <div className="flex justify-end"><p className="max-w-md rounded-2xl rounded-br-sm bg-foreground px-4 py-3 text-sm leading-relaxed text-background">{scenario.choices[selected]}</p></div>}
                                 {isThinking && <div className="pl-11 text-sm text-muted-foreground"><span className="inline-flex gap-1 rounded-full bg-secondary px-3 py-2"><i className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" /><i className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:120ms]" /><i className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:240ms]" /></span></div>}

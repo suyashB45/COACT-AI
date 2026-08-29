@@ -64,13 +64,9 @@ def setup_litellm_model(model_name, is_chat=False):
     """Create a LangChain-compatible LLM specifically for Groq API."""
     temp = 0.7 if is_chat else 0.1
     print(f"[INFO] Setting up Groq model: {model_name} (chat={is_chat}, temp={temp})")
-    
-    clean_model_name = model_name
-    if '/' in model_name:
-        _, clean_model_name = model_name.split('/', 1)
 
     return ChatOpenAI(
-        model=clean_model_name,
+        model=model_name,
         temperature=temp,
         api_key=os.getenv("GROQ_API_KEY", "not-needed"),
         base_url="https://api.groq.com/openai/v1",
@@ -79,8 +75,8 @@ def setup_litellm_model(model_name, is_chat=False):
     )
 
 # Model names for Groq exclusively
-REPORT_MODEL_NAME = os.getenv("REPORT_MODEL") or os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-CHAT_MODEL_NAME = os.getenv("CHAT_MODEL") or os.getenv("CHAT_MODEL_NAME", "llama-3.1-8b-instant")
+REPORT_MODEL_NAME = os.getenv("REPORT_MODEL") or os.getenv("MODEL_NAME", "openai/gpt-oss-120b")
+CHAT_MODEL_NAME = os.getenv("CHAT_MODEL") or os.getenv("CHAT_MODEL_NAME", "openai/gpt-oss-20b")
 
 report_llm = setup_litellm_model(REPORT_MODEL_NAME, is_chat=False)
 chat_llm = setup_litellm_model(CHAT_MODEL_NAME, is_chat=True)
@@ -557,6 +553,57 @@ Categorize each question and specify optimal timing in the conversation.
         }
 
 
+def normalize_assessment_report(data, fallback_meta):
+    """Make LLM assessment JSON safe for every report client.
+
+    The assessment prompt calls its scored rows ``participant_performance``;
+    older web and mobile clients render ``scorecard``. Keep both names in the
+    API response and normalize score types so a valid model response is never
+    silently omitted by the UI.
+    """
+    if not isinstance(data, dict):
+        return {"meta": fallback_meta, "type": "assessment_report"}
+
+    meta = data.get("meta")
+    if not isinstance(meta, dict):
+        meta = {}
+        data["meta"] = meta
+    for key, value in fallback_meta.items():
+        meta.setdefault(key, value)
+
+    performance = data.get("participant_performance")
+    legacy_scorecard = data.get("scorecard")
+    source_items = performance if isinstance(performance, list) else legacy_scorecard
+    if not isinstance(source_items, list):
+        source_items = []
+
+    scorecard = []
+    for item in source_items:
+        if not isinstance(item, dict):
+            continue
+        normalized = item.copy()
+        score = normalized.get("score", "0/10")
+        if isinstance(score, (int, float)):
+            score = f"{score}/10"
+        elif isinstance(score, str) and "/" not in score:
+            score = f"{score}/10"
+        normalized["score"] = str(score)
+        normalized.setdefault("dimension", "Assessment dimension")
+        normalized.setdefault("reasoning", normalized.get("description", "No reasoning was returned."))
+        scorecard.append(normalized)
+
+    data["participant_performance"] = scorecard
+    data["scorecard"] = scorecard
+    if not isinstance(data.get("radar_chart_data"), list):
+        data["radar_chart_data"] = [
+            {"dimension": item["dimension"], "score": float(item["score"].split("/")[0])}
+            for item in scorecard
+            if item["score"].split("/")[0].replace(".", "", 1).isdigit()
+        ]
+    data.setdefault("type", "assessment_report")
+    return data
+
+
 def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None, mode="coaching", scenario_type=None, ai_character="alex", simulation_id=None, session_mode=None):
     """
     Generate report data using SCENARIO-SPECIFIC structures.
@@ -815,11 +862,10 @@ RULES:
                 "type": scenario_type
             }
         
-        # Ensure meta exists and session_mode is always preserved
-        if 'meta' not in data: data['meta'] = {}
+        data = normalize_assessment_report(data, meta)
+        # Ensure session context is authoritative, even when the model omitted it.
         data['meta']['scenario_type'] = scenario_type
         data['meta']['session_mode'] = session_mode or data['meta'].get('session_mode', 'skill_assessment')
-        if 'type' not in data: data['type'] = scenario_type
 
         # Inject the parallel results into the main data payload
         data['character_assessment'] = character_data

@@ -23,7 +23,7 @@ function CTABanner() {
             {/* Minimal Grid Background */}
             <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
 
-            <div className="container mx-auto px-6 relative z-10">
+            <div className="landing-readable container mx-auto px-6 relative z-10">
                 <motion.div
                     className="relative overflow-hidden rounded-2xl bg-foreground text-background border border-border p-12 md:p-16 flex flex-col items-center text-center max-w-5xl mx-auto shadow-2xl"
                     initial={{ opacity: 0, y: 30 }}
@@ -62,7 +62,7 @@ function CTABanner() {
                                 View pricing
                             </button>
                         </div>
-                        <p className="text-background/40 text-xs mt-6">
+                        <p className="text-background/75 text-sm mt-6 font-medium">
                             No credit card required · Set up in under 2 minutes
                         </p>
                     </div>
@@ -75,7 +75,7 @@ function CTABanner() {
 /* ── Home Page ─────────────────────────────────────── */
 function Home() {
     return (
-        <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30">
+        <div className="landing-readable min-h-screen bg-background text-foreground font-sans selection:bg-primary/30">
             <CustomCursor />
             <Navigation />
             <main>

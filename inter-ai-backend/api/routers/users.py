@@ -10,9 +10,11 @@ from database import (
     enable_2fa,
     disable_2fa,
     delete_user_account,
+    get_user_usage,
     RateLimitExceeded
 )
 from email_service import send_security_alert_email, send_otp_email
+from core.config import MONTHLY_TOKEN_LIMIT, MONTHLY_SESSION_LIMIT
 import logging
 
 logger = logging.getLogger("coact")
@@ -23,6 +25,16 @@ from core.utils import generate_otp
 
 class UpdateNameRequest(BaseModel):
     name: str
+
+@router.get("/usage")
+async def get_usage(request: Request):
+    user = get_authenticated_user(request)
+    usage = get_user_usage(user.id)
+    return {
+        **usage,
+        "monthly_token_limit": MONTHLY_TOKEN_LIMIT,
+        "monthly_session_limit": MONTHLY_SESSION_LIMIT,
+    }
 
 @router.put("/name")
 async def update_name(request: Request, payload: UpdateNameRequest):

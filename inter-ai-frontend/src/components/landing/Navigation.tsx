@@ -79,11 +79,11 @@ const Navigation = () => {
     }, [location]);
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-50 flex justify-center w-full px-4 sm:px-6 transition-all duration-500 ease-out pointer-events-none" style={{ paddingTop: scrolled ? '1rem' : '0' }}>
+        <div className="fixed top-0 left-0 right-0 z-50 flex justify-center w-full px-4 sm:px-6 transition-all duration-500 ease-out pointer-events-none" style={{ paddingTop: scrolled ? '1rem' : '0.75rem' }}>
             <nav className={`pointer-events-auto transition-all duration-500 ease-out flex items-center justify-between w-full ${
                 scrolled
-                    ? 'max-w-6xl h-14 bg-background/70 backdrop-blur-xl border border-border shadow-glass rounded-full px-6'
-                    : 'max-w-7xl h-20 bg-background/40 backdrop-blur-md border-b border-border/50 px-6 sm:px-8 rounded-b-2xl'
+                    ? 'max-w-6xl h-14 bg-background/90 backdrop-blur-xl border border-border shadow-[0_10px_35px_rgba(29,44,34,.09)] rounded-full px-6'
+                    : 'max-w-6xl h-14 bg-background/75 backdrop-blur-md border border-border/70 px-6 sm:px-7 rounded-full shadow-[0_5px_20px_rgba(29,44,34,.04)]'
             }`}>
 
                 <div className="flex items-center gap-8">
@@ -159,7 +159,7 @@ const Navigation = () => {
                             </div>
                         ) : (
                             <div className="flex items-center gap-3">
-                                <span className="hidden lg:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/60 font-medium mr-1">
+                                <span className="hidden lg:inline-flex items-center gap-1.5 text-xs text-muted-foreground font-semibold mr-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 status-dot"></span>
                                     Operational
                                 </span>
@@ -170,7 +170,7 @@ const Navigation = () => {
                                     Sign In
                                 </button>
                                 <button
-                                    className="text-sm font-medium bg-foreground text-background px-5 py-2 rounded-full hover:bg-foreground/90 transition-all duration-200"
+                                    className="text-sm font-medium bg-[#193c2a] text-white px-5 py-2 rounded-full hover:bg-[#245338] transition-all duration-200 shadow-sm"
                                     onClick={() => navigate('/login')}
                                 >
                                     Get Started

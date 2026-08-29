@@ -167,17 +167,17 @@ const PricingSection = () => {
 
                                 {/* Fine print */}
                                 {!isCustom && plan.monthlyPrice > 0 && (
-                                    <p className={`text-[11px] mb-6 ${plan.popular ? 'text-background/50' : 'text-muted-foreground/60'}`}>
+                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-background/80' : 'text-muted-foreground'}`}>
                                         {annual ? 'Billed annually' : 'Billed monthly'} · Cancel anytime
                                     </p>
                                 )}
                                 {!isCustom && plan.monthlyPrice === 0 && (
-                                    <p className={`text-[11px] mb-6 ${plan.popular ? 'text-background/50' : 'text-muted-foreground/60'}`}>
+                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-background/80' : 'text-muted-foreground'}`}>
                                         Free forever · No credit card
                                     </p>
                                 )}
                                 {isCustom && (
-                                    <p className={`text-[11px] mb-6 ${plan.popular ? 'text-background/50' : 'text-muted-foreground/60'}`}>
+                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-background/80' : 'text-muted-foreground'}`}>
                                         Based on team size and needs
                                     </p>
                                 )}
@@ -194,7 +194,7 @@ const PricingSection = () => {
                                 </button>
 
                                 <div className="flex-grow space-y-4 pt-2">
-                                    <p className={`text-[11px] font-semibold uppercase tracking-widest ${plan.popular ? 'text-background/60' : 'text-muted-foreground/70'}`}>What's included</p>
+                                    <p className={`text-xs font-bold uppercase tracking-[.12em] ${plan.popular ? 'text-background/90' : 'text-muted-foreground'}`}>What's included</p>
                                     {plan.features.map((feature, idx) => (
                                         <div key={idx} className="flex items-start gap-3">
                                             <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.popular ? 'text-background/80' : 'text-foreground/80'}`} />
@@ -206,8 +206,8 @@ const PricingSection = () => {
                                 {/* Social proof */}
                                 <div className={`mt-8 pt-4 border-t text-[12px] font-medium text-center ${
                                     plan.popular 
-                                        ? 'border-background/20 text-background/50' 
-                                        : 'border-border text-muted-foreground/60'
+                                        ? 'border-background/20 text-background/80'
+                                        : 'border-border text-muted-foreground'
                                 }`}>
                                     {plan.socialProof}
                                 </div>

@@ -238,7 +238,7 @@ STRICTLY NON-EVALUATIVE. No scores, no rating language. Focus on Skill Developme
     else: # Custom / Generic Scenario
         behavior_instruction = f"""
 YOUR BEHAVIORAL ARC (as {ai_role}):
-1. OPENING: Start with a professional, context-aware greeting as {ai_role}.
+1. OPENING: Skip pleasantries. Open directly with the situation or concern relevant to the scenario as {ai_role}.
 2. ADAPTIVE:
    - IF {role} is clear, empathetic, and effective -> Become more Collaborative.
    - IF {role} is vague, rude, or hesitant -> Push back or remain Closed.
@@ -257,7 +257,7 @@ Tone: Realistic, human, reactive. Push back on vague/rude responses. Acknowledge
 
 SCENARIO: {scenario}
 
-OPENING: Give a warm professional greeting as {ai_role}. 2-3 sentences. START NOW."""
+OPENING: Skip pleasantries. Open directly with the situation or concern at hand as {ai_role}. Get straight to the point. 2-3 sentences. START NOW."""
 
     elif mode == "mentorship":
         system = f"""{role_identity}
@@ -269,7 +269,7 @@ Tone: Empathetic, wise, seasoned professional. 2-3 sentences max. Show them the 
 
 SCENARIO: {scenario}
 
-OPENING: Warm, encouraging greeting + demonstrate perfect opening as {ai_role}. 2-3 sentences. START NOW."""
+OPENING: Skip generic greetings. Open directly by addressing the core topic as {ai_role}. Get straight to the point. 2-3 sentences. START NOW."""
 
     else:
         # COACHING MODE
@@ -284,7 +284,7 @@ If {role} is supportive -> open up. If {role} is rude -> get defensive/push back
 
 SCENARIO: {scenario}
 
-OPENING: Warm professional greeting as {ai_role}. 2-3 sentences. START NOW."""
+OPENING: Skip pleasantries. Open directly with the issue or context as {ai_role}. No filler, straight to the point. 2-3 sentences. START NOW."""
 
     return [{"role": "system", "content": system}, {"role": "user", "content": '{"instruction": "Start coaching practice session"}'}]
 

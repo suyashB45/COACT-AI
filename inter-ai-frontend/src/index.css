@@ -6,35 +6,36 @@
   /* ═══════════════════════════════════════════════════════════
      Coact White Theme — White + Logo Blue Accent
      ═══════════════════════════════════════════════════════════ */
-  --background: #ffffff;
-  --foreground: #121e34;
+  --background: #f7f8f3;
+  --foreground: #1d2c22;
 
-  --card: #f8fafc;
-  --card-foreground: #121e34;
+  --card: #fffefa;
+  --card-foreground: #1d2c22;
 
   --popover: #ffffff;
-  --popover-foreground: #121e34;
+  --popover-foreground: #1d2c22;
 
-  --primary: #121e34;
+  --primary: #193c2a;
   --primary-foreground: #ffffff;
 
-  --secondary: #f1f5f9;
-  --secondary-foreground: #121e34;
+  --secondary: #e9eee5;
+  --secondary-foreground: #1d2c22;
 
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --muted: #edf0ea;
+  /* Body copy is intentionally darker than a typical muted UI label. */
+  --muted-foreground: #4d5e53;
 
-  --accent: #f1f5f9;
-  --accent-foreground: #121e34;
+  --accent: #e9eee5;
+  --accent-foreground: #1d2c22;
 
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --success: #22c55e;
   --success-foreground: #ffffff;
 
-  --border: rgba(18, 30, 52, 0.1);
-  --input: rgba(18, 30, 52, 0.1);
-  --ring: #121e34;
+  --border: rgba(29, 44, 34, 0.12);
+  --input: rgba(29, 44, 34, 0.12);
+  --ring: #193c2a;
 
   --radius: 0.5rem;
 
@@ -45,9 +46,9 @@
   --glass-border: rgba(18, 30, 52, 0.08);
   --glass-shadow: 0 8px 32px 0 rgba(18, 30, 52, 0.05);
 
-  --electric-blue: #2563eb;
-  --color-primary-rgb: 18, 30, 52;
-  --color-electric-blue-rgb: 37, 99, 235;
+  --electric-blue: #47785b;
+  --color-primary-rgb: 25, 60, 42;
+  --color-electric-blue-rgb: 71, 120, 91;
 }
 
 .dark {
@@ -138,6 +139,9 @@
   body {
     @apply bg-background text-foreground antialiased;
     overflow-x: hidden;
+    font-feature-settings: "ss01", "cv02";
+    font-size: 16px;
+    line-height: 1.55;
   }
 
   /* ─── Subtle Noise Texture Overlay ─── */
@@ -157,6 +161,41 @@
     opacity: 0.035;
   }
 }
+
+@layer base {
+  button, a, input, textarea, select { font: inherit; }
+  ::selection { background: #cce0ce; color: #193c2a; }
+}
+
+/* Make small supporting copy legible without making the interface visually loud. */
+.landing-readable :is(.text-xs, .text-\[10px\], .text-\[11px\], .text-\[12px\]) {
+  letter-spacing: .01em;
+}
+
+/* Landing page: deliberately quiet, tactile, and a little less "dashboard". */
+.hero-editorial {
+  background: linear-gradient(135deg, #f7f8f3 5%, #f4f7ef 52%, #eef4ea 100%);
+}
+
+.hero-editorial::after {
+  content: "";
+  position: absolute;
+  right: -8rem;
+  bottom: -11rem;
+  width: 37rem;
+  height: 37rem;
+  border: 1px solid rgba(71, 120, 91, .12);
+  border-radius: 50%;
+  box-shadow: 0 0 0 5rem rgba(71, 120, 91, .025), 0 0 0 10rem rgba(71, 120, 91, .018);
+}
+
+.hero-orb { position: absolute; border-radius: 999px; filter: blur(1px); pointer-events: none; }
+.hero-orb-one { width: 16rem; height: 16rem; left: -7rem; top: 20%; background: rgba(227, 202, 130, .19); }
+.hero-orb-two { width: 9rem; height: 9rem; right: 39%; top: 10%; background: rgba(132, 174, 139, .12); }
+.hero-note { z-index: 2; font-family: var(--font-hand); line-height: 1.1; }
+.voice-bar { width: 2px; border-radius: 999px; background: #5f9d76; display: inline-block; animation: voice-wave 1.1s ease-in-out infinite alternate; }
+.voice-bar:nth-child(2) { animation-delay: .15s; }.voice-bar:nth-child(3) { animation-delay: .3s; }.voice-bar:nth-child(4) { animation-delay: .45s; }.voice-bar:nth-child(5) { animation-delay: .6s; }
+@keyframes voice-wave { to { transform: scaleY(.45); opacity: .55; } }
 
 @layer components {
   .glass-panel {

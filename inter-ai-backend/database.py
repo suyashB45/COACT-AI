@@ -592,6 +592,27 @@ def check_token_limit(user_id, limit=50000):
         print(f"[ERROR] DB Check Token Limit failed for user {user_id}: {e}")
         return True
 
+def get_user_usage(user_id):
+    """Get the user's current-month token and session usage."""
+    try:
+        current_month = datetime.now().strftime('%Y-%m-')
+        pipeline = [
+            {"$match": {"user_id": str(user_id), "date": {"$regex": f"^{current_month}"}}},
+            {"$group": {"_id": None, "total": {"$sum": "$tokens_used"}}}
+        ]
+        result = list(db_conn.user_token_usage.aggregate(pipeline))
+        tokens_used = result[0]["total"] if result else 0
+
+        session_count = db_conn.practice_history.count_documents({
+            "user_id": str(user_id),
+            "created_at": {"$regex": f"^{current_month}"}
+        })
+        print(f"[USAGE] User {user_id} | tokens={tokens_used} sessions={session_count}")
+        return {"tokens_used": tokens_used, "sessions_this_month": session_count}
+    except Exception as e:
+        print(f"[ERROR] DB Get User Usage failed for user {user_id}: {e}")
+        return {"tokens_used": 0, "sessions_this_month": 0}
+
 def add_token_usage(user_id, tokens):
     try:
         today = get_current_date_str()

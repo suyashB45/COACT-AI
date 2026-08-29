@@ -58,8 +58,8 @@ const TestimonialsSection = () => (
                             <useCase.icon className="h-5 w-5" />
                         </div>
                         <h3 className="text-xl font-semibold tracking-tight text-foreground">{useCase.title}</h3>
-                        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{useCase.description}</p>
-                        <div className="mt-7 rounded-lg border border-border bg-secondary/35 px-4 py-3 text-sm leading-relaxed text-foreground/80">
+                        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">{useCase.description}</p>
+                        <div className="mt-7 rounded-lg border border-border bg-secondary/35 px-4 py-3 text-[15px] font-medium leading-relaxed text-foreground">
                             <MessageSquare className="mr-2 inline-block h-4 w-4 -translate-y-px text-electric-blue" />
                             {useCase.prompt}
                         </div>

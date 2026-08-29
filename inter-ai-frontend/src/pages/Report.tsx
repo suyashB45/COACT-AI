@@ -144,6 +144,7 @@ interface SimulationReportData extends GenericReportData {
     deep_dive_analysis?: DeepDiveItem[]; // Override generic
     quantitative_analytics?: QuantitativeAnalytics;
     scorecard?: ScorecardItem[]; // using existing
+    participant_performance?: ScorecardItem[];
     missed_opportunities?: string[];
     action_plan?: ActionPlan;
     follow_up_strategy?: FollowUpStrategy;
@@ -799,7 +800,8 @@ const ScorecardSection = ({ items }: { items: ScorecardItem[] }) => (
 
         <div className="space-y-8">
             {items?.map((item, i) => {
-                const numScore = parseFloat(item.score.split('/')[0] || "0")
+                const scoreLabel = typeof item.score === 'number' ? `${item.score}/10` : String(item.score || '0/10')
+                const numScore = parseFloat(scoreLabel.split('/')[0] || "0")
                 const color = numScore >= 8 ? 'bg-emerald-500' : numScore >= 5 ? 'bg-amber-500' : 'bg-rose-500'
 
                 return (
@@ -807,7 +809,7 @@ const ScorecardSection = ({ items }: { items: ScorecardItem[] }) => (
                         {/* Header: Dimension + Score */}
                         <div className="flex justify-between items-end mb-3">
                             <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">{item.dimension}</h3>
-                            <span className={`font-mono font-black text-2xl ${numScore >= 8 ? 'text-emerald-500' : numScore >= 5 ? 'text-amber-500' : 'text-rose-500'}`}>{item.score}</span>
+                            <span className={`font-mono font-black text-2xl ${numScore >= 8 ? 'text-emerald-500' : numScore >= 5 ? 'text-amber-500' : 'text-rose-500'}`}>{scoreLabel}</span>
                         </div>
 
                         <ProgressBar value={numScore * 10} colorClass={color} />
@@ -1171,7 +1173,7 @@ const SimulationView = ({ data }: { data: SimulationReportData }) => {
             )}
 
             {/* 7) Performance Scorecard */}
-            {data.scorecard && <ScorecardSection items={data.scorecard} />}
+            {(data.scorecard || data.participant_performance) && <ScorecardSection items={data.scorecard || data.participant_performance || []} />}
 
             {/* 8) Deep Dive Analysis (i. communication style, ii. behaviour analysis, iii. EMOTIONAL INTELLIGENCE) */}
             {(data.deep_dive_analysis?.length || data.behaviour_analysis?.length || data.eq_analysis?.length) && (
@@ -1330,4 +1332,3 @@ const SimulationView = ({ data }: { data: SimulationReportData }) => {
         </div>
     )
 }
-

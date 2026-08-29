@@ -15,7 +15,7 @@ import {
 } from "recharts"
 
 import Navigation from "../components/landing/Navigation"
-import { getApiUrl, getAuthHeaders } from "@/lib/api"
+import { getApiUrl, getAuthHeaders, getUserUsage, UserUsage } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // --- TYPES ---
@@ -99,6 +99,13 @@ export default function Dashboard() {
         }
     })
 
+    const { data: usageData, isLoading: usageLoading } = useQuery<UserUsage>({
+        queryKey: ['usage'],
+        queryFn: () => getUserUsage(),
+        refetchInterval: 60_000,
+        retry: false
+    })
+
     const recentSessions: SessionItem[] = sessionsData?.sessions || []
     const loading = analyticsLoading || sessionsLoading
 
@@ -146,6 +153,10 @@ export default function Dashboard() {
                     <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight">Progress Dashboard</h1>
                     <p className="text-lg text-muted-foreground font-medium">Track your learning curve, consistency, and skill development over time.</p>
                 </motion.div>
+
+                {usageData && !usageLoading && (
+                    <MonthlyUsage usage={usageData} />
+                )}
 
                 {noData ? (
                     <motion.div
@@ -655,6 +666,87 @@ export default function Dashboard() {
                 )}
             </main>
         </div>
+    )
+}
+
+// --- MONTHLY USAGE ---
+const formatTokens = (n: number) => n.toLocaleString("en-US")
+
+const MonthlyUsage = ({ usage }: { usage: UserUsage }) => {
+    const tokenPct = Math.min(100, (usage.tokens_used / usage.monthly_token_limit) * 100)
+    const sessionPct = Math.min(100, (usage.sessions_this_month / usage.monthly_session_limit) * 100)
+    const tokensLeft = Math.max(0, usage.monthly_token_limit - usage.tokens_used)
+    const sessionsLeft = Math.max(0, usage.monthly_session_limit - usage.sessions_this_month)
+
+    const tokenBar = tokenPct >= 90 ? "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]"
+        : tokenPct >= 70 ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]"
+        : "bg-electric-blue shadow-[0_0_10px_rgba(37,99,235,0.8)]"
+    const sessionBar = sessionPct >= 90 ? "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]"
+        : sessionPct >= 70 ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]"
+        : "bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.8)]"
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-panel p-6 md:p-8"
+        >
+            <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl bg-electric-blue/10 ring-1 ring-electric-blue/20">
+                    <Activity className="w-6 h-6 text-electric-blue" />
+                </div>
+                <div>
+                    <h2 className="text-xl font-bold text-foreground tracking-wide uppercase">Monthly Usage</h2>
+                    <p className="text-sm text-muted-foreground">Your plan resets at the start of each month</p>
+                </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                            <Zap className="w-4 h-4 text-electric-blue" /> AI Tokens
+                        </span>
+                        <span className="font-mono font-black text-foreground">
+                            {formatTokens(usage.tokens_used)} <span className="opacity-50">/ {formatTokens(usage.monthly_token_limit)}</span>
+                        </span>
+                    </div>
+                    <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden">
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${tokenPct}%` }}
+                            transition={{ duration: 1.2, ease: "easeOut" }}
+                            className={`h-full rounded-full ${tokenBar}`}
+                        />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {tokensLeft > 0 ? `${formatTokens(tokensLeft)} tokens remaining this month` : "Token quota exhausted for this month"}
+                    </p>
+                </div>
+
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                            <BookOpen className="w-4 h-4 text-purple-500" /> Sessions
+                        </span>
+                        <span className="font-mono font-black text-foreground">
+                            {usage.sessions_this_month} <span className="opacity-50">/ {usage.monthly_session_limit}</span>
+                        </span>
+                    </div>
+                    <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden">
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${sessionPct}%` }}
+                            transition={{ duration: 1.2, ease: "easeOut", delay: 0.15 }}
+                            className={`h-full rounded-full ${sessionBar}`}
+                        />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {sessionsLeft > 0 ? `${sessionsLeft} session${sessionsLeft > 1 ? "s" : ""} remaining this month` : "Session quota exhausted for this month"}
+                    </p>
+                </div>
+            </div>
+        </motion.div>
     )
 }
 

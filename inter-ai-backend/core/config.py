@@ -19,7 +19,8 @@ if IS_PRODUCTION and (not JWT_SECRET or JWT_SECRET == "super-secret-key-change-i
 if not JWT_SECRET:
     JWT_SECRET = "super-secret-key-change-in-production"
 
-DAILY_TOKEN_LIMIT = 50000
+MONTHLY_TOKEN_LIMIT = 50000
+MONTHLY_SESSION_LIMIT = 3
 
 # CORS settings
 CORS_ORIGINS_RAW = os.getenv("CORS_ORIGINS", "")

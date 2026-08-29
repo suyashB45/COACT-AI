@@ -20,7 +20,7 @@ from functools import lru_cache
 from fastapi import HTTPException
 from langsmith import traceable
 
-load_dotenv()
+load_dotenv(override=True)
 # ---------------------------------------------------------
 # Structured Logging Configuration
 # ---------------------------------------------------------
@@ -70,7 +70,7 @@ def sanitize_input(text: str, max_length: int = 2000) -> str:
 import jwt
 from functools import wraps
 
-# JWT configuration
+# JWT configuratiohttps://canva.link/ziqoo65mo52pdprn
 JWT_SECRET = os.environ.get("JWT_SECRET", "super-secret-key-change-in-production")
 if os.environ.get("FLASK_ENV") == "production" and JWT_SECRET == "super-secret-key-change-in-production":
     raise RuntimeError("SECURITY ERROR: JWT_SECRET must be configured in production!")
@@ -222,8 +222,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"error": "An internal server error occurred. Please try again later."}
     )
 
-# Default max tokens per user per day
-DAILY_TOKEN_LIMIT = 50000
+# Default max tokens per user per month
+MONTHLY_TOKEN_LIMIT = 50000
 
 # ---------------------------------------------------------
 # In-Memory Storage with TTL Cache (Auto-cleanup, prevents memory leaks)

@@ -15,7 +15,8 @@ from core.dependencies import get_authenticated_user
 from database import get_user_sessions_from_db, save_session_to_db, check_token_limit, check_monthly_session_limit, add_token_usage
 from core.utils import generate_otp
 from services.simulation_service import *
-from app import SESSIONS, DAILY_TOKEN_LIMIT, standard_limiter, shared_httpx_client
+from app import SESSIONS, MONTHLY_TOKEN_LIMIT, standard_limiter, shared_httpx_client
+from core.config import MONTHLY_SESSION_LIMIT
 
 from langsmith import traceable
 import httpx
@@ -506,7 +507,7 @@ def detect_session_mode(scenario: str, ai_role: str) -> str:
     return "learning"
 
 @router.post("/session/start")
-async def start_session(request: Request):
+async def start_session(request: Request, _ = Depends(standard_limiter)):
     logger.info("[DEBUG] Entered /session/start")
     # Audio cleanup logic removed
 
@@ -518,10 +519,10 @@ async def start_session(request: Request):
     except Exception:
         user = None
     if user is not None:
-        if not check_monthly_session_limit(user.id, limit=3):
+        if not check_monthly_session_limit(user.id, MONTHLY_SESSION_LIMIT):
             return JSONResponse(content={"error": "Monthly limit reached. You have already created 3 sessions this month."}, status_code=429)
-        if not check_token_limit(user.id, DAILY_TOKEN_LIMIT):
-            return JSONResponse(content={"error": f"Daily token limit ({DAILY_TOKEN_LIMIT}) exceeded. Please try again tomorrow."}, status_code=429)
+        if not check_token_limit(user.id, MONTHLY_TOKEN_LIMIT):
+            return JSONResponse(content={"error": f"Monthly token limit ({MONTHLY_TOKEN_LIMIT}) exceeded. Please try again next month."}, status_code=429)
 
     role = sanitize_input(data.get("role", ""), max_length=200)
     ai_role = sanitize_input(data.get("ai_role", ""), max_length=200)
@@ -765,8 +766,8 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
     if session_user_id and (not user or session_user_id != user.id):
         return JSONResponse(content={"error": "Forbidden"}, status_code=403)
         
-    if user is not None and not check_token_limit(user.id, DAILY_TOKEN_LIMIT):
-        return JSONResponse(content={"error": f"Daily token limit ({DAILY_TOKEN_LIMIT}) exceeded. Please try again tomorrow."}, status_code=429)
+    if user is not None and not check_token_limit(user.id, MONTHLY_TOKEN_LIMIT):
+        return JSONResponse(content={"error": f"Monthly token limit ({MONTHLY_TOKEN_LIMIT}) exceeded. Please try again next month."}, status_code=429)
     
     data = await request.json()
     if not data:
@@ -973,8 +974,8 @@ async def complete_session(session_id: str, request: Request, background_tasks: 
     if session_user_id and (not user or session_user_id != user.id):
         return JSONResponse(content={"error": "Forbidden"}, status_code=403)
         
-    if user is not None and not check_token_limit(user.id, DAILY_TOKEN_LIMIT):
-        return JSONResponse(content={"error": f"Daily token limit ({DAILY_TOKEN_LIMIT}) exceeded. Please try again tomorrow."}, status_code=429)
+    if user is not None and not check_token_limit(user.id, MONTHLY_TOKEN_LIMIT):
+        return JSONResponse(content={"error": f"Monthly token limit ({MONTHLY_TOKEN_LIMIT}) exceeded. Please try again next month."}, status_code=429)
     
     report_path = os.path.join(ensure_reports_dir(), f"{session_id}_report.pdf")
     

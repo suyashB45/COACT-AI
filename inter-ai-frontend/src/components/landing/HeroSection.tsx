@@ -1,145 +1,59 @@
-import { ArrowRight, Play, ChevronRight } from 'lucide-react';
+import { ArrowRight, Check, Mic, Sparkles, Volume2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion, useMotionValue, useSpring } from 'framer-motion';
+import { motion } from 'framer-motion';
 
-import { MagneticButton } from '../ui/MagneticButton';
-import { AnimatedText } from '../ui/AnimatedText';
-
-/* ── Stagger Variants ──────────────────────────────── */
-const container = {
-    hidden: {},
-    show: { transition: { staggerChildren: 0.1, delayChildren: 0.1 } }
-};
-const fadeUp = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as const } }
-};
+const ease = [0.16, 1, 0.3, 1] as const;
 
 const HeroSection = () => {
     const navigate = useNavigate();
-
-    // Interactive mouse follow glow
-    const mouseX = useMotionValue(0);
-    const mouseY = useMotionValue(0);
-    const smoothX = useSpring(mouseX, { damping: 50, stiffness: 400 });
-    const smoothY = useSpring(mouseY, { damping: 50, stiffness: 400 });
-
-    const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
-        const { currentTarget, clientX, clientY } = e;
-        const { left, top } = currentTarget.getBoundingClientRect();
-        mouseX.set(clientX - left);
-        mouseY.set(clientY - top);
-    };
+    const startPractice = () => navigate(localStorage.getItem('user') ? '/practice' : '/login');
 
     return (
-        <section
-            onMouseMove={handleMouseMove}
-            className="relative min-h-[92vh] pt-24 pb-16 lg:pt-32 lg:pb-20 overflow-hidden bg-background flex items-center justify-center border-b border-border"
-        >
-            {/* Minimal Grid Background */}
-            <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
+        <section className="hero-editorial relative overflow-hidden border-b border-border pt-28 md:pt-36">
+            <div className="hero-orb hero-orb-one" />
+            <div className="hero-orb hero-orb-two" />
+            <div className="container relative z-10 mx-auto grid min-h-[720px] max-w-6xl items-center gap-14 px-6 pb-16 lg:grid-cols-[1.02fr_.98fr] lg:gap-10 lg:pb-24">
+                <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, ease }} className="max-w-xl lg:pb-8">
+                    <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#d8dfd6] bg-white/70 px-3 py-1.5 text-xs font-semibold tracking-wide text-[#476050] shadow-[0_4px_16px_rgba(20,38,27,.05)]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#5f9d76]" />
+                        YOUR PRIVATE PRACTICE ROOM
+                    </div>
+                    <h1 className="max-w-2xl text-[3.15rem] font-bold leading-[.98] tracking-[-.06em] text-foreground sm:text-6xl lg:text-[4.5rem]" style={{ fontFamily: 'var(--font-display)' }}>
+                        The hard conversation, <em className="font-serif font-normal tracking-[-.04em] text-[#47785b]">before</em> it counts.
+                    </h1>
+                    <p className="mt-7 max-w-lg text-lg leading-relaxed text-muted-foreground">
+                        Practice the moment that matters with an AI partner who listens, pushes back, and helps you find the words you mean.
+                    </p>
+                    <div className="mt-9 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+                        <button onClick={startPractice} className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#193c2a] px-6 text-[15px] font-semibold text-white shadow-[0_12px_24px_rgba(25,60,42,.20)] transition-all hover:-translate-y-0.5 hover:bg-[#245338] hover:shadow-[0_16px_30px_rgba(25,60,42,.25)]">
+                            Start a practice session <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                        </button>
+                        <button onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} className="min-h-12 rounded-full px-4 text-[15px] font-semibold text-foreground transition-colors hover:text-[#47785b]">
+                            See it in action <span className="ml-1 text-[#5f9d76]">↓</span>
+                        </button>
+                    </div>
+                    <div className="mt-10 flex items-center gap-4 text-xs text-muted-foreground">
+                        <div className="flex -space-x-2"><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#f7f8f3] bg-[#dbb996] text-[10px] font-bold text-[#55351b]">M</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#f7f8f3] bg-[#829db6] text-[10px] font-bold text-[#17334f]">J</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#f7f8f3] bg-[#c8a1a1] text-[10px] font-bold text-[#512a2a]">A</span></div>
+                        <span>Made for the conversations people avoid.</span>
+                    </div>
+                </motion.div>
 
-            {/* Interactive Mouse Glow (Vercel Style) */}
-            <motion.div
-                className="pointer-events-none absolute w-[800px] h-[800px] rounded-full"
-                style={{
-                    background: 'radial-gradient(circle, rgba(var(--color-electric-blue-rgb), 0.12) 0%, transparent 60%)',
-                    x: smoothX,
-                    y: smoothY,
-                    translateX: '-50%',
-                    translateY: '-50%',
-                }}
-            />
-
-            {/* Subtle central glow fallback */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-electric-blue/5 blur-[120px] rounded-full pointer-events-none" />
-
-            <div className="container relative mx-auto px-6 z-10">
-                <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-                    <motion.div
-                        variants={container}
-                        initial="hidden"
-                        animate="show"
-                        className="flex flex-col items-center"
-                    >
-                        {/* Pill Badge */}
-                        <motion.div
-                            variants={fadeUp}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/50 text-secondary-foreground border border-border/80 text-[13px] font-medium mb-8 cursor-pointer hover:bg-border/50 transition-colors backdrop-blur-sm shadow-sm"
-                        >
-                            <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 status-dot"></span>
-                            A calmer way to prepare for high-stakes conversations
-                            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground ml-0.5" />
-                        </motion.div>
-
-                        {/* Headline with Rotating Text */}
-                        <motion.h1 variants={fadeUp} className="text-5xl md:text-6xl lg:text-[5.5rem] font-extrabold tracking-tighter text-foreground mb-6 leading-[1.05]" style={{ fontFamily: 'var(--font-display)' }}>
-                            Stop rehearsing{' '}
-                            <br className="hidden md:block" />
-                            in your head.{' '}
-                            <br className="hidden lg:block" />
-                            <AnimatedText
-                                words={['Practice for real.', 'Close more deals.', 'Lead with confidence.', 'Handle tough calls.']}
-                                className="text-transparent bg-clip-text bg-gradient-to-r from-electric-blue via-electric-blue/80 to-foreground/80"
-                            />
-                        </motion.h1>
-
-                        {/* Subheadline */}
-                        <motion.p variants={fadeUp} className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl leading-relaxed font-medium">
-                            An AI partner that plays the other side of your toughest conversations — sales calls, negotiations, difficult feedback — so you walk in ready, not nervous.
-                        </motion.p>
-
-                        {/* CTA Buttons (Magnetic) */}
-                        <motion.div variants={fadeUp} className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto mb-6">
-                            <MagneticButton
-                                onClick={() => {
-                                    const user = localStorage.getItem('user');
-                                    navigate(user ? '/practice' : '/login');
-                                }}
-                                className="relative w-full sm:w-auto group rounded-full bg-electric-blue text-white font-medium text-[15px] shadow-[0_0_40px_rgba(37,99,235,0.3)] hover:shadow-[0_0_60px_rgba(37,99,235,0.4)] transition-all px-8 py-3.5 overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                                <span className="relative z-10 flex items-center justify-center gap-2">
-                                    Start practicing — it's free
-                                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                </span>
-                            </MagneticButton>
-
-                            <MagneticButton
-                                onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                                className="w-full sm:w-auto group rounded-full bg-background/50 backdrop-blur-md text-foreground border border-border/50 font-medium hover:bg-secondary/50 transition-colors text-[15px] shadow-glass px-8 py-3.5 flex items-center justify-center gap-2"
-                            >
-                                <Play className="w-4 h-4 text-electric-blue" />
-                                See how it works
-                            </MagneticButton>
-                        </motion.div>
-
-                        {/* No credit card note */}
-                        <motion.p variants={fadeUp} className="text-xs text-muted-foreground/70 mb-16">
-                            No credit card required · Free plan includes 3 sessions/month
-                        </motion.p>
-
-
-
-                        {/* Product proof — useful details, not made-up vanity metrics */}
-                        <motion.div variants={fadeUp} className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6 pt-14 mt-8 border-t border-border/60">
-                            <div className="flex flex-col items-center">
-                                <span className="text-lg font-bold text-foreground tracking-tight">Speak or type</span>
-                                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-widest mt-1.5">Practice your way</span>
-                            </div>
-                            <div className="hidden sm:block w-px h-10 bg-border"></div>
-                            <div className="flex flex-col items-center">
-                                <span className="text-lg font-bold text-foreground tracking-tight">Real scenarios</span>
-                                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-widest mt-1.5">Not generic scripts</span>
-                            </div>
-                            <div className="hidden sm:block w-px h-10 bg-border"></div>
-                            <div className="flex flex-col items-center">
-                                <span className="text-lg font-bold text-foreground tracking-tight">Clear feedback</span>
-                                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-widest mt-1.5">After every session</span>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                </div>
+                <motion.div initial={{ opacity: 0, y: 28, rotate: 1 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ duration: .8, delay: .12, ease }} className="relative mx-auto w-full max-w-[510px]">
+                    <div className="hero-note absolute -right-5 -top-7 hidden rotate-[5deg] rounded-xl bg-[#f8e9a8] px-4 py-3 text-sm text-[#5d4b12] shadow-lg lg:block">Keep it curious,<br />not defensive.</div>
+                    <div className="overflow-hidden rounded-[1.6rem] border border-[#dce3da] bg-[#fffefa] shadow-[0_28px_70px_rgba(35,59,42,.16)]">
+                        <div className="flex items-center justify-between border-b border-[#e8ece4] px-5 py-4">
+                            <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e6f0e7] text-[#376249]"><Mic className="h-4 w-4" /></span><div><p className="text-sm font-bold text-foreground">Practice room</p><p className="text-[11px] text-muted-foreground">Difficult feedback · 08:42</p></div></div>
+                            <span className="rounded-full bg-[#eaf5eb] px-2.5 py-1 text-[10px] font-bold tracking-wide text-[#3c7a4d]">LIVE</span>
+                        </div>
+                        <div className="space-y-5 p-5 sm:p-6">
+                            <div className="flex items-end gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#d8b797] text-xs font-bold text-[#50331b]">M</span><div><p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">Maya · Your teammate</p><p className="max-w-sm rounded-2xl rounded-bl-md bg-[#f0f3ed] px-4 py-3 text-sm leading-relaxed text-foreground">I didn't realize the presentation landed that way. I thought it was fine.</p></div></div>
+                            <div className="ml-12 rounded-xl border border-[#dce9dc] bg-[#f5faf4] p-3.5"><p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#47785b]"><Sparkles className="h-3.5 w-3.5" /> A good opening</p><p className="text-sm leading-relaxed text-[#355040]">“I can see why it felt that way. Can I share what I noticed?”</p></div>
+                            <div className="flex justify-end"><div className="max-w-sm rounded-2xl rounded-br-md bg-[#193c2a] px-4 py-3 text-sm leading-relaxed text-white">I can see why it felt that way. Can I share what I noticed?</div></div>
+                            <div className="flex items-center gap-3 pt-1"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#193c2a] text-white"><Volume2 className="h-4 w-4" /></div><div className="flex h-9 flex-1 items-center gap-1 rounded-full bg-[#f0f3ed] px-4"><i className="voice-bar h-2" /><i className="voice-bar h-4" /><i className="voice-bar h-6" /><i className="voice-bar h-3" /><i className="voice-bar h-5" /><span className="ml-2 text-xs text-muted-foreground">Maya is responding…</span></div></div>
+                        </div>
+                        <div className="flex items-center gap-2 border-t border-[#e8ece4] bg-[#fbfcf8] px-5 py-3.5 text-xs text-[#47785b]"><Check className="h-4 w-4" /> You stayed specific and gave them room to respond.</div>
+                    </div>
+                </motion.div>
             </div>
         </section>
     );
