@@ -34,7 +34,15 @@ const HowItWorksSection = () => {
     const lineHeight = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
 
     return (
-        <section className="py-28 md:py-36 bg-secondary/10 border-b border-border relative overflow-hidden" id="how-it-works">
+        <section className="py-28 md:py-36 border-b border-border relative overflow-hidden" id="how-it-works"
+            style={{
+                background: 'linear-gradient(170deg, #f0f5ec 0%, #eaf2e4 40%, #f2f7ee 70%, #e8f0e3 100%)',
+            }}
+        >
+            {/* Ambient top glow */}
+            <div className="pointer-events-none absolute -top-24 left-1/2 h-[400px] w-[800px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(95,157,118,0.10)_0%,transparent_70%)] blur-3xl" />
+            {/* Gold accent bottom-right */}
+            <div className="pointer-events-none absolute bottom-0 right-0 h-[300px] w-[500px] rounded-full bg-[radial-gradient(ellipse_at_bottom_right,rgba(219,185,106,0.10)_0%,transparent_65%)] blur-2xl" />
             <div className="container mx-auto px-6 max-w-5xl relative z-10">
                 <motion.div
                     className="max-w-2xl mb-24"
@@ -62,8 +70,12 @@ const HowItWorksSection = () => {
                     
                     {/* Foreground Animated Line */}
                     <motion.div 
-                        className="hidden md:block absolute left-[39px] top-4 w-px bg-foreground origin-top"
-                        style={{ height: lineHeight, bottom: "3rem" }}
+                        className="hidden md:block absolute left-[39px] top-4 w-px origin-top"
+                        style={{ 
+                            height: lineHeight, 
+                            bottom: "3rem",
+                            background: 'linear-gradient(to bottom, #193c2a, #5f9d76, #dbb96a)',
+                        }}
                     />
 
                     <div className="space-y-16 md:space-y-24">
@@ -78,11 +90,13 @@ const HowItWorksSection = () => {
                             >
                                 {/* Step Icon */}
                                 <div className="relative shrink-0">
-                                    <div className="w-20 h-20 bg-background border border-border rounded-xl flex items-center justify-center transition-all duration-500 group-hover:border-foreground/30 relative z-10 shadow-sm overflow-hidden">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                    <div className="w-20 h-20 bg-background border border-border rounded-xl flex items-center justify-center transition-all duration-500 group-hover:border-[#5f9d76]/50 group-hover:shadow-[0_0_24px_rgba(25,60,42,0.12)] relative z-10 shadow-sm overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#5f9d76]/[0.08] to-[#dbb96a]/[0.04] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                         <step.icon className="w-7 h-7 text-foreground/80 group-hover:text-foreground transition-colors duration-300 relative z-10" />
                                     </div>
-                                    <div className="absolute -top-3 -right-3 w-8 h-8 bg-foreground text-background rounded-md flex items-center justify-center text-[11px] font-bold shadow-md z-20">
+                                    <div className="absolute -top-3 -right-3 w-8 h-8 rounded-md flex items-center justify-center text-[11px] font-bold shadow-md z-20 text-white"
+                                        style={{ background: 'linear-gradient(135deg, #193c2a 0%, #2d6645 100%)' }}
+                                    >
                                         0{index + 1}
                                     </div>
                                 </div>

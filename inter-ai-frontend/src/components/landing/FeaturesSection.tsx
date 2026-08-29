@@ -50,6 +50,8 @@ const features = [
 const FeaturesSection = () => {
     return (
         <section id="features" className="py-20 md:py-28 bg-background relative border-b border-border">
+            {/* Ambient background glow */}
+            <div className="pointer-events-none absolute top-0 left-1/2 h-[400px] w-[700px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(95,157,118,0.07)_0%,transparent_70%)] blur-3xl" />
             <div className="container mx-auto px-6 max-w-6xl">
                 <motion.div
                     className="max-w-2xl mb-16 md:mb-24"
@@ -81,14 +83,14 @@ const FeaturesSection = () => {
                             transition={{ duration: 0.5, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
                             className={feature.size === 'hero' ? 'md:col-span-2' : ''}
                         >
-                            <TiltCard maxTilt={5} className={`group relative border border-border rounded-xl p-8 transition-all duration-300 hover:border-foreground/20 hover:shadow-sm h-full flex flex-col ${
-                                index === 0 ? 'bg-foreground/[0.02]' : 'bg-background'
+                            <TiltCard maxTilt={5} className={`group relative border border-border rounded-xl p-8 transition-all duration-300 hover:border-[#5f9d76]/40 hover:shadow-[0_8px_32px_rgba(25,60,42,0.10)] h-full flex flex-col ${
+                                index === 0 ? 'bg-gradient-to-br from-[#f5faf5] to-background' : 'bg-background'
                             }`}>
                             {/* Subtle hover gradient background */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-electric-blue/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl pointer-events-none" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-[#5f9d76]/[0.07] via-[#dbb96a]/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl pointer-events-none" />
 
                             {/* Spotlight glow on hover */}
-                            <div className="absolute -inset-px bg-gradient-to-br from-electric-blue/30 to-transparent opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-500 blur-sm pointer-events-none -z-10" />
+                            <div className="absolute -inset-px bg-gradient-to-br from-[#5f9d76]/20 to-transparent opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-500 blur-sm pointer-events-none -z-10" />
                             {feature.badge && (
                                 <span className={`absolute top-6 right-6 text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded-sm ${
                                     feature.badge === 'Beta'
@@ -103,9 +105,9 @@ const FeaturesSection = () => {
                                 <div className={`
                                     ${feature.size === 'hero' ? 'w-12 h-12' : 'w-10 h-10'}
                                     rounded-lg border border-border/50 bg-secondary/30 flex items-center justify-center shrink-0
-                                    group-hover:bg-electric-blue group-hover:border-electric-blue transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] relative overflow-hidden
+                                    group-hover:bg-[#193c2a] group-hover:border-[#193c2a] transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(25,60,42,0.35)] relative overflow-hidden
                                 `}>
-                                    <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300" />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-[#5f9d76]/30 to-transparent translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300" />
                                     <feature.icon className={`
                                         ${feature.size === 'hero' ? 'w-6 h-6' : 'w-5 h-5'}
                                         text-foreground/80 group-hover:text-white transition-all duration-300 group-hover:scale-110 relative z-10

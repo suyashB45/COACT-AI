@@ -10,11 +10,14 @@ const HeroSection = () => {
 
     return (
         <section className="hero-editorial relative overflow-hidden border-b border-border pt-28 md:pt-36">
+            {/* Extra ambient glow blobs */}
+            <div className="pointer-events-none absolute -top-32 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(95,157,118,0.13)_0%,transparent_70%)] blur-3xl" />
+            <div className="pointer-events-none absolute bottom-0 right-0 h-[380px] w-[480px] rounded-full bg-[radial-gradient(ellipse_at_bottom_right,rgba(227,202,130,0.14)_0%,transparent_65%)] blur-2xl" />
             <div className="hero-orb hero-orb-one" />
             <div className="hero-orb hero-orb-two" />
             <div className="container relative z-10 mx-auto grid min-h-[720px] max-w-6xl items-center gap-14 px-6 pb-16 lg:grid-cols-[1.02fr_.98fr] lg:gap-10 lg:pb-24">
                 <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, ease }} className="max-w-xl lg:pb-8">
-                    <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#d8dfd6] bg-white/70 px-3 py-1.5 text-xs font-semibold tracking-wide text-[#476050] shadow-[0_4px_16px_rgba(20,38,27,.05)]">
+                    <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#c8d8c4] bg-gradient-to-r from-white/90 to-[#eef6ee]/80 px-3 py-1.5 text-xs font-semibold tracking-wide text-[#3a5544] shadow-[0_4px_16px_rgba(20,38,27,.07)]">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#5f9d76]" />
                         YOUR PRIVATE PRACTICE ROOM
                     </div>
@@ -40,18 +43,20 @@ const HeroSection = () => {
 
                 <motion.div initial={{ opacity: 0, y: 28, rotate: 1 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ duration: .8, delay: .12, ease }} className="relative mx-auto w-full max-w-[510px]">
                     <div className="hero-note absolute -right-5 -top-7 hidden rotate-[5deg] rounded-xl bg-[#f8e9a8] px-4 py-3 text-sm text-[#5d4b12] shadow-lg lg:block">Keep it curious,<br />not defensive.</div>
-                    <div className="overflow-hidden rounded-[1.6rem] border border-[#dce3da] bg-[#fffefa] shadow-[0_28px_70px_rgba(35,59,42,.16)]">
+                    <div className="overflow-hidden rounded-[1.6rem] border border-[#c8d8c4] bg-gradient-to-br from-[#fffefa] via-[#f8fbf5] to-[#f0f6ec] shadow-[0_28px_70px_rgba(35,59,42,.18)]">
+                        {/* top gradient shimmer line */}
+                        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#5f9d76]/50 to-transparent" />
                         <div className="flex items-center justify-between border-b border-[#e8ece4] px-5 py-4">
                             <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e6f0e7] text-[#376249]"><Mic className="h-4 w-4" /></span><div><p className="text-sm font-bold text-foreground">Practice room</p><p className="text-[11px] text-muted-foreground">Difficult feedback · 08:42</p></div></div>
                             <span className="rounded-full bg-[#eaf5eb] px-2.5 py-1 text-[10px] font-bold tracking-wide text-[#3c7a4d]">LIVE</span>
                         </div>
                         <div className="space-y-5 p-5 sm:p-6">
                             <div className="flex items-end gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#d8b797] text-xs font-bold text-[#50331b]">M</span><div><p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">Maya · Your teammate</p><p className="max-w-sm rounded-2xl rounded-bl-md bg-[#f0f3ed] px-4 py-3 text-sm leading-relaxed text-foreground">I didn't realize the presentation landed that way. I thought it was fine.</p></div></div>
-                            <div className="ml-12 rounded-xl border border-[#dce9dc] bg-[#f5faf4] p-3.5"><p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#47785b]"><Sparkles className="h-3.5 w-3.5" /> A good opening</p><p className="text-sm leading-relaxed text-[#355040]">“I can see why it felt that way. Can I share what I noticed?”</p></div>
+                            <div className="ml-12 rounded-xl border border-[#c6dfc6] bg-gradient-to-br from-[#eef8ee] to-[#f5faf4] p-3.5"><p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#47785b]"><Sparkles className="h-3.5 w-3.5" /> A good opening</p><p className="text-sm leading-relaxed text-[#355040]">“I can see why it felt that way. Can I share what I noticed?”</p></div>
                             <div className="flex justify-end"><div className="max-w-sm rounded-2xl rounded-br-md bg-[#193c2a] px-4 py-3 text-sm leading-relaxed text-white">I can see why it felt that way. Can I share what I noticed?</div></div>
                             <div className="flex items-center gap-3 pt-1"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#193c2a] text-white"><Volume2 className="h-4 w-4" /></div><div className="flex h-9 flex-1 items-center gap-1 rounded-full bg-[#f0f3ed] px-4"><i className="voice-bar h-2" /><i className="voice-bar h-4" /><i className="voice-bar h-6" /><i className="voice-bar h-3" /><i className="voice-bar h-5" /><span className="ml-2 text-xs text-muted-foreground">Maya is responding…</span></div></div>
                         </div>
-                        <div className="flex items-center gap-2 border-t border-[#e8ece4] bg-[#fbfcf8] px-5 py-3.5 text-xs text-[#47785b]"><Check className="h-4 w-4" /> You stayed specific and gave them room to respond.</div>
+                        <div className="flex items-center gap-2 border-t border-[#d8e8d4] bg-gradient-to-r from-[#f0f8f0] via-[#fbfcf8] to-[#f5faf2] px-5 py-3.5 text-xs text-[#3a6e50]"><Check className="h-4 w-4" /> You stayed specific and gave them room to respond.</div>
                     </div>
                 </motion.div>
             </div>

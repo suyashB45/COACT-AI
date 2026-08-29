@@ -174,7 +174,7 @@
 
 /* Landing page: deliberately quiet, tactile, and a little less "dashboard". */
 .hero-editorial {
-  background: linear-gradient(135deg, #f7f8f3 5%, #f4f7ef 52%, #eef4ea 100%);
+  background: linear-gradient(150deg, #f3f8f0 0%, #eef5e8 35%, #e8f2e0 65%, #f0f5ec 100%);
 }
 
 .hero-editorial::after {
@@ -184,14 +184,14 @@
   bottom: -11rem;
   width: 37rem;
   height: 37rem;
-  border: 1px solid rgba(71, 120, 91, .12);
+  border: 1px solid rgba(71, 120, 91, .16);
   border-radius: 50%;
-  box-shadow: 0 0 0 5rem rgba(71, 120, 91, .025), 0 0 0 10rem rgba(71, 120, 91, .018);
+  box-shadow: 0 0 0 5rem rgba(71, 120, 91, .035), 0 0 0 10rem rgba(71, 120, 91, .022), 0 0 0 15rem rgba(71, 120, 91, .010);
 }
 
 .hero-orb { position: absolute; border-radius: 999px; filter: blur(1px); pointer-events: none; }
-.hero-orb-one { width: 16rem; height: 16rem; left: -7rem; top: 20%; background: rgba(227, 202, 130, .19); }
-.hero-orb-two { width: 9rem; height: 9rem; right: 39%; top: 10%; background: rgba(132, 174, 139, .12); }
+.hero-orb-one { width: 20rem; height: 20rem; left: -8rem; top: 18%; background: radial-gradient(ellipse at center, rgba(227, 202, 130, .28) 0%, rgba(227, 202, 130, .08) 60%, transparent 100%); filter: blur(2px); }
+.hero-orb-two { width: 11rem; height: 11rem; right: 38%; top: 8%; background: radial-gradient(ellipse at center, rgba(132, 174, 139, .20) 0%, rgba(95, 157, 118, .06) 60%, transparent 100%); filter: blur(1px); }
 .hero-note { z-index: 2; font-family: var(--font-hand); line-height: 1.1; }
 .voice-bar { width: 2px; border-radius: 999px; background: #5f9d76; display: inline-block; animation: voice-wave 1.1s ease-in-out infinite alternate; }
 .voice-bar:nth-child(2) { animation-delay: .15s; }.voice-bar:nth-child(3) { animation-delay: .3s; }.voice-bar:nth-child(4) { animation-delay: .45s; }.voice-bar:nth-child(5) { animation-delay: .6s; }
@@ -283,14 +283,14 @@
   bottom: -20%;
   left: 50%;
   transform: translateX(-50%);
-  width: 120%;
-  height: 60%;
+  width: 130%;
+  height: 65%;
   background: radial-gradient(
     ellipse at 50% 100%,
-    rgba(var(--color-primary-rgb), 0.15) 0%,
-    rgba(var(--color-primary-rgb), 0.08) 30%,
-    rgba(var(--color-primary-rgb), 0.02) 50%,
-    transparent 70%
+    rgba(var(--color-primary-rgb), 0.20) 0%,
+    rgba(var(--color-primary-rgb), 0.10) 25%,
+    rgba(219, 185, 106, 0.05) 45%,
+    transparent 65%
   );
   pointer-events: none;
   z-index: 1;
@@ -573,11 +573,12 @@
   top: -100px;
   left: 50%;
   transform: translateX(-50%);
-  width: 600px;
-  height: 300px;
+  width: 700px;
+  height: 350px;
   background: radial-gradient(
     ellipse at center,
-    rgba(var(--color-primary-rgb), 0.06) 0%,
+    rgba(var(--color-primary-rgb), 0.09) 0%,
+    rgba(95, 157, 118, 0.04) 45%,
     transparent 70%
   );
   pointer-events: none;
@@ -700,8 +701,9 @@ html {
 .hero-mockup-glow {
   background: radial-gradient(
     ellipse at 50% 100%,
-    rgba(var(--color-primary-rgb), 0.25) 0%,
-    transparent 60%
+    rgba(var(--color-primary-rgb), 0.30) 0%,
+    rgba(219, 185, 106, 0.08) 40%,
+    transparent 65%
   );
 }
 
@@ -828,18 +830,18 @@ html {
 }
 
 .pricing-card-popular {
-  background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), rgba(var(--color-primary-rgb), 0.02));
-  border: 1px solid rgba(var(--color-primary-rgb), 0.3);
+  background: linear-gradient(145deg, rgba(var(--color-primary-rgb), 0.12) 0%, rgba(var(--color-primary-rgb), 0.06) 50%, rgba(219, 185, 106, 0.06) 100%);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.35);
   border-radius: 12px;
   padding: 32px;
   position: relative;
   transition: all 0.3s ease;
-  box-shadow: 0 0 40px rgba(var(--color-primary-rgb), 0.08);
+  box-shadow: 0 0 50px rgba(var(--color-primary-rgb), 0.10), 0 0 20px rgba(219, 185, 106, 0.06);
 }
 
 .pricing-card-popular:hover {
-  box-shadow: 0 0 60px rgba(var(--color-primary-rgb), 0.12);
-  border-color: rgba(var(--color-primary-rgb), 0.4);
+  box-shadow: 0 0 70px rgba(var(--color-primary-rgb), 0.16), 0 0 30px rgba(219, 185, 106, 0.08);
+  border-color: rgba(var(--color-primary-rgb), 0.5);
 }
 
 /* ═══════════════════════════════════════════════════════════════
