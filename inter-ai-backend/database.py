@@ -5,15 +5,89 @@ import base64
 import uuid
 import time
 import logging
+import sqlite3
 from datetime import datetime, timezone
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 import certifi
 import bcrypt
+from typing import Any
 
 logger = logging.getLogger("coact.database")
 
-# Fetch MONGODB_URI, fallback to local mongodb if not set
+# ---------------------------------------------------------
+# SQLite Local Storage Fallback Setup
+# ---------------------------------------------------------
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+SQLITE_DB_PATH = os.path.join(DATA_DIR, "coact_local.db")
+
+def get_sqlite_conn():
+    conn = sqlite3.connect(SQLITE_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_sqlite_db():
+    try:
+        with get_sqlite_conn() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    name TEXT,
+                    company TEXT,
+                    hashed_password TEXT NOT NULL,
+                    is_2fa_enabled INTEGER DEFAULT 0,
+                    two_factor_code TEXT,
+                    two_factor_expires TEXT,
+                    two_factor_action TEXT,
+                    two_factor_attempts INTEGER DEFAULT 0,
+                    two_factor_last_requested_at TEXT,
+                    password_changed_at TEXT,
+                    created_at TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS practice_history (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT,
+                    user_id TEXT,
+                    scenario_type TEXT,
+                    session_mode TEXT,
+                    title TEXT,
+                    ai_character TEXT,
+                    mode TEXT,
+                    role TEXT,
+                    ai_role TEXT,
+                    scenario TEXT,
+                    framework TEXT,
+                    transcript TEXT,
+                    report_data TEXT,
+                    completed INTEGER DEFAULT 0,
+                    score REAL,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_token_usage (
+                    user_id TEXT,
+                    date TEXT,
+                    tokens_used INTEGER DEFAULT 0,
+                    updated_at TEXT,
+                    PRIMARY KEY (user_id, date)
+                )
+            """)
+            conn.commit()
+        logger.info(f"SQLite local fallback database initialized at {SQLITE_DB_PATH}")
+    except Exception as e:
+        logger.error(f"Failed to initialize SQLite fallback: {e}")
+
+init_sqlite_db()
+
+# ---------------------------------------------------------
+# MongoDB Connection with Retry Logic & Connection Pooling
+# ---------------------------------------------------------
 MONGODB_URI = os.environ.get(
     "MONGODB_URI",
     "mongodb://localhost:27017/coact"
@@ -22,66 +96,57 @@ MONGODB_URI = os.environ.get(
 if "localhost" in MONGODB_URI and os.environ.get("FLASK_ENV") == "production":
     logger.warning("Running in production but MONGODB_URI is not set or using localhost!")
 
-# Connection pooling configurations
 MONGODB_MAX_POOL_SIZE = int(os.environ.get("MONGODB_MAX_POOL_SIZE", "100"))
 MONGODB_MIN_POOL_SIZE = int(os.environ.get("MONGODB_MIN_POOL_SIZE", "10"))
 MONGODB_MAX_IDLE_TIME_MS = int(os.environ.get("MONGODB_MAX_IDLE_TIME_MS", "30000"))
 
-from typing import Any
-
-# ---------------------------------------------------------
-# MongoDB Connection with Retry Logic & Connection Pooling
-# ---------------------------------------------------------
-MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
+MAX_RETRIES = 2
+RETRY_DELAY = 1  # seconds
 
 db_conn_raw = None
-for attempt in range(1, MAX_RETRIES + 1):
-    try:
-        kwargs: dict[str, Any] = {
-            "serverSelectionTimeoutMS": 5000,
-            "connectTimeoutMS": 5000,
-            "socketTimeoutMS": 10000,
-            "maxPoolSize": MONGODB_MAX_POOL_SIZE,
-            "minPoolSize": MONGODB_MIN_POOL_SIZE,
-            "maxIdleTimeMS": MONGODB_MAX_IDLE_TIME_MS,
-            "retryWrites": True
-        }
-        
-        # Only use TLS for cloud databases like MongoDB Atlas
-        if "mongodb+srv" in MONGODB_URI or "tls=true" in MONGODB_URI.lower():
-            kwargs["tlsCAFile"] = certifi.where()
-            kwargs["tlsAllowInvalidCertificates"] = True
-
-        client = MongoClient(MONGODB_URI, **kwargs)
-        # Force a connection test
-        client.admin.command("ping")
+if MONGODB_URI and not MONGODB_URI.startswith("sqlite"):
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            db_conn_raw = client.get_default_database()
-        except Exception:
-            db_conn_raw = client.get_database("coact")
-        logger.info(f"Connected to MongoDB database: {db_conn_raw.name} (attempt {attempt})")
-        logger.info(f"MongoDB connection pool settings: maxPoolSize={MONGODB_MAX_POOL_SIZE}, minPoolSize={MONGODB_MIN_POOL_SIZE}, maxIdleTimeMS={MONGODB_MAX_IDLE_TIME_MS}")
-        break
-    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-        if attempt < MAX_RETRIES:
-            wait = RETRY_DELAY * (2 ** (attempt - 1))  # exponential backoff
-            logger.warning(f"MongoDB connection attempt {attempt}/{MAX_RETRIES} failed: {e}. Retrying in {wait}s...")
-            time.sleep(wait)
-        else:
-            logger.error(f"Failed to connect to MongoDB after {MAX_RETRIES} attempts: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected MongoDB connection error: {e}")
-        break
+            kwargs: dict[str, Any] = {
+                "serverSelectionTimeoutMS": 2500,
+                "connectTimeoutMS": 2500,
+                "socketTimeoutMS": 5000,
+                "maxPoolSize": MONGODB_MAX_POOL_SIZE,
+                "minPoolSize": MONGODB_MIN_POOL_SIZE,
+                "maxIdleTimeMS": MONGODB_MAX_IDLE_TIME_MS,
+                "retryWrites": True
+            }
+            
+            if "mongodb+srv" in MONGODB_URI or "tls=true" in MONGODB_URI.lower():
+                kwargs["tlsCAFile"] = certifi.where()
+                kwargs["tlsAllowInvalidCertificates"] = True
+
+            client = MongoClient(MONGODB_URI, **kwargs)
+            client.admin.command("ping")
+            try:
+                db_conn_raw = client.get_default_database()
+            except Exception:
+                db_conn_raw = client.get_database("coact")
+            logger.info(f"Connected to MongoDB database: {db_conn_raw.name} (attempt {attempt})")
+            break
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            if attempt < MAX_RETRIES:
+                wait = RETRY_DELAY * attempt
+                logger.warning(f"MongoDB connection attempt {attempt}/{MAX_RETRIES} failed: {e}. Retrying in {wait}s...")
+                time.sleep(wait)
+            else:
+                logger.warning(f"MongoDB connection unavailable. Operating with SQLite local database fallback.")
+        except Exception as e:
+            logger.warning(f"MongoDB initialization warning: {e}. Operating with SQLite local database fallback.")
+            break
 
 db_conn: Any = db_conn_raw
 
 # ---------------------------------------------------------
-# Create Database Indexes (idempotent — safe to call on every startup)
+# Create MongoDB Indexes if connected
 # ---------------------------------------------------------
 if db_conn is not None:
     try:
-        # practice_history Indexes
         db_conn.practice_history.create_index(
             [("user_id", ASCENDING), ("created_at", DESCENDING)],
             name="idx_user_created",
@@ -97,7 +162,6 @@ if db_conn is not None:
             name="idx_user_title_completed",
             background=True
         )
-        # New optimized compound indexes
         db_conn.practice_history.create_index(
             [("user_id", ASCENDING), ("completed", ASCENDING), ("created_at", DESCENDING)],
             name="idx_user_completed_created",
@@ -109,14 +173,12 @@ if db_conn is not None:
             background=True
         )
 
-        # users Indexes
         db_conn.users.create_index(
             "email",
             name="idx_email_unique",
             unique=True,
             background=True
         )
-        # New optimized unique index on id
         db_conn.users.create_index(
             "id",
             name="idx_user_id_unique",
@@ -124,7 +186,6 @@ if db_conn is not None:
             background=True
         )
 
-        # user_token_usage Indexes
         db_conn.user_token_usage.create_index(
             [("user_id", ASCENDING), ("date", ASCENDING)],
             name="idx_user_date",
@@ -197,7 +258,7 @@ def decompress_transcript(compressed) -> list:
         return []
 
 # ---------------------------------------------------------
-# Database Operations
+# Database Operations (MongoDB with SQLite Fallback)
 # ---------------------------------------------------------
 def save_session_to_db(session_data):
     session_id = session_data.get("id")
@@ -241,41 +302,85 @@ def save_session_to_db(session_data):
             "report_data": report_data_val,
             "completed": session_data.get("completed", False),
             "score": score,
-            "created_at": session_data.get("created_at"),
+            "created_at": session_data.get("created_at") or datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat()
         }
         
-        db_conn.practice_history.replace_one({"_id": session_id}, doc, upsert=True)
-        print(f"[SUCCESS] Saved session {session_id} to MongoDB.")
-        return True
+        if db_conn is not None:
+            db_conn.practice_history.replace_one({"_id": session_id}, doc, upsert=True)
+            print(f"[SUCCESS] Saved session {session_id} to MongoDB.")
+            return True
+        else:
+            with get_sqlite_conn() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO practice_history (
+                        id, session_id, user_id, scenario_type, session_mode, title, ai_character,
+                        mode, role, ai_role, scenario, framework, transcript, report_data,
+                        completed, score, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    session_id, session_id, str(user_id),
+                    doc["scenario_type"], doc["session_mode"], doc["title"], doc["ai_character"],
+                    doc["mode"], doc["role"], doc["ai_role"], doc["scenario"], doc["framework"],
+                    json.dumps(transcript_jsonb), json.dumps(report_data_val),
+                    1 if doc["completed"] else 0, score, doc["created_at"], doc["updated_at"]
+                ))
+                conn.commit()
+            print(f"[SUCCESS] Saved session {session_id} to local SQLite.")
+            return True
     except Exception as e:
         print(f"[ERROR] DB Save failed for {session_id}: {e}")
-        import traceback
-        traceback.print_exc()
         return False
 
 def get_session_from_db(session_id):
     try:
-        record = db_conn.practice_history.find_one({"_id": session_id})
-        if record:
-            return {
-                "id": record.get("session_id"),
-                "user_id": record.get("user_id"),
-                "scenario_type": record.get("scenario_type"),
-                "session_mode": record.get("session_mode"),
-                "title": record.get("title"),
-                "ai_character": record.get("ai_character"),
-                "mode": record.get("mode"),
-                "role": record.get("role"),
-                "ai_role": record.get("ai_role"),
-                "scenario": record.get("scenario"),
-                "framework": record.get("framework"),
-                "transcript": decompress_transcript(record.get("transcript")),
-                "report_data": record.get("report_data") or {},
-                "completed": record.get("completed", False),
-                "created_at": record.get("created_at"),
-                "score": record.get("score")
-            }
+        if db_conn is not None:
+            record = db_conn.practice_history.find_one({"_id": session_id})
+            if record:
+                return {
+                    "id": record.get("session_id"),
+                    "user_id": record.get("user_id"),
+                    "scenario_type": record.get("scenario_type"),
+                    "session_mode": record.get("session_mode"),
+                    "title": record.get("title"),
+                    "ai_character": record.get("ai_character"),
+                    "mode": record.get("mode"),
+                    "role": record.get("role"),
+                    "ai_role": record.get("ai_role"),
+                    "scenario": record.get("scenario"),
+                    "framework": record.get("framework"),
+                    "transcript": decompress_transcript(record.get("transcript")),
+                    "report_data": record.get("report_data") or {},
+                    "completed": record.get("completed", False),
+                    "created_at": record.get("created_at"),
+                    "score": record.get("score")
+                }
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("SELECT * FROM practice_history WHERE id = ? OR session_id = ?", (session_id, session_id))
+                row = cur.fetchone()
+                if row:
+                    r = dict(row)
+                    t_raw = json.loads(r["transcript"]) if r.get("transcript") else []
+                    rep_raw = json.loads(r["report_data"]) if r.get("report_data") else {}
+                    return {
+                        "id": r.get("session_id"),
+                        "user_id": r.get("user_id"),
+                        "scenario_type": r.get("scenario_type"),
+                        "session_mode": r.get("session_mode"),
+                        "title": r.get("title"),
+                        "ai_character": r.get("ai_character"),
+                        "mode": r.get("mode"),
+                        "role": r.get("role"),
+                        "ai_role": r.get("ai_role"),
+                        "scenario": r.get("scenario"),
+                        "framework": r.get("framework"),
+                        "transcript": decompress_transcript(t_raw),
+                        "report_data": rep_raw,
+                        "completed": bool(r.get("completed")),
+                        "created_at": r.get("created_at"),
+                        "score": r.get("score")
+                    }
         return None
     except Exception as e:
         print(f"[ERROR] DB Fetch failed for {session_id}: {e}")
@@ -283,45 +388,83 @@ def get_session_from_db(session_id):
 
 def get_user_sessions_from_db(user_id, limit=20, offset=0, completed_only=False):
     try:
-        query: dict[str, Any] = {"user_id": str(user_id)}
-        if completed_only:
-            query["completed"] = True
+        if db_conn is not None:
+            query: dict[str, Any] = {"user_id": str(user_id)}
+            if completed_only:
+                query["completed"] = True
+                
+            total = db_conn.practice_history.count_documents(query)
+            records = db_conn.practice_history.find(query).sort("created_at", -1).skip(offset).limit(limit)
             
-        total = db_conn.practice_history.count_documents(query)
-        records = db_conn.practice_history.find(query).sort("created_at", -1).skip(offset).limit(limit)
-        
-        sessions = []
-        for record in records:
-            sessions.append({
-                "id": record.get("session_id"),
-                "user_id": record.get("user_id"),
-                "scenario_type": record.get("scenario_type"),
-                "session_mode": record.get("session_mode"),
-                "title": record.get("title"),
-                "ai_character": record.get("ai_character"),
-                "mode": record.get("mode"),
-                "role": record.get("role"),
-                "ai_role": record.get("ai_role"),
-                "scenario": record.get("scenario"),
-                "framework": record.get("framework"),
-                "completed": record.get("completed", False),
-                "created_at": record.get("created_at"),
-                "score": record.get("score")
-            })
-            
-        return {
-            "sessions": sessions,
-            "total": total,
-            "limit": limit,
-            "offset": offset
-        }
+            sessions = []
+            for record in records:
+                sessions.append({
+                    "id": record.get("session_id"),
+                    "user_id": record.get("user_id"),
+                    "scenario_type": record.get("scenario_type"),
+                    "session_mode": record.get("session_mode"),
+                    "title": record.get("title"),
+                    "ai_character": record.get("ai_character"),
+                    "mode": record.get("mode"),
+                    "role": record.get("role"),
+                    "ai_role": record.get("ai_role"),
+                    "scenario": record.get("scenario"),
+                    "framework": record.get("framework"),
+                    "completed": record.get("completed", False),
+                    "created_at": record.get("created_at"),
+                    "score": record.get("score")
+                })
+                
+            return {
+                "sessions": sessions,
+                "total": total,
+                "limit": limit,
+                "offset": offset
+            }
+        else:
+            with get_sqlite_conn() as conn:
+                q_where = "WHERE user_id = ?"
+                params: list[Any] = [str(user_id)]
+                if completed_only:
+                    q_where += " AND completed = 1"
+                    
+                cur_c = conn.execute(f"SELECT COUNT(*) as cnt FROM practice_history {q_where}", params)
+                total = cur_c.fetchone()["cnt"]
+                
+                cur = conn.execute(f"SELECT * FROM practice_history {q_where} ORDER BY created_at DESC LIMIT ? OFFSET ?", params + [limit, offset])
+                rows = cur.fetchall()
+                sessions = []
+                for row in rows:
+                    r = dict(row)
+                    sessions.append({
+                        "id": r.get("session_id"),
+                        "user_id": r.get("user_id"),
+                        "scenario_type": r.get("scenario_type"),
+                        "session_mode": r.get("session_mode"),
+                        "title": r.get("title"),
+                        "ai_character": r.get("ai_character"),
+                        "mode": r.get("mode"),
+                        "role": r.get("role"),
+                        "ai_role": r.get("ai_role"),
+                        "scenario": r.get("scenario"),
+                        "framework": r.get("framework"),
+                        "completed": bool(r.get("completed")),
+                        "created_at": r.get("created_at"),
+                        "score": r.get("score")
+                    })
+                return {"sessions": sessions, "total": total, "limit": limit, "offset": offset}
     except Exception as e:
         print(f"[ERROR] DB Fetch Sessions failed for user {user_id}: {e}")
         return {"sessions": [], "total": 0, "limit": limit, "offset": offset}
 
 def clear_user_sessions_from_db(user_id):
     try:
-        db_conn.practice_history.delete_many({"user_id": str(user_id)})
+        if db_conn is not None:
+            db_conn.practice_history.delete_many({"user_id": str(user_id)})
+        else:
+            with get_sqlite_conn() as conn:
+                conn.execute("DELETE FROM practice_history WHERE user_id = ?", (str(user_id),))
+                conn.commit()
         return True
     except Exception as e:
         print(f"[ERROR] DB Delete Sessions failed for user {user_id}: {e}")
@@ -329,20 +472,38 @@ def clear_user_sessions_from_db(user_id):
 
 def get_user_analytics_from_db(user_id):
     try:
-        records = db_conn.practice_history.find(
-            {"user_id": str(user_id), "completed": True}
-        ).sort("created_at", -1)
-        
-        return [
-            {
-                "session_id": r.get("session_id"),
-                "score": r.get("score"),
-                "scenario_type": r.get("scenario_type"),
-                "session_mode": r.get("session_mode"),
-                "created_at": r.get("created_at"),
-                "report_data": r.get("report_data")
-            } for r in records
-        ]
+        if db_conn is not None:
+            records = db_conn.practice_history.find(
+                {"user_id": str(user_id), "completed": True}
+            ).sort("created_at", -1)
+            
+            return [
+                {
+                    "session_id": r.get("session_id"),
+                    "score": r.get("score"),
+                    "scenario_type": r.get("scenario_type"),
+                    "session_mode": r.get("session_mode"),
+                    "created_at": r.get("created_at"),
+                    "report_data": r.get("report_data")
+                } for r in records
+            ]
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("SELECT * FROM practice_history WHERE user_id = ? AND completed = 1 ORDER BY created_at DESC", (str(user_id),))
+                rows = cur.fetchall()
+                res = []
+                for row in rows:
+                    r = dict(row)
+                    rep_raw = json.loads(r["report_data"]) if r.get("report_data") else {}
+                    res.append({
+                        "session_id": r.get("session_id"),
+                        "score": r.get("score"),
+                        "scenario_type": r.get("scenario_type"),
+                        "session_mode": r.get("session_mode"),
+                        "created_at": r.get("created_at"),
+                        "report_data": rep_raw
+                    })
+                return res
     except Exception as e:
         print(f"[ERROR] DB Analytics fetch failed for user {user_id}: {e}")
         return []
@@ -352,23 +513,40 @@ def get_demo_account_limit(email):
 
 def get_previous_session_scores(user_id, title, current_session_id):
     try:
-        record = db_conn.practice_history.find_one(
-            {
-                "user_id": str(user_id),
-                "title": title,
-                "completed": True,
-                "_id": {"$ne": current_session_id}
-            },
-            sort=[("created_at", -1)]
-        )
-        
-        if record:
-            return {
-                "session_id": record.get("session_id"),
-                "score": record.get("score"),
-                "report_data": record.get("report_data"),
-                "created_at": record.get("created_at")
-            }
+        if db_conn is not None:
+            record = db_conn.practice_history.find_one(
+                {
+                    "user_id": str(user_id),
+                    "title": title,
+                    "completed": True,
+                    "_id": {"$ne": current_session_id}
+                },
+                sort=[("created_at", -1)]
+            )
+            if record:
+                return {
+                    "session_id": record.get("session_id"),
+                    "score": record.get("score"),
+                    "report_data": record.get("report_data"),
+                    "created_at": record.get("created_at")
+                }
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("""
+                    SELECT * FROM practice_history 
+                    WHERE user_id = ? AND title = ? AND completed = 1 AND (id != ? AND session_id != ?) 
+                    ORDER BY created_at DESC LIMIT 1
+                """, (str(user_id), title, str(current_session_id), str(current_session_id)))
+                row = cur.fetchone()
+                if row:
+                    r = dict(row)
+                    rep_raw = json.loads(r["report_data"]) if r.get("report_data") else {}
+                    return {
+                        "session_id": r.get("session_id"),
+                        "score": r.get("score"),
+                        "report_data": rep_raw,
+                        "created_at": r.get("created_at")
+                    }
         return None
     except Exception as e:
         print(f"[ERROR] Failed to fetch previous session for comparison: {e}")
@@ -380,38 +558,63 @@ def get_current_date_str():
 def check_monthly_session_limit(user_id, limit=3):
     try:
         current_month = datetime.now().strftime('%Y-%m-')
-        count = db_conn.practice_history.count_documents({
-            "user_id": str(user_id),
-            "created_at": {"$regex": f"^{current_month}"}
-        })
+        if db_conn is not None:
+            count = db_conn.practice_history.count_documents({
+                "user_id": str(user_id),
+                "created_at": {"$regex": f"^{current_month}"}
+            })
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("SELECT COUNT(*) as cnt FROM practice_history WHERE user_id = ? AND created_at LIKE ?", (str(user_id), f"{current_month}%"))
+                count = cur.fetchone()["cnt"]
         print(f"[SESSION_LIMIT] User {user_id} has created {count} sessions this month.")
         return count < limit
     except Exception as e:
         print(f"[ERROR] DB Check Monthly Limit failed for user {user_id}: {e}")
-        return True # Default to True on DB error so we don't block the user
+        return True
 
 def check_token_limit(user_id, limit=50000):
     try:
         today = get_current_date_str()
-        record = db_conn.user_token_usage.find_one({"user_id": str(user_id), "date": today})
-        if not record:
-            return True
-        return record.get("tokens_used", 0) < limit
+        if db_conn is not None:
+            record = db_conn.user_token_usage.find_one({"user_id": str(user_id), "date": today})
+            if not record:
+                return True
+            return record.get("tokens_used", 0) < limit
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("SELECT tokens_used FROM user_token_usage WHERE user_id = ? AND date = ?", (str(user_id), today))
+                row = cur.fetchone()
+                if not row:
+                    return True
+                return (row["tokens_used"] or 0) < limit
     except Exception as e:
         print(f"[ERROR] DB Check Token Limit failed for user {user_id}: {e}")
-        return True # Default to True on DB error so we don't break the app
+        return True
 
 def add_token_usage(user_id, tokens):
     try:
         today = get_current_date_str()
-        db_conn.user_token_usage.update_one(
-            {"user_id": str(user_id), "date": today},
-            {
-                "$inc": {"tokens_used": tokens},
-                "$set": {"updated_at": datetime.now().isoformat()}
-            },
-            upsert=True
-        )
+        now_iso = datetime.now().isoformat()
+        if db_conn is not None:
+            db_conn.user_token_usage.update_one(
+                {"user_id": str(user_id), "date": today},
+                {
+                    "$inc": {"tokens_used": tokens},
+                    "$set": {"updated_at": now_iso}
+                },
+                upsert=True
+            )
+        else:
+            with get_sqlite_conn() as conn:
+                conn.execute("""
+                    INSERT INTO user_token_usage (user_id, date, tokens_used, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(user_id, date) DO UPDATE SET
+                        tokens_used = tokens_used + excluded.tokens_used,
+                        updated_at = excluded.updated_at
+                """, (str(user_id), today, tokens, now_iso))
+                conn.commit()
         print(f"[TOKEN_USAGE] Added {tokens} tokens for user {user_id}.")
         return True
     except Exception as e:
@@ -437,7 +640,6 @@ def create_user(email: str, password: str, name: str | None = None, company: str
         hashed_pwd = get_password_hash(password)
         user_id = str(uuid.uuid4())
         
-        # Default name to email prefix if not provided
         final_name = name.strip() if name and name.strip() else email.split('@')[0]
         
         doc = {
@@ -453,7 +655,18 @@ def create_user(email: str, password: str, name: str | None = None, company: str
             "password_changed_at": datetime.now(timezone.utc).isoformat(),
             "created_at": datetime.now().isoformat()
         }
-        db_conn.users.insert_one(doc)
+        
+        if db_conn is not None:
+            db_conn.users.insert_one(doc)
+        else:
+            with get_sqlite_conn() as conn:
+                conn.execute("""
+                    INSERT INTO users (id, email, name, company, hashed_password, is_2fa_enabled, two_factor_code, two_factor_expires, password_changed_at, created_at)
+                    VALUES (?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?)
+                """, (user_id, doc["email"], doc["name"], doc["company"], hashed_pwd, doc["password_changed_at"], doc["created_at"]))
+                conn.commit()
+                
+        print(f"[SUCCESS] Created user account for {email}")
         return doc
     except Exception as e:
         print(f"[ERROR] DB Create User failed: {e}")
@@ -461,25 +674,53 @@ def create_user(email: str, password: str, name: str | None = None, company: str
 
 def get_user_by_email(email: str):
     try:
-        return db_conn.users.find_one({"email": email.lower().strip()})
+        if db_conn is not None:
+            return db_conn.users.find_one({"email": email.lower().strip()})
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),))
+                row = cur.fetchone()
+                if row:
+                    d = dict(row)
+                    d["_id"] = d["id"]
+                    d["is_2fa_enabled"] = bool(d.get("is_2fa_enabled"))
+                    return d
+                return None
     except Exception as e:
         print(f"[ERROR] DB Get User by Email failed: {e}")
         return None
 
 def get_user_by_id(user_id: str):
     try:
-        return db_conn.users.find_one({"id": user_id})
+        if db_conn is not None:
+            return db_conn.users.find_one({"id": user_id})
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+                row = cur.fetchone()
+                if row:
+                    d = dict(row)
+                    d["_id"] = d["id"]
+                    d["is_2fa_enabled"] = bool(d.get("is_2fa_enabled"))
+                    return d
+                return None
     except Exception as e:
         print(f"[ERROR] DB Get User By ID failed: {e}")
         return None
 
 def update_user_name(user_id: str, new_name: str):
     try:
-        result = db_conn.users.update_one(
-            {"id": user_id},
-            {"$set": {"name": new_name.strip()}}
-        )
-        return result.modified_count > 0
+        if db_conn is not None:
+            result = db_conn.users.update_one(
+                {"id": user_id},
+                {"$set": {"name": new_name.strip()}}
+            )
+            return result.modified_count > 0
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("UPDATE users SET name = ? WHERE id = ?", (new_name.strip(), user_id))
+                conn.commit()
+                return cur.rowcount > 0
     except Exception as e:
         print(f"[ERROR] DB Update User Name failed: {e}")
         return False
@@ -487,34 +728,40 @@ def update_user_name(user_id: str, new_name: str):
 def update_user_password(user_id: str, new_password: str):
     try:
         hashed_pwd = get_password_hash(new_password)
-        result = db_conn.users.update_one(
-            {"id": user_id},
-            {"$set": {
-                "hashed_password": hashed_pwd,
-                "password_changed_at": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        return result.modified_count > 0
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if db_conn is not None:
+            result = db_conn.users.update_one(
+                {"id": user_id},
+                {"$set": {
+                    "hashed_password": hashed_pwd,
+                    "password_changed_at": now_iso
+                }}
+            )
+            return result.modified_count > 0
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("UPDATE users SET hashed_password = ?, password_changed_at = ? WHERE id = ?", (hashed_pwd, now_iso, user_id))
+                conn.commit()
+                return cur.rowcount > 0
     except Exception as e:
         print(f"[ERROR] DB Update User Password failed: {e}")
         return False
 
 def delete_user(user_id: str):
-    try:
-        result = db_conn.users.delete_one({"id": user_id})
-        return result.deleted_count > 0
-    except Exception as e:
-        print(f"[ERROR] DB Delete User failed: {e}")
-        return False
+    return delete_user_account(user_id)
 
 def delete_user_account(user_id: str):
     try:
-        # Delete user record
-        db_conn.users.delete_one({"_id": user_id})
-        # Delete all practice history
-        db_conn.practice_history.delete_many({"user_id": user_id})
-        # Delete token usage history
-        db_conn.user_token_usage.delete_many({"user_id": user_id})
+        if db_conn is not None:
+            db_conn.users.delete_one({"_id": user_id})
+            db_conn.practice_history.delete_many({"user_id": user_id})
+            db_conn.user_token_usage.delete_many({"user_id": user_id})
+        else:
+            with get_sqlite_conn() as conn:
+                conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                conn.execute("DELETE FROM practice_history WHERE user_id = ?", (user_id,))
+                conn.execute("DELETE FROM user_token_usage WHERE user_id = ?", (user_id,))
+                conn.commit()
         print(f"[SUCCESS] Purged all data for user: {user_id}")
         return True
     except Exception as e:
@@ -531,30 +778,44 @@ def set_2fa_code(user_id: str, code: str, action: str = "generic", expires_in_mi
     try:
         from datetime import timedelta
         user = get_user_by_id(user_id)
-        if user and code: # Only enforce rate limit when setting a new code, not clearing it
+        if user and code:
             last_req = user.get("two_factor_last_requested_at")
             if last_req:
                 last_req_dt = datetime.fromisoformat(last_req)
                 if (datetime.now() - last_req_dt).total_seconds() < 60:
                     raise RateLimitExceeded("Please wait 60 seconds before requesting a new code.")
                     
-        expires_at = (datetime.now() + timedelta(minutes=expires_in_minutes)).isoformat()
+        expires_at = (datetime.now() + timedelta(minutes=expires_in_minutes)).isoformat() if code else None
         
-        update_data = {
-            "two_factor_code": code,
-            "two_factor_expires": expires_at,
-            "two_factor_action": action,
-            "two_factor_attempts": 0
-        }
-        
-        if code:
-            update_data["two_factor_last_requested_at"] = datetime.now().isoformat()
-            
-        result = db_conn.users.update_one(
-            {"id": user_id},
-            {"$set": update_data}
-        )
-        return result.modified_count > 0
+        if db_conn is not None:
+            update_data = {
+                "two_factor_code": code,
+                "two_factor_expires": expires_at,
+                "two_factor_action": action,
+                "two_factor_attempts": 0
+            }
+            if code:
+                update_data["two_factor_last_requested_at"] = datetime.now().isoformat()
+                
+            result = db_conn.users.update_one(
+                {"id": user_id},
+                {"$set": update_data}
+            )
+            return result.modified_count > 0
+        else:
+            with get_sqlite_conn() as conn:
+                last_req_val = datetime.now().isoformat() if code else user.get("two_factor_last_requested_at") if user else None
+                cur = conn.execute("""
+                    UPDATE users SET
+                        two_factor_code = ?,
+                        two_factor_expires = ?,
+                        two_factor_action = ?,
+                        two_factor_attempts = 0,
+                        two_factor_last_requested_at = ?
+                    WHERE id = ?
+                """, (code if code else None, expires_at, action, last_req_val, user_id))
+                conn.commit()
+                return cur.rowcount > 0
     except RateLimitExceeded:
         raise
     except Exception as e:
@@ -576,37 +837,48 @@ def verify_2fa_code(user_id: str, code: str, action: str = "generic"):
             return False
             
         if attempts >= 5:
-            # Clear code due to brute-force
-            db_conn.users.update_one(
-                {"id": user_id},
-                {"$set": {"two_factor_code": None, "two_factor_expires": None}}
-            )
+            if db_conn is not None:
+                db_conn.users.update_one(
+                    {"id": user_id},
+                    {"$set": {"two_factor_code": None, "two_factor_expires": None}}
+                )
+            else:
+                with get_sqlite_conn() as conn:
+                    conn.execute("UPDATE users SET two_factor_code = NULL, two_factor_expires = NULL WHERE id = ?", (user_id,))
+                    conn.commit()
             return False
             
         if stored_action != action:
             return False
             
         if stored_code != code:
-            # Increment attempts
-            db_conn.users.update_one(
-                {"id": user_id},
-                {"$inc": {"two_factor_attempts": 1}}
-            )
+            if db_conn is not None:
+                db_conn.users.update_one(
+                    {"id": user_id},
+                    {"$inc": {"two_factor_attempts": 1}}
+                )
+            else:
+                with get_sqlite_conn() as conn:
+                    conn.execute("UPDATE users SET two_factor_attempts = two_factor_attempts + 1 WHERE id = ?", (user_id,))
+                    conn.commit()
             return False
             
-        # Check expiration
         if datetime.fromisoformat(expires_at) < datetime.now():
             return False
             
-        # Code is valid, consume it
-        db_conn.users.update_one(
-            {"id": user_id},
-            {"$set": {
-                "two_factor_code": None, 
-                "two_factor_expires": None,
-                "two_factor_attempts": 0
-            }}
-        )
+        if db_conn is not None:
+            db_conn.users.update_one(
+                {"id": user_id},
+                {"$set": {
+                    "two_factor_code": None, 
+                    "two_factor_expires": None,
+                    "two_factor_attempts": 0
+                }}
+            )
+        else:
+            with get_sqlite_conn() as conn:
+                conn.execute("UPDATE users SET two_factor_code = NULL, two_factor_expires = NULL, two_factor_attempts = 0 WHERE id = ?", (user_id,))
+                conn.commit()
         return True
     except Exception as e:
         print(f"[ERROR] DB Verify 2FA Code failed: {e}")
@@ -614,27 +886,38 @@ def verify_2fa_code(user_id: str, code: str, action: str = "generic"):
 
 def enable_2fa(user_id: str):
     try:
-        result = db_conn.users.update_one(
-            {"id": user_id},
-            {"$set": {"is_2fa_enabled": True}}
-        )
-        return result.modified_count > 0
+        if db_conn is not None:
+            result = db_conn.users.update_one(
+                {"id": user_id},
+                {"$set": {"is_2fa_enabled": True}}
+            )
+            return result.modified_count > 0
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("UPDATE users SET is_2fa_enabled = 1 WHERE id = ?", (user_id,))
+                conn.commit()
+                return cur.rowcount > 0
     except Exception as e:
         print(f"[ERROR] DB Enable 2FA failed: {e}")
         return False
 
 def disable_2fa(user_id: str):
     try:
-        result = db_conn.users.update_one(
-            {"id": user_id},
-            {"$set": {
-                "is_2fa_enabled": False,
-                "two_factor_code": None,
-                "two_factor_expires": None
-            }}
-        )
-        return result.modified_count > 0
+        if db_conn is not None:
+            result = db_conn.users.update_one(
+                {"id": user_id},
+                {"$set": {
+                    "is_2fa_enabled": False,
+                    "two_factor_code": None,
+                    "two_factor_expires": None
+                }}
+            )
+            return result.modified_count > 0
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute("UPDATE users SET is_2fa_enabled = 0, two_factor_code = NULL, two_factor_expires = NULL WHERE id = ?", (user_id,))
+                conn.commit()
+                return cur.rowcount > 0
     except Exception as e:
         print(f"[ERROR] DB Disable 2FA failed: {e}")
         return False
-

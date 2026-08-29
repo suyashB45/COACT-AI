@@ -28,6 +28,8 @@ logger = logging.getLogger("coact")
 async def dummy_limiter():
     pass
 
+from typing import Optional
+
 class UserLogin(BaseModel):
     email: str
     password: str
@@ -35,6 +37,8 @@ class UserLogin(BaseModel):
 class UserRegister(BaseModel):
     email: str
     password: str
+    name: Optional[str] = None
+    company: Optional[str] = None
 
 class ForgotPasswordRequest(BaseModel):
     email: str
@@ -57,7 +61,7 @@ async def login(request: Request, user: UserLogin):
     to_encode = {"sub": db_user["id"], "exp": expire, "iat": now}
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
     
-    return {"access_token": encoded_jwt, "token_type": "bearer", "user": {"id": db_user["id"], "email": db_user["email"]}}
+    return {"access_token": encoded_jwt, "token_type": "bearer", "user": {"id": db_user["id"], "email": db_user["email"], "name": db_user.get("name", "")}}
 
 @router.post("/register")
 async def register(request: Request, user: UserRegister):
@@ -72,7 +76,7 @@ async def register(request: Request, user: UserRegister):
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    new_user = create_user(user.email, user.password)
+    new_user = create_user(user.email, user.password, name=user.name, company=user.company)
     if not new_user:
         raise HTTPException(status_code=500, detail="Failed to create user")
         
