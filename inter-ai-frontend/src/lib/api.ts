@@ -1,4 +1,14 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const formatBaseUrl = (url: string | undefined): string => {
+    if (!url) return '';
+    let trimmed = url.trim();
+    if (!trimmed) return '';
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('/')) {
+        trimmed = `https://${trimmed}`;
+    }
+    return trimmed.replace(/\/+$/, '');
+};
+
+export const API_BASE_URL = formatBaseUrl(import.meta.env.VITE_API_URL);
 
 export const getApiUrl = (endpoint: string) => {
     // Ensure endpoint starts with /
