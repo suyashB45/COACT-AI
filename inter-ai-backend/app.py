@@ -168,19 +168,28 @@ app = FastAPI(
     redoc_url=None if is_prod else "/redoc",
     openapi_url=None if is_prod else "/openapi.json"
 )
-# Enable CORS
-cors_origins_raw = os.getenv("CORS_ORIGINS", "https://coact-ai.com,https://www.coact-ai.com")
-# SECURITY: Never allow wildcard CORS in production
-if os.environ.get("FLASK_ENV") == "production" and cors_origins_raw.strip() == "*":
-    logger.warning("CORS_ORIGINS is set to '*' in production! Defaulting to coact-ai.com only.")
-    cors_origins_raw = "https://coact-ai.com,https://www.coact-ai.com"
+# Enable CORS with Railway, Custom Domain & Localhost support
+cors_origins_raw = os.getenv("CORS_ORIGINS", "")
 cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+
+default_origins = [
+    "https://coact-ai.com",
+    "https://www.coact-ai.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000"
+]
+for origin in default_origins:
+    if origin not in cors_origins:
+        cors_origins.append(origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=cors_origins if "*" not in cors_origins else ["*"],
+    allow_origin_regex=r"https://.*\.up\.railway\.app|https://.*\.railway\.app|https://.*\.vercel\.app|https://.*\.pages\.dev|https://.*coact-ai\.com|http://localhost:.*|http://127.0.0.1:.*",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ---------------------------------------------------------
