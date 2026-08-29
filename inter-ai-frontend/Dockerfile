@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
@@ -12,28 +12,17 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # Production stage
-FROM nginx:alpine
+FROM node:20-alpine
 
-COPY --from=build /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-# Add our custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-RUN sed -i 's/\r$//' /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist ./dist
+COPY server.js ./
 
-# Add HTTP-only config (for fallback)
-COPY nginx.http.conf /etc/nginx/nginx.http.conf
-RUN sed -i 's/\r$//' /etc/nginx/nginx.http.conf
+EXPOSE 3000
 
-# Add entrypoint script (fix Windows CRLF line endings)
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:80/health || exit 1
-
-EXPOSE 80 443
-CMD ["/docker-entrypoint.sh"]
-
+ENV NODE_ENV=production
+CMD ["node", "server.js"]
