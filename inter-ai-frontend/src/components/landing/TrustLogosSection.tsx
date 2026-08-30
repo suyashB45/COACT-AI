@@ -1,22 +1,50 @@
-const practiceAreas = ['Sales calls', 'Negotiations', 'Interviews', 'Difficult feedback', 'Leadership', 'Client conversations'];
+import { motion } from 'framer-motion';
 
-const TrustLogosSection = () => {
-    return (
-        <section className="py-10 border-b border-border bg-muted/20 overflow-hidden">
-            <div className="container mx-auto px-6">
-                <p className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-8">
-                    Built for the conversations that deserve a little rehearsal
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-2.5 md:gap-3">
-                    {practiceAreas.map((area) => (
-                        <span key={area} className="rounded-full border border-border bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground shadow-sm">
-                            {area}
-                        </span>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
-};
+const practiceAreas = [
+    'Sales Calls', 'Negotiations', 'Job Interviews', 'Difficult Feedback',
+    'Leadership Conversations', 'Client Escalations', 'Performance Reviews',
+    'Salary Discussions', 'Conflict Resolution', 'Executive Presence',
+    'Cold Outreach', 'Team Alignment',
+];
+
+// Duplicate for seamless infinite scroll
+const items = [...practiceAreas, ...practiceAreas];
+
+const TrustLogosSection = () => (
+    <section className="ds-section py-10 border-b border-white/[0.06] overflow-hidden">
+        <div className="ds-shimmer-top" />
+
+        {/* Label */}
+        <p className="text-center text-[11px] font-bold uppercase tracking-[0.18em] text-white/25 mb-6 px-4">
+            Built for every conversation that deserves a little rehearsal
+        </p>
+
+        {/* Scrolling strip */}
+        <div className="relative">
+            {/* Fade masks */}
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-20 z-10"
+                style={{ background: 'linear-gradient(90deg, #03050D, transparent)' }} />
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-20 z-10"
+                style={{ background: 'linear-gradient(-90deg, #03050D, transparent)' }} />
+
+            <motion.div
+                className="flex gap-3 w-max"
+                animate={{ x: ['0%', '-50%'] }}
+                transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}
+            >
+                {items.map((area, i) => (
+                    <span
+                        key={i}
+                        className="flex-shrink-0 rounded-full border border-white/[0.09] bg-white/[0.04] px-4 py-2 text-[13px] font-medium text-white/55 whitespace-nowrap"
+                    >
+                        {area}
+                    </span>
+                ))}
+            </motion.div>
+        </div>
+
+        <div className="ds-shimmer-bottom" />
+    </section>
+);
 
 export default TrustLogosSection;

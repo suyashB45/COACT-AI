@@ -725,39 +725,78 @@ Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise r
 
 **Scorecard**: Evaluate the [HUMAN LEARNER]'s performance on these 6 dimensions (1-10): {scorecard_dimensions}
 
-**JSON Schema**:
+**JSON Schema** — return ALL fields exactly as shown:
 {{
-  "meta": {{ "scenario_id": "{scenario_type}", "outcome_status": "Completed/Incomplete", "overall_grade": "X/10", "summary": "Brief summary of [HUMAN LEARNER]'s performance." }},
+  "meta": {{
+    "scenario_id": "{scenario_type}",
+    "outcome_status": "Completed/Incomplete",
+    "overall_grade": "X/10",
+    "summary": "One-sentence summary of [HUMAN LEARNER]'s performance."
+  }},
   "type": "assessment_report",
-  "executive_summary": "Overall summary of the participant's performance in the assessment.",
-  "assessment_objectives": ["Objective 1", "Objective 2"],
-  "assessment_methodology": "Explanation of how the participant was scored (1-10 scale).",
+  "coaching_efficacy": {{
+    "score": "X/10",
+    "summary": "One sentence explaining the overall coaching efficacy score."
+  }},
+  "executive_summary": "2-3 sentences describing the participant's overall performance — what they did well, what they missed, and the overall coaching outcome.",
+  "about_coactai": "CoAct.AI is an advanced simulation platform designed to provide hyper-realistic, AI-driven roleplay scenarios. It evaluates communication, behavioral patterns, and performance in critical situations. By leveraging cutting-edge AI, CoAct.AI offers objective analysis, helping professionals identify blind spots, hone their skills, and develop actionable strategies for growth.",
+  "assessment_objectives": [
+    "Objective 1 — specific to the scenario and role",
+    "Objective 2",
+    "Objective 3",
+    "Objective 4"
+  ],
+  "assessment_methodology": "Each dimension was scored on a 1-10 scale using the strict rubric provided. Scores reflect the presence (or absence) of the required behaviors in the participant's verbatim statements.",
   "role_based_assessment": {{
     "role_assigned": "{role}",
     "scenario": "{scenario}",
-    "tasks": ["Task 1", "Task 2"],
-    "expected_behavior": "Description of expected behavior for this role."
+    "your_objectives": [
+      "Objective 1 specific to this role",
+      "Objective 2",
+      "Objective 3",
+      "Objective 4"
+    ],
+    "expected_behavior": "What the ideal [HUMAN LEARNER] should have demonstrated in this role — specific behaviors, language, and outcomes.",
+    "tasks": [
+      "Task 1 — specific action the participant was expected to perform",
+      "Task 2"
+    ]
   }},
   "participant_performance": [
-    {{ "dimension": "", "score": "X/10", "rubric_criteria": "Explain criteria for 10/10 vs 1/10", "reasoning": "", "quote": "EXACT verbatim quote from [HUMAN LEARNER] only", "suggestion": "" }}
+    {{
+      "dimension": "Dimension name from scorecard",
+      "score": "X/10",
+      "reasoning": "1-2 sentences explaining exactly why this score was given, tied to specific behavior.",
+      "quote": "EXACT verbatim quote from [HUMAN LEARNER] only — the most relevant line",
+      "suggestion": "Specific, actionable recommendation for how to improve — include an example phrase if possible."
+    }}
   ],
   "assessment_results": {{
     "overall_score": "X/10",
-    "strengths_identified": ["Strength 1", "Strength 2"],
-    "areas_for_improvement": ["Area 1", "Area 2"],
-    "overall_assessment": "Comprehensive qualitative evaluation of the performance."
+    "strengths_identified": [
+      "+ Strength 1 — specific and evidence-based",
+      "+ Strength 2"
+    ],
+    "areas_for_improvement": [
+      "- Area 1 — specific skill or behavior to develop",
+      "- Area 2",
+      "- Area 3"
+    ],
+    "overall_assessment": "2-3 sentences providing a comprehensive qualitative evaluation — tone is honest and constructive."
   }},
   "radar_chart_data": [
-    {{ "dimension": "", "score": 8 }}
+    {{ "dimension": "Dimension name", "score": 5 }}
   ],
-  "conclusion": "Final concluding remarks for the assessment."
+  "conclusion": "2-3 sentences summarizing what the [HUMAN LEARNER] needs to focus on next and what kind of development is recommended."
 }}
 
 RULES:
-- ALL quotes MUST come from [HUMAN LEARNER] lines. NEVER quote [AI CHARACTER] lines as evidence.
-- TONE: Use balanced, objective, and constructive language. Do NOT use overly harsh, dramatic, or exaggerated phrasing in summaries (e.g., avoid "completely failed").
-- SCORING INTEGRITY: Do NOT default to 7-8 range. Use the FULL 1-10 scale based on actual evidence. A mediocre performance should get 4-5, not 7.
-- radar_chart_data score MUST be an integer between 1 and 10.
+- ALL quotes MUST come from [HUMAN LEARNER] lines only. NEVER quote [AI CHARACTER] lines as evidence.
+- TONE: Balanced, objective, and constructive. No dramatic phrasing. Use professional coaching language.
+- SCORING INTEGRITY: Use the full 1-10 scale. A mediocre performance gets 3-5, not 7. Evidence must justify every score.
+- radar_chart_data scores MUST be integers 1-10.
+- assessment_objectives and role_based_assessment.your_objectives must be specific to this scenario and role — not generic.
+- coaching_efficacy.score must match meta.overall_grade.
 """
 
     # ANALYST PERSONA (compressed)

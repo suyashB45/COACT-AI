@@ -1,67 +1,193 @@
-import { ArrowRight, Check, Mic, Sparkles, Volume2 } from 'lucide-react';
+import { ArrowRight, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import AIVisualization from './AIVisualization';
+import FloatingStatCard from './FloatingStatCard';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-const HeroSection = () => {
+const fadeUp = (delay = 0) => ({
+    initial: { opacity: 0, y: 24 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.7, ease, delay },
+});
+
+export default function HeroSection() {
     const navigate = useNavigate();
     const startPractice = () => navigate(localStorage.getItem('user') ? '/practice' : '/login');
+    const scrollToHowItWorks = () =>
+        document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
 
     return (
-        <section className="hero-editorial relative overflow-hidden border-b border-border pt-28 md:pt-36">
-            {/* Extra ambient glow blobs */}
-            <div className="pointer-events-none absolute -top-32 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(95,157,118,0.13)_0%,transparent_70%)] blur-3xl" />
-            <div className="pointer-events-none absolute bottom-0 right-0 h-[380px] w-[480px] rounded-full bg-[radial-gradient(ellipse_at_bottom_right,rgba(227,202,130,0.14)_0%,transparent_65%)] blur-2xl" />
-            <div className="hero-orb hero-orb-one" />
-            <div className="hero-orb hero-orb-two" />
-            <div className="container relative z-10 mx-auto grid min-h-[720px] max-w-6xl items-center gap-14 px-6 pb-16 lg:grid-cols-[1.02fr_.98fr] lg:gap-10 lg:pb-24">
-                <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, ease }} className="max-w-xl lg:pb-8">
-                    <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#c8d8c4] bg-gradient-to-r from-white/90 to-[#eef6ee]/80 px-3 py-1.5 text-xs font-semibold tracking-wide text-[#3a5544] shadow-[0_4px_16px_rgba(20,38,27,.07)]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#5f9d76]" />
-                        YOUR PRIVATE PRACTICE ROOM
-                    </div>
-                    <h1 className="max-w-2xl text-[3.15rem] font-bold leading-[.98] tracking-[-.06em] text-foreground sm:text-6xl lg:text-[4.5rem]" style={{ fontFamily: 'var(--font-display)' }}>
-                        The hard conversation, <em className="font-serif font-normal tracking-[-.04em] text-[#47785b]">before</em> it counts.
-                    </h1>
-                    <p className="mt-7 max-w-lg text-lg leading-relaxed text-muted-foreground">
-                        Practice the moment that matters with an AI partner who listens, pushes back, and helps you find the words you mean.
-                    </p>
-                    <div className="mt-9 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-                        <button onClick={startPractice} className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#193c2a] px-6 text-[15px] font-semibold text-white shadow-[0_12px_24px_rgba(25,60,42,.20)] transition-all hover:-translate-y-0.5 hover:bg-[#245338] hover:shadow-[0_16px_30px_rgba(25,60,42,.25)]">
-                            Start a practice session <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                        </button>
-                        <button onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} className="min-h-12 rounded-full px-4 text-[15px] font-semibold text-foreground transition-colors hover:text-[#47785b]">
-                            See it in action <span className="ml-1 text-[#5f9d76]">↓</span>
-                        </button>
-                    </div>
-                    <div className="mt-10 flex items-center gap-4 text-xs text-muted-foreground">
-                        <div className="flex -space-x-2"><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#f7f8f3] bg-[#dbb996] text-[10px] font-bold text-[#55351b]">M</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#f7f8f3] bg-[#829db6] text-[10px] font-bold text-[#17334f]">J</span><span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#f7f8f3] bg-[#c8a1a1] text-[10px] font-bold text-[#512a2a]">A</span></div>
-                        <span>Made for the conversations people avoid.</span>
-                    </div>
-                </motion.div>
+        <section className="hero-dark relative min-h-screen overflow-hidden flex flex-col">
+            {/* ── Background layers ── */}
+            <div className="hero-dark-bg" aria-hidden="true" />
+            <div className="hero-dark-grid" aria-hidden="true" />
+            <div className="hero-dark-radial" aria-hidden="true" />
+            {/* purple orb top-left */}
+            <div className="hero-dark-orb-purple" aria-hidden="true" />
+            {/* blue orb bottom-right */}
+            <div className="hero-dark-orb-blue" aria-hidden="true" />
 
-                <motion.div initial={{ opacity: 0, y: 28, rotate: 1 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ duration: .8, delay: .12, ease }} className="relative mx-auto w-full max-w-[510px]">
-                    <div className="hero-note absolute -right-5 -top-7 hidden rotate-[5deg] rounded-xl bg-[#f8e9a8] px-4 py-3 text-sm text-[#5d4b12] shadow-lg lg:block">Keep it curious,<br />not defensive.</div>
-                    <div className="overflow-hidden rounded-[1.6rem] border border-[#c8d8c4] bg-gradient-to-br from-[#fffefa] via-[#f8fbf5] to-[#f0f6ec] shadow-[0_28px_70px_rgba(35,59,42,.18)]">
-                        {/* top gradient shimmer line */}
-                        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#5f9d76]/50 to-transparent" />
-                        <div className="flex items-center justify-between border-b border-[#e8ece4] px-5 py-4">
-                            <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e6f0e7] text-[#376249]"><Mic className="h-4 w-4" /></span><div><p className="text-sm font-bold text-foreground">Practice room</p><p className="text-[11px] text-muted-foreground">Difficult feedback · 08:42</p></div></div>
-                            <span className="rounded-full bg-[#eaf5eb] px-2.5 py-1 text-[10px] font-bold tracking-wide text-[#3c7a4d]">LIVE</span>
+            {/* ── Content ── */}
+            <div className="relative z-10 flex flex-1 items-center">
+                <div className="mx-auto w-full max-w-7xl px-6 py-28 md:py-32 lg:py-0 lg:min-h-screen lg:flex lg:items-center">
+                    <div className="grid w-full grid-cols-1 gap-12 lg:grid-cols-[45%_55%] lg:gap-8 xl:gap-12">
+
+                        {/* ════════════════════════════════════════
+                            LEFT — AI Visualization + floating cards
+                        ════════════════════════════════════════ */}
+                        <motion.div
+                            className="relative flex items-center justify-center order-1 lg:order-none"
+                            {...fadeUp(0.15)}
+                        >
+                            {/* viz wrapper */}
+                            <div className="relative">
+                                <AIVisualization />
+
+                                {/* Floating proof cards — simplified to keep the composition clean and readable */}
+                                <div className="absolute -top-2 -right-2 sm:-right-8 lg:-right-10">
+                                    <FloatingStatCard
+                                        value="95%"
+                                        label="Success Rate"
+                                        floatDelay={0.6}
+                                        floatDuration={3.2}
+                                        floatDistance={10}
+                                    />
+                                </div>
+
+                                <div className="absolute -bottom-3 -left-2 sm:-left-8 lg:-left-10">
+                                    <FloatingStatCard
+                                        value="24/7"
+                                        label="AI Support"
+                                        floatDelay={0.9}
+                                        floatDuration={3.8}
+                                        floatDistance={7}
+                                    />
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* ════════════════════════════════════════
+                            RIGHT — Heading + description + CTAs
+                        ════════════════════════════════════════ */}
+                        <div className="flex flex-col justify-center order-2 lg:order-none lg:pl-4 xl:pl-8">
+
+                            {/* Badge */}
+                            <motion.div {...fadeUp(0)} className="mb-6 lg:mb-8">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/25 bg-violet-500/10 px-3.5 py-1.5 text-[10px] font-bold tracking-[0.22em] text-violet-200 uppercase shadow-[0_0_18px_rgba(139,92,246,0.18)]">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+                                    AI-Powered Coaching Platform
+                                </span>
+                            </motion.div>
+
+                            {/* Heading */}
+                            <motion.h1
+                                {...fadeUp(0.1)}
+                                className="hero-dark-heading text-[2.8rem] sm:text-[3.6rem] lg:text-[4rem] xl:text-[4.5rem] font-black leading-[0.95] tracking-[-0.04em] text-white"
+                                style={{ fontFamily: 'var(--font-display)' }}
+                            >
+                                AI-Powered
+                                <br />
+                                <span className="bg-gradient-to-r from-violet-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                                    Coaching
+                                </span>
+                                <br />
+                                for Real World
+                                <br />
+                                Conversation
+                            </motion.h1>
+
+                            {/* Description */}
+                            <motion.p
+                                {...fadeUp(0.2)}
+                                className="mt-6 max-w-[540px] text-[15px] sm:text-base leading-relaxed text-slate-300/90"
+                            >
+                                Personalized AI coaching that adapts to your goals, delivering
+                                real-time guidance, actionable insights, and measurable
+                                performance improvement.
+                            </motion.p>
+
+                            {/* CTA Buttons */}
+                            <motion.div
+                                {...fadeUp(0.3)}
+                                className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+                            >
+                                {/* Primary */}
+                                <button
+                                    onClick={startPractice}
+                                    className="group inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-[15px] font-semibold text-white transition-all duration-200
+                                        bg-gradient-to-r from-violet-600 to-blue-600
+                                        shadow-[0_0_24px_rgba(139,92,246,0.45)]
+                                        hover:shadow-[0_0_36px_rgba(139,92,246,0.65)]
+                                        hover:-translate-y-0.5
+                                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                                    aria-label="Get started with CoAct.AI"
+                                >
+                                    Get Started
+                                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                                </button>
+
+                                {/* Secondary */}
+                                <button
+                                    onClick={scrollToHowItWorks}
+                                    className="group inline-flex items-center justify-center gap-2.5 rounded-xl border border-white/[0.12] bg-white/[0.04] px-7 py-3.5 text-[15px] font-semibold text-white/80 transition-all duration-200
+                                        hover:bg-white/[0.08] hover:border-white/[0.2] hover:text-white
+                                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                                    aria-label="Learn how CoAct.AI works"
+                                >
+                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
+                                        <Play className="h-2.5 w-2.5 fill-white text-white ml-0.5" />
+                                    </span>
+                                    How It Works
+                                </button>
+                            </motion.div>
+
+                            {/* Social proof */}
+                            <motion.div
+                                {...fadeUp(0.4)}
+                                className="mt-8 flex flex-wrap items-center gap-3 text-[12px] text-slate-300/80"
+                            >
+                                <div className="flex -space-x-2">
+                                    {['M', 'J', 'A', 'S'].map((letter, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#03050D] text-[10px] font-bold text-white"
+                                            style={{
+                                                background: ['#7c3aed', '#2563eb', '#0891b2', '#7c3aed'][i],
+                                                opacity: 0.85,
+                                            }}
+                                        >
+                                            {letter}
+                                        </div>
+                                    ))}
+                                </div>
+                                <span>Trusted by professionals worldwide</span>
+                                <span className="text-white/20">·</span>
+                                <span className="text-white/30">No credit card required</span>
+                            </motion.div>
                         </div>
-                        <div className="space-y-5 p-5 sm:p-6">
-                            <div className="flex items-end gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#d8b797] text-xs font-bold text-[#50331b]">M</span><div><p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">Maya · Your teammate</p><p className="max-w-sm rounded-2xl rounded-bl-md bg-[#f0f3ed] px-4 py-3 text-sm leading-relaxed text-foreground">I didn't realize the presentation landed that way. I thought it was fine.</p></div></div>
-                            <div className="ml-12 rounded-xl border border-[#c6dfc6] bg-gradient-to-br from-[#eef8ee] to-[#f5faf4] p-3.5"><p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#47785b]"><Sparkles className="h-3.5 w-3.5" /> A good opening</p><p className="text-sm leading-relaxed text-[#355040]">“I can see why it felt that way. Can I share what I noticed?”</p></div>
-                            <div className="flex justify-end"><div className="max-w-sm rounded-2xl rounded-br-md bg-[#193c2a] px-4 py-3 text-sm leading-relaxed text-white">I can see why it felt that way. Can I share what I noticed?</div></div>
-                            <div className="flex items-center gap-3 pt-1"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#193c2a] text-white"><Volume2 className="h-4 w-4" /></div><div className="flex h-9 flex-1 items-center gap-1 rounded-full bg-[#f0f3ed] px-4"><i className="voice-bar h-2" /><i className="voice-bar h-4" /><i className="voice-bar h-6" /><i className="voice-bar h-3" /><i className="voice-bar h-5" /><span className="ml-2 text-xs text-muted-foreground">Maya is responding…</span></div></div>
-                        </div>
-                        <div className="flex items-center gap-2 border-t border-[#d8e8d4] bg-gradient-to-r from-[#f0f8f0] via-[#fbfcf8] to-[#f5faf2] px-5 py-3.5 text-xs text-[#3a6e50]"><Check className="h-4 w-4" /> You stayed specific and gave them room to respond.</div>
                     </div>
-                </motion.div>
+                </div>
             </div>
+
+            {/* ── Scroll indicator ── */}
+            <motion.div
+                className="relative z-10 flex justify-center pb-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.2, duration: 0.6 }}
+            >
+                <motion.div
+                    className="flex flex-col items-center gap-1.5 cursor-pointer"
+                    onClick={scrollToHowItWorks}
+                    animate={{ y: [0, 5, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-white/20">Scroll</span>
+                    <div className="h-8 w-[1px] bg-gradient-to-b from-white/20 to-transparent" />
+                </motion.div>
+            </motion.div>
         </section>
     );
-};
-
-export default HeroSection;
+}

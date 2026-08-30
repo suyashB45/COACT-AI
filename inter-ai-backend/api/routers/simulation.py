@@ -347,12 +347,11 @@ async def speak_text(request: Request, _ = Depends(standard_limiter)):
         logger.info(f" [INFO] Generating TTS via Sarvam AI ({sarvam_speaker}) for: '{text[:80]}...'")
 
         payload = {
-            "inputs": [text[:500]],
-            "target_language_code": "en-IN",
+            "text": text[:2500],
+            "language_code": "en-IN",
             "speaker": sarvam_speaker,
             "pace": 1.0,
             "speech_sample_rate": 22050,
-            "enable_preprocessing": True,
             "model": "bulbul:v3"
         }
         headers = {

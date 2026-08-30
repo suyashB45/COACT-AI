@@ -24,13 +24,11 @@
       "vite/client",
       "node"
     ],
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
       ]
-    },
-    "ignoreDeprecations": "5.0"
+    }
   },
   "include": [
     "src/**/*.ts",

@@ -64,7 +64,7 @@ const PricingSection = () => {
     const [annual, setAnnual] = useState(false);
 
     return (
-        <section id="pricing" className="py-24 md:py-32 bg-background relative border-b border-border">
+        <section id="pricing" className="ds-section py-24 md:py-32 border-b border-white/[0.05]">
             <div className="container mx-auto px-6 max-w-6xl">
                 {/* Header */}
                 <motion.div
@@ -74,13 +74,13 @@ const PricingSection = () => {
                     viewport={{ once: true }}
                     transition={{ duration: 0.5 }}
                 >
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/50 border border-border/80 text-[12px] font-semibold uppercase tracking-widest text-foreground/70 mb-6 mx-auto">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full ds-badge mb-6 mx-auto">
                         Pricing
                     </div>
-                    <h2 className="text-4xl md:text-5xl font-bold mb-6 text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-                        Simple pricing. <span className="text-muted-foreground">No gotchas.</span>
+                    <h2 className="text-4xl md:text-5xl font-black mb-6 text-white tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                        Simple pricing. <span className="bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">No gotchas.</span>
                     </h2>
-                    <p className="text-lg text-muted-foreground leading-relaxed">
+                    <p className="text-lg text-white/45 leading-relaxed">
                         Start free, upgrade when you're ready. All plans include a 14-day trial. Cancel anytime — we won't make it weird.
                     </p>
                 </motion.div>
@@ -93,17 +93,17 @@ const PricingSection = () => {
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
                 >
-                    <span className={`text-sm font-semibold transition-colors ${!annual ? 'text-foreground' : 'text-muted-foreground'}`}>Monthly</span>
+                    <span className={`text-sm font-semibold transition-colors ${!annual ? 'text-white' : 'text-white/35'}`}>Monthly</span>
                     <button
                         onClick={() => setAnnual(!annual)}
-                        className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${annual ? 'bg-foreground' : 'bg-border'}`}
+                        className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${annual ? 'bg-violet-500' : 'bg-white/10 border border-white/10'}`}
                         aria-label="Toggle annual billing"
                     >
-                        <div className={`absolute top-1 left-1 w-4 h-4 bg-background rounded-full shadow-sm transition-transform duration-300 ${annual ? 'translate-x-5' : 'translate-x-0'}`} />
+                        <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-300 ${annual ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
-                    <span className={`text-sm font-semibold transition-colors flex items-center gap-2 ${annual ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    <span className={`text-sm font-semibold transition-colors flex items-center gap-2 ${annual ? 'text-white' : 'text-white/35'}`}>
                         Annual
-                        <span className="text-[10px] uppercase tracking-widest font-bold bg-secondary border border-border px-1.5 py-0.5 rounded text-foreground/70">Save 20%</span>
+                        <span className="text-[10px] uppercase tracking-widest font-bold bg-violet-500/20 border border-violet-500/25 px-1.5 py-0.5 rounded text-violet-300">Save 20%</span>
                     </span>
                 </motion.div>
 
@@ -129,21 +129,21 @@ const PricingSection = () => {
                                     glareEnable={!plan.popular}
                                     className={`relative rounded-xl p-8 flex flex-col h-full transition-all duration-300 ${
                                         plan.popular
-                                            ? 'bg-foreground text-background shadow-xl scale-[1.02]'
-                                            : 'bg-background border border-border hover:border-foreground/20'
+                                            ? 'bg-gradient-to-br from-violet-600 to-blue-700 text-white shadow-[0_0_40px_rgba(139,92,246,0.35)] scale-[1.02]'
+                                            : 'bg-white/[0.03] border border-white/[0.08] hover:border-violet-500/30'
                                     }`}
                                 >
                                 {plan.popular && (
                                     <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                                        <div className="bg-background text-foreground border border-border text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full shadow-sm">
+                                        <div className="bg-[#03050D] text-violet-300 border border-violet-500/30 text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full">
                                             Most Popular
                                         </div>
                                     </div>
                                 )}
 
                                 <div className="mb-6">
-                                    <h3 className={`text-xl font-bold mb-2 ${plan.popular ? 'text-background' : 'text-foreground'}`}>{plan.name}</h3>
-                                    <p className={`text-sm leading-relaxed ${plan.popular ? 'text-background/80' : 'text-muted-foreground'}`}>{plan.description}</p>
+                                    <h3 className={`text-xl font-bold mb-2 ${plan.popular ? 'text-white' : 'text-white'}`}>{plan.name}</h3>
+                                    <p className={`text-sm leading-relaxed ${plan.popular ? 'text-white/80' : 'text-white/45'}`}>{plan.description}</p>
                                 </div>
 
                                 <div className="mb-2 flex items-baseline gap-1">
@@ -161,23 +161,23 @@ const PricingSection = () => {
                                         </motion.span>
                                     </AnimatePresence>
                                     {!isCustom && plan.monthlyPrice > 0 && (
-                                        <span className={`text-sm font-medium ${plan.popular ? 'text-background/70' : 'text-muted-foreground'}`}>/month</span>
+                                        <span className={`text-sm font-medium ${plan.popular ? 'text-white/70' : 'text-white/45'}`}>/month</span>
                                     )}
                                 </div>
 
                                 {/* Fine print */}
                                 {!isCustom && plan.monthlyPrice > 0 && (
-                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-background/80' : 'text-muted-foreground'}`}>
+                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-white/80' : 'text-white/45'}`}>
                                         {annual ? 'Billed annually' : 'Billed monthly'} · Cancel anytime
                                     </p>
                                 )}
                                 {!isCustom && plan.monthlyPrice === 0 && (
-                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-background/80' : 'text-muted-foreground'}`}>
+                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-white/80' : 'text-white/45'}`}>
                                         Free forever · No credit card
                                     </p>
                                 )}
                                 {isCustom && (
-                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-background/80' : 'text-muted-foreground'}`}>
+                                    <p className={`text-xs mb-6 font-medium ${plan.popular ? 'text-white/80' : 'text-white/45'}`}>
                                         Based on team size and needs
                                     </p>
                                 )}
@@ -194,11 +194,11 @@ const PricingSection = () => {
                                 </button>
 
                                 <div className="flex-grow space-y-4 pt-2">
-                                    <p className={`text-xs font-bold uppercase tracking-[.12em] ${plan.popular ? 'text-background/90' : 'text-muted-foreground'}`}>What's included</p>
+                                    <p className={`text-xs font-bold uppercase tracking-[.12em] ${plan.popular ? 'text-white/70' : 'text-white/35'}`}>What's included</p>
                                     {plan.features.map((feature, idx) => (
                                         <div key={idx} className="flex items-start gap-3">
-                                            <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.popular ? 'text-background/80' : 'text-foreground/80'}`} />
-                                            <span className={`text-sm ${plan.popular ? 'text-background/90' : 'text-muted-foreground'}`}>{feature}</span>
+                                            <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.popular ? 'text-white/80' : 'text-white/70'}`} />
+                                            <span className={`text-sm ${plan.popular ? 'text-white/70' : 'text-white/35'}`}>{feature}</span>
                                         </div>
                                     ))}
                                 </div>

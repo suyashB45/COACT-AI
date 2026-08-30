@@ -899,3 +899,193 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--foreground) 25%, transparent);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Dark Hero Section — Premium AI SaaS aesthetic
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Force deep-dark background regardless of theme */
+.hero-dark {
+  position: relative;
+  background: #03050D;
+  color: #ffffff;
+}
+
+/* Solid base fill */
+.hero-dark-bg {
+  position: absolute;
+  inset: 0;
+  background: #03050D;
+  z-index: 0;
+}
+
+/* Subtle dot-grid */
+.hero-dark-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image: radial-gradient(circle, rgba(139, 92, 246, 0.12) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Soft central radial glow */
+.hero-dark-radial {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: radial-gradient(
+    ellipse 80% 60% at 30% 50%,
+    rgba(139, 92, 246, 0.1) 0%,
+    rgba(96, 165, 250, 0.06) 35%,
+    transparent 65%
+  );
+  pointer-events: none;
+}
+
+/* Purple orb — top-left */
+.hero-dark-orb-purple {
+  position: absolute;
+  top: -10%;
+  left: -8%;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, transparent 65%);
+  filter: blur(60px);
+  z-index: 2;
+  pointer-events: none;
+  animation: orb-drift-purple 12s ease-in-out infinite alternate;
+}
+
+/* Blue orb — bottom-right */
+.hero-dark-orb-blue {
+  position: absolute;
+  bottom: -10%;
+  right: -5%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.14) 0%, transparent 65%);
+  filter: blur(50px);
+  z-index: 2;
+  pointer-events: none;
+  animation: orb-drift-blue 14s ease-in-out infinite alternate;
+}
+
+@keyframes orb-drift-purple {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(30px, 20px) scale(1.08); }
+  100% { transform: translate(-15px, 30px) scale(0.96); }
+}
+
+@keyframes orb-drift-blue {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(-25px, -15px) scale(1.06); }
+  100% { transform: translate(20px, -30px) scale(0.98); }
+}
+
+/* Heading gradient text enhancement */
+.hero-dark-heading {
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+/* Ensure sections below hero don't bleed into dark bg */
+.hero-dark + * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Dark Section Shared Utilities — #03050D texture
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Base dark section */
+.ds-section {
+  position: relative;
+  background: #03050D;
+  color: #ffffff;
+  overflow: hidden;
+}
+
+/* Subtle dot-grid overlay (reusable) */
+.ds-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(139,92,246,0.10) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, black 30%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Shared top border shimmer line */
+.ds-shimmer-top {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(139,92,246,0.4), rgba(96,165,250,0.3), transparent);
+  z-index: 1;
+}
+
+/* Shared bottom border shimmer line */
+.ds-shimmer-bottom {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(139,92,246,0.2), transparent);
+  z-index: 1;
+}
+
+/* Card base for dark sections */
+.ds-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+}
+.ds-card:hover {
+  background: rgba(139,92,246,0.06);
+  border-color: rgba(139,92,246,0.25);
+  box-shadow: 0 0 32px rgba(139,92,246,0.12), 0 8px 24px rgba(0,0,0,0.35);
+}
+
+/* Section badge pill */
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(139,92,246,0.25);
+  background: rgba(139,92,246,0.1);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(196,181,253,0.9);
+}
+
+/* Muted body text for dark sections */
+.ds-muted {
+  color: rgba(255,255,255,0.45);
+}
+
+/* Icon box for dark sections */
+.ds-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(139,92,246,0.12);
+  border: 1px solid rgba(139,92,246,0.2);
+  color: #a78bfa;
+  transition: background 0.25s, box-shadow 0.25s;
+}
+.ds-icon-box:hover, .group:hover .ds-icon-box {
+  background: rgba(139,92,246,0.22);
+  box-shadow: 0 0 18px rgba(139,92,246,0.3);
+  color: #c4b5fd;
+}

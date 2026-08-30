@@ -21,77 +21,72 @@ from langchain_core.output_parsers import JsonOutputParser
 # ─────────────────────────────────────────────────────────────────────
 
 def build_mentorship_prompt(role, ai_role, scenario, scenario_type):
-    """Return the mentorship‑specific LLM instruction string."""
+    """Return the mentorship-specific LLM instruction string."""
     return f"""
 ### MENTORSHIP REFLECTION REPORT (NO SCORES)
-OBJECTIVE: Analyze what the PARTICIPANT demonstrated in this practice simulation and provide coaching insights. Provide a qualitative reflection that provides actionable coaching insights. Absolutely NO numerical scores anywhere.
+OBJECTIVE: Produce a qualitative coaching debrief that helps the participant understand what happened in this session, why the AI behaved as it did, and exactly what to do differently in the next assessed attempt. NO numerical scores anywhere.
 
-Return JSON with this EXACT structure:
+Return JSON with this EXACT structure — every field is required:
 {{
   "meta": {{
     "scenario_id": "{scenario_type}",
     "outcome_status": "Completed",
     "overall_grade": "Practice Simulation",
-    "summary": "This report summarizes key interaction patterns and learning insights from your practice simulation.",
+    "summary": "One sentence describing what this session was a first attempt at.",
     "session_mode": "mentorship",
     "scenario": "{scenario}"
   }},
   "type": "mentorship_reflection",
-  "conversation_snapshot": {{
-    "simulation_context": {{
-      "your_role": "Role of the participant",
-      "ai_role": "Role of AI",
-      "scenario_type": "{scenario_type}",
-      "primary_skill_focus": "Primary skill focus"
+  "mentorship_focus": "One sentence naming the specific skill this session was designed to develop (e.g., 'Preparing for a behavioral-coaching conversation with a high-performing but disruptive team member').",
+  "executive_summary": "3-4 sentences. Acknowledge this was a first attempt. Name what the participant did, what stayed at the surface, and why that matters. Tone: honest, constructive, not discouraging. Reference the AI pushback pattern if relevant.",
+  "about_coactai": "CoAct.AI is an advanced simulation platform designed to provide hyper-realistic, AI-driven roleplay scenarios. It evaluates communication, behavioral patterns, and performance in critical situations. By leveraging cutting-edge AI, CoAct.AI offers objective analysis, helping professionals identify blind spots, hone their skills, and develop actionable strategies for growth.",
+  "how_ai_approached": "2-3 paragraphs explaining the AI's strategy. What did the AI open with and why? What was the AI testing for? When the participant gave a vague or weak response, what did the AI do — and why was that deliberate? Use specific moments from the transcript.",
+  "how_you_responded": {{
+    "opening_approach": "1-2 sentences describing how the participant opened the conversation and what that signalled.",
+    "handling_pushback": "1-2 sentences on what the participant did when the AI challenged or pushed back.",
+    "depth_of_engagement": "1-2 sentences on whether the conversation went beyond surface-level.",
+    "closing_the_conversation": "1-2 sentences on how (or whether) the participant closed with a plan or next step."
+  }},
+  "what_went_well": [
+    "+ Specific strength observed — tied to what the participant actually said or did"
+  ],
+  "where_you_can_grow": [
+    "- Specific gap — describe the behavior that was missing and why it matters",
+    "- Specific gap 2",
+    "- Specific gap 3"
+  ],
+  "suggested_approach_for_next_assessment": [
+    {{
+      "step": "Before you start",
+      "instruction": "Specific preparation action the participant should take before their next attempt."
     }},
-    "conversation_flow_overview": "Summary of how the conversation progressed."
-  }},
-  "ai_response_strategy_observed": [
-    "Strategy 1",
-    "Strategy 2"
-  ],
-  "questioning_techniques_used_by_ai": [
-    "Technique 1"
-  ],
-  "emotional_handling_patterns": [
-    "Pattern 1"
-  ],
-  "turning_points": [
     {{
-      "point_number": 1,
-      "title": "Title",
-      "description": "Description",
-      "ai_technique_used": "Technique",
-      "impact": "Impact"
+      "step": "During the conversation",
+      "instruction": "Specific in-session behavior to try — include an example phrase or sentence if possible."
+    }},
+    {{
+      "step": "To close strong",
+      "instruction": "What the participant should always do before ending the conversation."
+    }},
+    {{
+      "step": "Mindset shift",
+      "instruction": "A reframe that changes how the participant approaches this type of conversation."
     }}
   ],
-  "example_phrases_demonstrated": [
-    {{
-      "phrase": "Phrase",
-      "context": "Context",
-      "technique": "Technique"
-    }}
+  "questions_to_reflect_on": [
+    "Reflective question 1 — personal, scenario-specific, prompts genuine self-examination",
+    "Reflective question 2",
+    "Reflective question 3"
   ],
-  "learning_takeaways": {{
-    "what_you_can_observe_and_practice": [
-      "Takeaway 1"
-    ]
-  }},
-  "alternative_pathways": {{
-    "note": "Here are some other ways the conversation could have been guided.",
-    "alternatives": [
-      "Alternative 1"
-    ]
-  }},
-  "closing_reflection_prompts": [
-    "Prompt 1"
-  ]
+  "what_to_expect_in_next_assessment": "2-3 sentences. Tell the participant what the next graded session will focus on and what 2-3 specific behaviors will be scored. Be concrete — name the exact things to rehearse."
 }}
 
 KEY INSTRUCTIONS:
-1. NO evaluation of the user using numbers. NO scores. NO ratings. Focus on development and role progression.
-2. The language should reflect a mentor observing a mentee's growth and providing constructive path forward.
-3. Keep the tone professional, objective, encouraging, and insight-driven.
+1. NO numerical scores anywhere in the output.
+2. The language should feel like a mentor debrief after watching a first run-through — honest, warm, specific.
+3. Use the actual transcript. Reference specific moments, phrases, and AI responses.
+4. suggested_approach_for_next_assessment must include at least one example phrase or sentence the participant can actually say.
+5. questions_to_reflect_on must be personal and scenario-specific — not generic coaching questions.
 """
 
 
