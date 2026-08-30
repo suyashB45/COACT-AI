@@ -24,13 +24,13 @@ export const Typography: Record<string, TextStyle> = {
     fontSize: 14,
     fontWeight: '400',
     lineHeight: 20,
-    color: '#e2e8f0',
+    color: '#e8eaf2',
   },
   bodySm: {
     fontSize: 12,
     fontWeight: '400',
     lineHeight: 16,
-    color: '#94a3b8',
+    color: '#a8afc0',
   },
   labelCaps: {
     fontSize: 11,
@@ -38,7 +38,7 @@ export const Typography: Record<string, TextStyle> = {
     lineHeight: 12,
     letterSpacing: 0.7,
     textTransform: 'uppercase',
-    color: '#94a3b8',
+    color: '#a8afc0',
   },
   button: {
     fontSize: 16,
@@ -50,6 +50,6 @@ export const Typography: Record<string, TextStyle> = {
     fontSize: 12,
     fontWeight: '400',
     lineHeight: 16,
-    color: '#94a3b8',
+    color: '#a8afc0',
   },
 } as const;

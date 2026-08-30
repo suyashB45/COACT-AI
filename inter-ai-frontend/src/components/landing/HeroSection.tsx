@@ -23,11 +23,6 @@ export default function HeroSection() {
             {/* ── Background layers ── */}
             <div className="hero-dark-bg" aria-hidden="true" />
             <div className="hero-dark-grid" aria-hidden="true" />
-            <div className="hero-dark-radial" aria-hidden="true" />
-            {/* purple orb top-left */}
-            <div className="hero-dark-orb-purple" aria-hidden="true" />
-            {/* blue orb bottom-right */}
-            <div className="hero-dark-orb-blue" aria-hidden="true" />
 
             {/* ── Content ── */}
             <div className="relative z-10 flex flex-1 items-center">
@@ -75,8 +70,8 @@ export default function HeroSection() {
 
                             {/* Badge */}
                             <motion.div {...fadeUp(0)} className="mb-6 lg:mb-8">
-                                <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/25 bg-violet-500/10 px-3.5 py-1.5 text-[10px] font-bold tracking-[0.22em] text-violet-200 uppercase shadow-[0_0_18px_rgba(139,92,246,0.18)]">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+                                <span className="inline-flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03] px-3.5 py-1.5 text-[10px] font-bold tracking-[0.22em] text-slate-600 dark:text-slate-300 uppercase backdrop-blur-md">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse" />
                                     AI-Powered Coaching Platform
                                 </span>
                             </motion.div>
@@ -84,24 +79,24 @@ export default function HeroSection() {
                             {/* Heading */}
                             <motion.h1
                                 {...fadeUp(0.1)}
-                                className="hero-dark-heading text-[2.8rem] sm:text-[3.6rem] lg:text-[4rem] xl:text-[4.5rem] font-black leading-[0.95] tracking-[-0.04em] text-white"
+                                className="hero-dark-heading text-[2.8rem] sm:text-[3.6rem] lg:text-[4rem] xl:text-[4.5rem] font-black leading-[0.95] tracking-[-0.04em] text-slate-900 dark:text-white"
                                 style={{ fontFamily: 'var(--font-display)' }}
                             >
                                 AI-Powered
                                 <br />
-                                <span className="bg-gradient-to-r from-violet-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                                <span className="text-slate-900 dark:text-white">
                                     Coaching
                                 </span>
                                 <br />
-                                for Real World
+                                <span className="text-slate-500 dark:text-slate-400 font-medium">for Real World</span>
                                 <br />
-                                Conversation
+                                <span className="text-slate-500 dark:text-slate-400 font-medium">Conversation</span>
                             </motion.h1>
 
                             {/* Description */}
                             <motion.p
                                 {...fadeUp(0.2)}
-                                className="mt-6 max-w-[540px] text-[15px] sm:text-base leading-relaxed text-slate-300/90"
+                                className="mt-6 max-w-[540px] text-[15px] sm:text-base leading-relaxed text-slate-600 dark:text-slate-400"
                             >
                                 Personalized AI coaching that adapts to your goals, delivering
                                 real-time guidance, actionable insights, and measurable
@@ -111,17 +106,15 @@ export default function HeroSection() {
                             {/* CTA Buttons */}
                             <motion.div
                                 {...fadeUp(0.3)}
-                                className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+                                className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4"
                             >
                                 {/* Primary */}
                                 <button
                                     onClick={startPractice}
-                                    className="group inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-[15px] font-semibold text-white transition-all duration-200
-                                        bg-gradient-to-r from-violet-600 to-blue-600
-                                        shadow-[0_0_24px_rgba(139,92,246,0.45)]
-                                        hover:shadow-[0_0_36px_rgba(139,92,246,0.65)]
-                                        hover:-translate-y-0.5
-                                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                                    className="group inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-[15px] font-semibold transition-all duration-200
+                                        bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-black/10
+                                        dark:bg-white dark:text-black dark:hover:bg-slate-100 dark:shadow-white/10
+                                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:focus-visible:ring-white"
                                     aria-label="Get started with CoAct.AI"
                                 >
                                     Get Started
@@ -131,13 +124,13 @@ export default function HeroSection() {
                                 {/* Secondary */}
                                 <button
                                     onClick={scrollToHowItWorks}
-                                    className="group inline-flex items-center justify-center gap-2.5 rounded-xl border border-white/[0.12] bg-white/[0.04] px-7 py-3.5 text-[15px] font-semibold text-white/80 transition-all duration-200
-                                        hover:bg-white/[0.08] hover:border-white/[0.2] hover:text-white
-                                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                                    className="group inline-flex items-center justify-center gap-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-transparent px-7 py-3.5 text-[15px] font-semibold text-slate-700 dark:text-white/80 transition-all duration-200
+                                        hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:border-black/20 dark:hover:border-white/20 hover:text-slate-900 dark:hover:text-white
+                                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:focus-visible:ring-white/30"
                                     aria-label="Learn how CoAct.AI works"
                                 >
-                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
-                                        <Play className="h-2.5 w-2.5 fill-white text-white ml-0.5" />
+                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/5 dark:bg-white/10 group-hover:bg-black/10 dark:group-hover:bg-white/20 transition-colors">
+                                        <Play className="h-2.5 w-2.5 fill-slate-700 dark:fill-white text-slate-700 dark:text-white ml-0.5" />
                                     </span>
                                     How It Works
                                 </button>
@@ -146,13 +139,13 @@ export default function HeroSection() {
                             {/* Social proof */}
                             <motion.div
                                 {...fadeUp(0.4)}
-                                className="mt-8 flex flex-wrap items-center gap-3 text-[12px] text-slate-300/80"
+                                className="mt-8 flex flex-wrap items-center gap-3 text-[12px] text-slate-500 dark:text-slate-300/80"
                             >
                                 <div className="flex -space-x-2">
                                     {['M', 'J', 'A', 'S'].map((letter, i) => (
                                         <div
                                             key={i}
-                                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#03050D] text-[10px] font-bold text-white"
+                                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white dark:border-[#03050D] text-[10px] font-bold text-white"
                                             style={{
                                                 background: ['#7c3aed', '#2563eb', '#0891b2', '#7c3aed'][i],
                                                 opacity: 0.85,
@@ -163,8 +156,8 @@ export default function HeroSection() {
                                     ))}
                                 </div>
                                 <span>Trusted by professionals worldwide</span>
-                                <span className="text-white/20">·</span>
-                                <span className="text-white/30">No credit card required</span>
+                                <span className="text-slate-300 dark:text-white/20">·</span>
+                                <span className="text-slate-400 dark:text-white/30">No credit card required</span>
                             </motion.div>
                         </div>
                     </div>
@@ -184,8 +177,8 @@ export default function HeroSection() {
                     animate={{ y: [0, 5, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                 >
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-white/20">Scroll</span>
-                    <div className="h-8 w-[1px] bg-gradient-to-b from-white/20 to-transparent" />
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-white/20">Scroll</span>
+                    <div className="h-8 w-[1px] bg-gradient-to-b from-slate-300 dark:from-white/20 to-transparent" />
                 </motion.div>
             </motion.div>
         </section>

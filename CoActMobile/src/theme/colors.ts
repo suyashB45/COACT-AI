@@ -18,10 +18,13 @@ export const Colors = {
   surfaceVariant: '#32353c',
 
   // ─── On-Surface (Text) ────────────────────────────────
-  onSurface: '#e1e2ec',
-  onSurfaceVariant: '#c2c6d6',
-  inverseSurface: '#e1e2ec',
-  inverseOnSurface: '#2e3038',
+  onSurface: '#e8eaf2',
+  onSurfaceVariant: '#cdd1e0',
+  inverseSurface: '#e8eaf2',
+  inverseOnSurface: '#262a32',
+  textPrimary: '#ffffff',
+  textSecondary: '#e8eaf2',
+  textMuted: '#a8afc0',
 
   // ─── Primary ──────────────────────────────────────────
   primary: '#adc6ff',
@@ -57,8 +60,8 @@ export const Colors = {
 
   // ─── Semantic Aliases (convenience) ───────────────────
   textPrimary: '#ffffff',
-  textSecondary: '#e2e8f0',
-  textMuted: '#94a3b8',
+  textSecondary: '#e8eaf2',
+  textMuted: '#a8afc0',
   recordingRed: '#ef4444',
   recordingRedTranslucent: 'rgba(239, 68, 68, 0.2)',
 

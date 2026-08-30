@@ -23,7 +23,9 @@
 
   --muted: #edf0ea;
   /* Body copy is intentionally darker than a typical muted UI label. */
-  --muted-foreground: #4d5e53;
+  --muted-foreground: #2d3d32;
+  --text-secondary: #3d4e42;
+  --text-muted: #5a6b60;
 
   --accent: #e9eee5;
   --accent-foreground: #1d2c22;
@@ -71,7 +73,9 @@
   --secondary-foreground: #ffffff;
 
   --muted: #111111;
-  --muted-foreground: #888888;
+  --muted-foreground: #b3b3b3;
+  --text-secondary: #e0e0e0;
+  --text-muted: #9b9b9b;
 
   --accent: #111111;
   --accent-foreground: #ffffff;
@@ -907,15 +911,15 @@ html {
 /* Force deep-dark background regardless of theme */
 .hero-dark {
   position: relative;
-  background: #03050D;
-  color: #ffffff;
+  background: var(--background);
+  color: var(--foreground);
 }
 
 /* Solid base fill */
 .hero-dark-bg {
   position: absolute;
   inset: 0;
-  background: #03050D;
+  background: var(--background);
   z-index: 0;
 }
 
@@ -924,10 +928,13 @@ html {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background-image: radial-gradient(circle, rgba(139, 92, 246, 0.12) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
   background-size: 36px 36px;
   mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
   pointer-events: none;
+}
+.dark .hero-dark-grid {
+  background-image: radial-gradient(circle, rgba(255,255,255, 0.05) 1px, transparent 1px);
 }
 
 /* Soft central radial glow */
@@ -999,14 +1006,14 @@ html {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Dark Section Shared Utilities — #03050D texture
+   Dark Section Shared Utilities
    ═══════════════════════════════════════════════════════════════ */
 
 /* Base dark section */
 .ds-section {
   position: relative;
-  background: #03050D;
-  color: #ffffff;
+  background: var(--background);
+  color: var(--foreground);
   overflow: hidden;
 }
 
@@ -1014,11 +1021,14 @@ html {
 .ds-grid {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(139,92,246,0.10) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px);
   background-size: 40px 40px;
   mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, black 30%, transparent 100%);
   pointer-events: none;
   z-index: 0;
+}
+.dark .ds-grid {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
 }
 
 /* Shared top border shimmer line */
@@ -1026,8 +1036,11 @@ html {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(139,92,246,0.4), rgba(96,165,250,0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
   z-index: 1;
+}
+.dark .ds-shimmer-top {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
 }
 
 /* Shared bottom border shimmer line */
@@ -1035,21 +1048,33 @@ html {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(139,92,246,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
   z-index: 1;
+}
+.dark .ds-shimmer-bottom {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
 }
 
 /* Card base for dark sections */
 .ds-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(0,0,0,0.02);
+  border: 1px solid rgba(0,0,0,0.08);
   border-radius: 16px;
-  transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+  transition: all 0.3s ease;
 }
 .ds-card:hover {
-  background: rgba(139,92,246,0.06);
-  border-color: rgba(139,92,246,0.25);
-  box-shadow: 0 0 32px rgba(139,92,246,0.12), 0 8px 24px rgba(0,0,0,0.35);
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.15);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+}
+.dark .ds-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.dark .ds-card:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.2);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
 /* Section badge pill */
@@ -1059,18 +1084,26 @@ html {
   gap: 6px;
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(139,92,246,0.25);
-  background: rgba(139,92,246,0.1);
+  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.03);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(196,181,253,0.9);
+  color: rgba(0,0,0,0.7);
+}
+.dark .ds-badge {
+  border-color: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.7);
 }
 
 /* Muted body text for dark sections */
 .ds-muted {
-  color: rgba(255,255,255,0.45);
+  color: rgba(0,0,0,0.55);
+}
+.dark .ds-muted {
+  color: rgba(255,255,255,0.5);
 }
 
 /* Icon box for dark sections */
@@ -1079,13 +1112,23 @@ html {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: rgba(139,92,246,0.12);
-  border: 1px solid rgba(139,92,246,0.2);
-  color: #a78bfa;
-  transition: background 0.25s, box-shadow 0.25s;
+  background: rgba(0,0,0,0.05);
+  border: 1px solid rgba(0,0,0,0.1);
+  color: rgba(0,0,0,0.6);
+  transition: all 0.3s ease;
 }
 .ds-icon-box:hover, .group:hover .ds-icon-box {
-  background: rgba(139,92,246,0.22);
-  box-shadow: 0 0 18px rgba(139,92,246,0.3);
-  color: #c4b5fd;
+  background: rgba(0,0,0,0.08);
+  border-color: rgba(0,0,0,0.2);
+  color: rgba(0,0,0,0.9);
+}
+.dark .ds-icon-box {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.6);
+}
+.dark .ds-icon-box:hover, .dark .group:hover .ds-icon-box {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.9);
 }
