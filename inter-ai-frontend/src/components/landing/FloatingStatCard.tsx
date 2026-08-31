@@ -2,8 +2,8 @@ import { motion } from 'framer-motion';
 import { ReactNode } from 'react';
 
 interface FloatingStatCardProps {
-    value: string;
-    label: string;
+    value?: string;
+    label?: string;
     badge?: string;
     icon?: ReactNode;
     className?: string;

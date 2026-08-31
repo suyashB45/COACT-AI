@@ -41,7 +41,7 @@ export default function LimitReached() {
                     <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => window.location.href = "mailto:sales@coact-ai.com?subject=Upgrade%20Inquiry"}
+                        onClick={() => window.location.href = "mailto:team@coact-ai.com?subject=Upgrade%20Inquiry"}
                         className="w-full relative group overflow-hidden bg-primary text-primary-foreground font-bold py-4 px-8 rounded-full flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all"
                     >
                         <span className="relative z-10 flex items-center gap-2 text-base">

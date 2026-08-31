@@ -32,7 +32,7 @@ const HowItWorksSection = () => {
     const lineHeight = useTransform(scrollYProgress, [0, 1], ['0%', '100%']);
 
     return (
-        <section id="how-it-works" className="ds-section py-24 md:py-32 border-b border-white/[0.05]">
+        <section id="how-it-works" className="ds-section py-24 md:py-32 border-b border-slate-200 dark:border-white/[0.05]">
             <div className="ds-grid" />
             <div className="ds-shimmer-top" />
 

@@ -47,7 +47,7 @@ const features = [
 ];
 
 const FeaturesSection = () => (
-    <section id="features" className="ds-section py-20 md:py-28 border-b border-white/[0.05]">
+    <section id="features" className="ds-section py-20 md:py-28 border-b border-slate-200 dark:border-white/[0.05]">
         <div className="ds-grid" />
         <div className="ds-shimmer-top" />
 

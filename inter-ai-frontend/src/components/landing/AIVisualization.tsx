@@ -1,147 +1,179 @@
-import { useEffect, useRef, useState } from "react";
-import {
-    Map,
-    MapArc,
-    MapMarker,
-    MarkerContent,
-    MarkerLabel,
-} from "@/components/ui/map";
-import * as MapLibreGL from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
-import { useTheme } from "@/components/theme-provider";
+import { motion } from "framer-motion";
+import { useMemo } from "react";
 
-const hub = { name: "Dubai", lng: 55.2708, lat: 25.2048 };
-
-const destinations = [
-    { name: "New York", lng: -74.006, lat: 40.7128 },
-    { name: "São Paulo", lng: -46.6333, lat: -23.5505 },
-    { name: "Cape Town", lng: 18.4241, lat: -33.9249 },
-    { name: "London", lng: -0.1276, lat: 51.5074 },
-    { name: "Chennai", lng: 80.2707, lat: 13.0827 },
-    { name: "Singapore", lng: 103.8198, lat: 1.3521 },
-    { name: "Tokyo", lng: 139.6917, lat: 35.6895 },
-    { name: "Sydney", lng: 151.2093, lat: -33.8688 },
+/* Deterministic pseudo-random nodes at specific orbit radii */
+const orbits = [
+    { radius: 98, count: 5, size: 6, duration: 26, clockwise: true },
+    { radius: 66, count: 4, size: 5, duration: 18, clockwise: false },
+    { radius: 40, count: 3, size: 4, duration: 12, clockwise: true },
 ];
 
-const arcs = destinations.map((dest) => ({
-    id: dest.name,
-    from: [hub.lng, hub.lat] as [number, number],
-    to: [dest.lng, dest.lat] as [number, number],
-}));
+/* Animated voice equalizer bars inside the core */
+const BARS = [12, 20, 16, 28, 22, 34, 18, 26, 14, 30, 20, 16, 24, 12, 28, 18];
+
+function Waveform() {
+    return (
+        <div className="flex items-end justify-center gap-[3px] h-9" aria-hidden="true">
+            {BARS.map((h, i) => (
+                <motion.span
+                    key={i}
+                    className="w-[3px] rounded-full"
+                    style={{ height: h, background: "rgba(196,181,253,0.95)", boxShadow: "0 0 8px rgba(139,92,246,0.7)" }}
+                    animate={{ scaleY: [0.45, 1, 0.5, 0.9, 0.45] }}
+                    transition={{
+                        duration: 1.6 + (i % 5) * 0.15,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: i * 0.06,
+                    }}
+                />
+            ))}
+        </div>
+    );
+}
 
 export default function AIVisualization() {
     const size = 320;
-    const mapRef = useRef<MapLibreGL.Map>(null);
-    const [spinEnabled, setSpinEnabled] = useState(true);
-    const { resolvedTheme } = useTheme();
 
-    useEffect(() => {
-        let animationId: number;
-
-        const spinGlobe = () => {
-            if (spinEnabled && mapRef.current) {
-                const map = mapRef.current;
-                const zoom = map.getZoom();
-                if (zoom < 4) {
-                    const center = map.getCenter();
-                    center.lng += 0.2; // spin speed
-                    map.easeTo({ center, duration: 200, easing: (n) => n });
-                }
-            }
-            animationId = requestAnimationFrame(spinGlobe);
-        };
-
-        spinGlobe();
-
-        return () => {
-            cancelAnimationFrame(animationId);
-        };
-    }, [spinEnabled]);
+    /* Pre-compute node positions around each orbit (stable across renders) */
+    const orbitNodes = useMemo(
+        () =>
+            orbits.map((o) =>
+                Array.from({ length: o.count }, (_, i) => {
+                    const angle = (i / o.count) * Math.PI * 2;
+                    return {
+                        x: Math.cos(angle) * o.radius,
+                        y: Math.sin(angle) * o.radius,
+                    };
+                })
+            ),
+        []
+    );
 
     return (
         <div
-            className="relative select-none"
+            className="relative select-none mx-auto"
             style={{ width: size, height: size }}
-            onMouseEnter={() => setSpinEnabled(false)}
-            onMouseLeave={() => setSpinEnabled(true)}
+            aria-label="AI voice assistant visualization"
+            role="img"
         >
-            {/* Outer ambient glow */}
+            {/* Ambient glow */}
             <div
                 className="absolute inset-0 rounded-full pointer-events-none"
                 style={{
-                    background: resolvedTheme === 'light'
-                        ? 'radial-gradient(ellipse at center, rgba(139,92,246,0.1) 0%, rgba(96,165,250,0.05) 50%, transparent 70%)'
-                        : 'radial-gradient(ellipse at center, rgba(139,92,246,0.3) 0%, rgba(96,165,250,0.15) 50%, transparent 70%)',
-                    filter: 'blur(24px)',
+                    background:
+                        "radial-gradient(circle at 50% 50%, rgba(139,92,246,0.28) 0%, rgba(96,165,250,0.12) 45%, transparent 70%)",
+                    filter: "blur(28px)",
                 }}
             />
 
-            <div
-                className="absolute inset-0 rounded-full overflow-hidden border-2 border-black/10 dark:border-white/10 shadow-[0_0_40px_rgba(139,92,246,0.1)] dark:shadow-[0_0_40px_rgba(139,92,246,0.3)]"
-                style={{ transform: 'scale(0.95)' }}
-            >
-                <Map
-                    ref={mapRef}
-                    center={[-40, 20]}
-                    zoom={1.2}
-                    // @ts-ignore
-                    projection={{ type: 'globe' }}
-                    interactive={false}
-                    attributionControl={false}
-                    theme={resolvedTheme === 'light' ? 'light' : 'dark'}
+            {/* Concentric ring decorations */}
+            <div className="absolute inset-0 rounded-full border border-white/[0.04]" />
+
+            {/* ── Orbiting rings + nodes ── */}
+            {orbits.map((o, oi) => (
+                <motion.div
+                    key={`ring-${oi}`}
+                    className="absolute left-1/2 top-1/2 pointer-events-none"
+                    style={{ width: 1, height: 1 }}
+                    animate={{ rotate: o.clockwise ? 360 : -360 }}
+                    transition={{ duration: o.duration, repeat: Infinity, ease: "linear" }}
                 >
-                    <MapArc
-                        data={arcs}
-                        paint={{
-                            "line-color": "#3b82f6",
-                            "line-opacity": 0.5,
-                            "line-width": 3,
-                            "line-dasharray": [2, 2],
+                    {/* ring line */}
+                    <div
+                        className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border"
+                        style={{
+                            width: o.radius * 2,
+                            height: o.radius * 2,
+                            left: 0,
+                            top: 0,
+                            borderColor: "rgba(139,92,246,0.22)",
+                            borderStyle: "dashed",
                         }}
-                        interactive={false}
                     />
-
-                    <MapMarker longitude={hub.lng} latitude={hub.lat}>
-                        <MarkerContent>
-                            <div className="size-3 rounded-full border-2 border-white dark:border-[#03050D] bg-blue-500" />
-                            <MarkerLabel
-                                position="top"
-                                className="bg-white/80 dark:bg-[#03050D]/80 text-slate-900 dark:text-white rounded-sm px-1.5 py-0.5 text-[11px] font-semibold backdrop-blur shadow-sm dark:shadow-none"
-                            >
-                                {hub.name}
-                            </MarkerLabel>
-                        </MarkerContent>
-                    </MapMarker>
-
-                    {destinations.map((dest) => (
-                        <MapMarker key={dest.name} longitude={dest.lng} latitude={dest.lat}>
-                            <MarkerContent>
-                                <div className="size-2 rounded-full border-2 border-white dark:border-[#03050D] bg-blue-500" />
-                                <MarkerLabel position="top" className="text-[10px] text-slate-700 dark:text-slate-300">{dest.name}</MarkerLabel>
-                            </MarkerContent>
-                        </MapMarker>
+                    {/* nodes on this orbit (they inherit the rotation) */}
+                    {orbitNodes[oi].map((n, ni) => (
+                        <span
+                            key={`node-${oi}-${ni}`}
+                            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+                            style={{
+                                left: n.x,
+                                top: n.y,
+                                width: o.size,
+                                height: o.size,
+                                background: ni % 2 === 0 ? "#a78bfa" : "#60a5fa",
+                                boxShadow: "0 0 10px rgba(139,92,246,0.8), 0 0 2px #fff",
+                            }}
+                        />
                     ))}
-                </Map>
+                </motion.div>
+            ))}
 
-                {/* Hide MapLibre UI elements like logo and attribution */}
-                <style>{`
-                    .maplibregl-control-container,
-                    .maplibregl-ctrl-bottom-right,
-                    .maplibregl-ctrl-bottom-left {
-                        display: none !important;
-                    }
-                `}</style>
-
-                {/* Inner shadow for 3D effect */}
+            {/* ── Inner spinning counter-ring ── */}
+            <motion.div
+                className="absolute left-1/2 top-1/2 pointer-events-none"
+                style={{ width: 1, height: 1 }}
+                animate={{ rotate: -360 }}
+                transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+            >
                 <div
-                    className="absolute inset-0 rounded-full pointer-events-none"
+                    className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
                     style={{
-                        boxShadow: resolvedTheme === 'light'
-                            ? 'inset 0 0 40px rgba(0,0,0,0.1), inset -20px -20px 40px rgba(0,0,0,0.1), inset 10px 10px 20px rgba(255,255,255,0.8)'
-                            : 'inset 0 0 40px rgba(0,0,0,0.8), inset -20px -20px 40px rgba(0,0,0,0.9), inset 10px 10px 20px rgba(255,255,255,0.1)'
+                        width: 88,
+                        height: 88,
+                        left: 0,
+                        top: 0,
+                        border: "1px solid rgba(139,92,246,0.28)",
+                        boxShadow: "0 0 30px rgba(139,92,246,0.15), inset 0 0 30px rgba(139,92,246,0.12)",
                     }}
                 />
+                {/* small marker on counter-ring */}
+                <span
+                    className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+                    style={{
+                        left: 44,
+                        top: 0,
+                        width: 5,
+                        height: 5,
+                        background: "#c4b5fd",
+                        boxShadow: "0 0 12px #a78bfa",
+                    }}
+                />
+            </motion.div>
+
+            {/* ── Core (center) ── */}
+            <div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: "50%",
+                    background:
+                        "radial-gradient(circle at 35% 30%, rgba(139,92,246,0.45), rgba(96,165,250,0.2) 60%, rgba(3,5,13,0.9) 100%)",
+                    border: "1px solid rgba(167,139,250,0.5)",
+                    boxShadow:
+                        "0 0 40px rgba(139,92,246,0.45), 0 0 80px rgba(96,165,250,0.25), inset 0 0 24px rgba(139,92,246,0.35)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                }}
+            >
+                <div className="absolute inset-0 rounded-full" style={{ background: "radial-gradient(circle at 50% 50%, rgba(139,92,246,0.18), transparent 70%)" }} />
+                <motion.div
+                    animate={{ opacity: [0.65, 1, 0.65] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    className="relative"
+                >
+                    {/* Voice waveform */}
+                    <Waveform />
+                </motion.div>
             </div>
+
+            {/* Custom cursor spot glow persists */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+                style={{ width: 120, height: 120, background: "radial-gradient(circle, rgba(139,92,246,0.12), transparent 70%)" }}
+            />
         </div>
     );
 }

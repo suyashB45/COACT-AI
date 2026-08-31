@@ -33,7 +33,7 @@ const FAQSection = () => {
     const [openIndex, setOpenIndex] = useState<number | null>(0);
 
     return (
-        <section className="ds-section py-24 md:py-32 border-t border-white/[0.05]">
+        <section className="ds-section py-24 md:py-32 border-t border-slate-200 dark:border-white/[0.05]">
             <div className="container mx-auto px-6 max-w-3xl">
                 <motion.div
                     className="mb-14"
@@ -45,10 +45,10 @@ const FAQSection = () => {
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full ds-badge mb-6">
                         FAQ
                     </div>
-                    <h2 className="text-3xl md:text-4xl font-black mb-4 text-white tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                    <h2 className="text-3xl md:text-4xl font-black mb-4 text-foreground dark:text-white tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
                         Questions we get a lot.
                     </h2>
-                    <p className="text-white/45 text-base">
+                    <p className="text-slate-600 dark:text-white/45 text-base">
                         If yours isn't here, just email us — we usually reply within a few hours.
                     </p>
                 </motion.div>
@@ -69,9 +69,9 @@ const FAQSection = () => {
                                 aria-expanded={openIndex === index}
                                 aria-controls={`faq-answer-${index}`}
                             >
-                                <span className="font-semibold text-white text-sm">{faq.question}</span>
+                                <span className="font-semibold text-foreground dark:text-white text-sm">{faq.question}</span>
                                 <ChevronDown
-                                    className={`w-5 h-5 text-white/40 shrink-0 transition-transform duration-300 ${
+                                    className={`w-5 h-5 text-slate-400 dark:text-white/40 shrink-0 transition-transform duration-300 ${
                                         openIndex === index ? 'rotate-180' : ''
                                     }`}
                                 />
@@ -91,7 +91,7 @@ const FAQSection = () => {
                                         className="overflow-hidden"
                                     >
                                         <div className="px-6 pb-5">
-                                            <p className="text-white/50 text-sm leading-relaxed">
+                                            <p className="text-slate-600 dark:text-white/50 text-sm leading-relaxed">
                                                 {faq.answer}
                                             </p>
                                         </div>
@@ -110,16 +110,16 @@ const FAQSection = () => {
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
                 >
-                    <MessageCircle className="w-8 h-8 text-violet-400 mx-auto mb-3" />
-                    <h4 className="font-semibold text-white mb-2" style={{ fontFamily: 'var(--font-display)' }}>Still have questions?</h4>
-                    <p className="text-sm text-white/45 mb-4">
+                    <MessageCircle className="w-8 h-8 text-violet-500 dark:text-violet-400 mx-auto mb-3" />
+                    <h4 className="font-semibold text-foreground dark:text-white mb-2" style={{ fontFamily: 'var(--font-display)' }}>Still have questions?</h4>
+                    <p className="text-sm text-slate-600 dark:text-white/45 mb-4">
                         We're real people, not a help desk bot. Email us and you'll hear back within a few hours.
                     </p>
                     <a
-                        href="mailto:support@coact.ai"
+                        href="mailto:team@coact-ai.com"
                         className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 text-white font-medium text-sm hover:opacity-90 transition-colors"
                     >
-                        support@coact.ai
+                        team@coact-ai.com
                     </a>
                 </motion.div>
             </div>

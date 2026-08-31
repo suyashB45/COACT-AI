@@ -27,27 +27,27 @@ const useCases = [
 
 const colorMap: Record<string, { icon: string; prompt: string; glow: string; ring: string }> = {
     violet: {
-        icon: 'text-violet-400',
-        prompt: 'border-violet-500/20 bg-violet-500/[0.07] text-violet-200',
+        icon: 'text-violet-500 dark:text-violet-400',
+        prompt: 'border-violet-500/30 dark:border-violet-500/20 bg-violet-500/[0.07] text-violet-700 dark:text-violet-200',
         glow: 'rgba(139,92,246,0.12)',
         ring: 'rgba(139,92,246,0.25)',
     },
     blue: {
-        icon: 'text-blue-400',
-        prompt: 'border-blue-500/20 bg-blue-500/[0.07] text-blue-200',
+        icon: 'text-blue-500 dark:text-blue-400',
+        prompt: 'border-blue-500/30 dark:border-blue-500/20 bg-blue-500/[0.07] text-blue-700 dark:text-blue-200',
         glow: 'rgba(96,165,250,0.1)',
         ring: 'rgba(96,165,250,0.2)',
     },
     cyan: {
-        icon: 'text-cyan-400',
-        prompt: 'border-cyan-500/20 bg-cyan-500/[0.07] text-cyan-200',
+        icon: 'text-cyan-500 dark:text-cyan-400',
+        prompt: 'border-cyan-500/30 dark:border-cyan-500/20 bg-cyan-500/[0.07] text-cyan-700 dark:text-cyan-200',
         glow: 'rgba(34,211,238,0.08)',
         ring: 'rgba(34,211,238,0.18)',
     },
 };
 
 const TestimonialsSection = () => (
-    <section className="ds-section py-20 md:py-28 border-b border-white/[0.05]">
+    <section className="ds-section py-20 md:py-28 border-b border-slate-200 dark:border-white/[0.05]">
         <div className="ds-grid" />
         <div className="ds-shimmer-top" />
 
@@ -65,13 +65,13 @@ const TestimonialsSection = () => (
                 transition={{ duration: 0.55 }}
             >
                 <div className="ds-badge mb-6">
-                    <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-violet-500 dark:bg-violet-400" />
                     Put It To Work
                 </div>
-                <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-[1.08]"
+                <h2 className="text-4xl md:text-5xl font-black text-foreground dark:text-white tracking-tight leading-[1.08]"
                     style={{ fontFamily: 'var(--font-display)' }}>
                     Practice the conversation,{' '}
-                    <span className="bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-violet-600 to-blue-600 dark:from-violet-400 dark:to-blue-400 bg-clip-text text-transparent">
                         not a generic script.
                     </span>
                 </h2>
@@ -103,7 +103,7 @@ const TestimonialsSection = () => (
                                 <uc.icon className={`w-5 h-5 ${c.icon}`} />
                             </div>
 
-                            <h3 className="text-lg font-bold text-white tracking-tight mb-3">
+                            <h3 className="text-lg font-bold text-foreground dark:text-white tracking-tight mb-3">
                                 {uc.title}
                             </h3>
                             <p className="text-[14px] ds-muted leading-relaxed flex-1">

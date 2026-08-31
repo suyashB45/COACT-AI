@@ -16,7 +16,7 @@ const Footer = () => {
     };
 
     return (
-        <footer className="ds-section border-t border-white/[0.06] pt-16 pb-8">
+        <footer className="ds-section border-t border-slate-200 dark:border-white/[0.06] pt-16 pb-8">
             {/* Subtle grid */}
             <div className="ds-grid" style={{ opacity: 0.5 }} />
 
@@ -33,10 +33,10 @@ const Footer = () => {
                 <div className="mb-16 grid md:grid-cols-2 gap-4">
                     {/* Newsletter */}
                     <div className="ds-card p-7">
-                        <h4 className="font-semibold text-white text-base mb-1" style={{ fontFamily: 'var(--font-display)' }}>
+                        <h4 className="font-semibold text-foreground dark:text-white text-base mb-1" style={{ fontFamily: 'var(--font-display)' }}>
                             Stay in the loop
                         </h4>
-                        <p className="text-xs text-white/40 mb-4 leading-relaxed">
+                        <p className="text-xs text-slate-500 dark:text-white/40 mb-4 leading-relaxed">
                             Product updates, communication tips, and the occasional behind-the-scenes look. One email a month, max.
                         </p>
                         <form onSubmit={handleNewsletter} className="flex gap-2">
@@ -45,7 +45,7 @@ const Footer = () => {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="you@company.com"
-                                className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-white/25 transition-all focus:outline-none focus:border-violet-500/40 focus:bg-violet-500/[0.04]"
+                                className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900/[0.04] dark:bg-white/[0.04] border border-slate-300 dark:border-white/[0.08] text-sm text-foreground dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/25 transition-all focus:outline-none focus:border-violet-500/50 dark:focus:border-violet-500/40 focus:bg-violet-500/[0.04]"
                             />
                             <button
                                 type="submit"
@@ -62,10 +62,10 @@ const Footer = () => {
                     {/* Ethical AI */}
                     <div className="ds-card p-7">
                         <div className="flex items-start gap-3">
-                            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                            <ShieldCheck className="w-5 h-5 text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5" />
                             <div>
-                                <h4 className="font-semibold text-white text-sm mb-1">Committed to Responsible AI</h4>
-                                <p className="text-xs text-white/40 leading-relaxed">
+                                <h4 className="font-semibold text-foreground dark:text-white text-sm mb-1">Committed to Responsible AI</h4>
+                                <p className="text-xs text-slate-500 dark:text-white/40 leading-relaxed">
                                     Your conversation data is never used to train public models. We regularly audit our AI for bias and maintain full transparency in data handling. Industry-standard encryption protects everything in transit and at rest.
                                 </p>
                             </div>
@@ -81,14 +81,14 @@ const Footer = () => {
                             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-blue-600 shadow-[0_0_12px_rgba(139,92,246,0.5)]">
                                 <Zap className="h-4 w-4 text-white fill-white" />
                             </div>
-                            <span className="text-[15px] font-bold text-white tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-                                CoAct<span className="text-violet-400">.AI</span>
+                            <span className="text-[15px] font-bold text-foreground dark:text-white tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                                CoAct<span className="text-violet-500 dark:text-violet-400">.AI</span>
                             </span>
                         </div>
-                        <p className="text-sm text-white/40 mb-4 max-w-sm leading-relaxed">
+                        <p className="text-sm text-slate-500 dark:text-white/40 mb-4 max-w-sm leading-relaxed">
                             AI roleplay and coaching for teams that take preparation seriously. Practice the conversations that actually matter.
                         </p>
-                        <p className="text-xs text-white/20 mb-6 leading-relaxed">
+                        <p className="text-xs text-slate-400 dark:text-white/20 mb-6 leading-relaxed">
                             548 Market St, Suite 36879<br />
                             San Francisco, CA 94104
                         </p>
@@ -105,7 +105,7 @@ const Footer = () => {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     aria-label={label}
-                                    className="w-9 h-9 rounded-xl border border-white/[0.07] bg-white/[0.04] flex items-center justify-center text-white/40 hover:text-violet-400 hover:border-violet-500/30 hover:bg-violet-500/[0.08] transition-all"
+                                    className="w-9 h-9 rounded-xl border border-slate-300 dark:border-white/[0.07] bg-slate-900/[0.03] dark:bg-white/[0.04] flex items-center justify-center text-slate-500 dark:text-white/40 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-500/40 dark:hover:border-violet-500/30 hover:bg-violet-500/[0.08] transition-all"
                                 >
                                     <Icon className="w-4 h-4" />
                                 </a>
@@ -114,7 +114,7 @@ const Footer = () => {
                     </div>
 
                     <div>
-                        <h4 className="font-semibold text-white/60 mb-4 text-xs uppercase tracking-wider">Product</h4>
+                        <h4 className="font-semibold text-slate-600 dark:text-white/60 mb-4 text-xs uppercase tracking-wider">Product</h4>
                         <ul className="space-y-3">
                             {[
                                 { label: 'Features', href: '#features' },
@@ -124,8 +124,8 @@ const Footer = () => {
                                 { label: 'Status', href: '#', dot: true },
                             ].map((item) => (
                                 <li key={item.label}>
-                                    <a href={item.href} className="text-sm text-white/40 hover:text-white/80 transition-colors flex items-center gap-1.5">
-                                        {item.dot && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                                    <a href={item.href} className="text-sm text-slate-500 dark:text-white/40 hover:text-slate-800 dark:hover:text-white/80 transition-colors flex items-center gap-1.5">
+                                        {item.dot && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />}
                                         {item.label}
                                     </a>
                                 </li>
@@ -134,29 +134,27 @@ const Footer = () => {
                     </div>
 
                     <div>
-                        <h4 className="font-semibold text-white/60 mb-4 text-xs uppercase tracking-wider">Resources</h4>
+                        <h4 className="font-semibold text-slate-600 dark:text-white/60 mb-4 text-xs uppercase tracking-wider">Resources</h4>
                         <ul className="space-y-3">
                             {['Documentation', 'Blog', 'Customer Stories', 'API Reference'].map((item) => (
                                 <li key={item}>
-                                    <a href="#" className="text-sm text-white/40 hover:text-white/80 transition-colors">{item}</a>
+                                    <a href="#" className="text-sm text-slate-500 dark:text-white/40 hover:text-slate-800 dark:hover:text-white/80 transition-colors">{item}</a>
                                 </li>
                             ))}
                         </ul>
                     </div>
 
                     <div>
-                        <h4 className="font-semibold text-white/60 mb-4 text-xs uppercase tracking-wider">Company</h4>
+                        <h4 className="font-semibold text-slate-600 dark:text-white/60 mb-4 text-xs uppercase tracking-wider">Company</h4>
                         <ul className="space-y-3">
                             {[
                                 { label: 'About', to: '/about' },
                                 { label: 'Careers', to: '/careers' },
                                 { label: 'Contact Sales', to: '/contact-sales' },
                                 { label: 'Security', to: '/security' },
-                                { label: 'Privacy Policy', to: '/privacy' },
-                                { label: 'Terms of Service', to: '/terms' },
                             ].map((item) => (
                                 <li key={item.label}>
-                                    <Link to={item.to} className="text-sm text-white/40 hover:text-white/80 transition-colors">
+                                    <Link to={item.to} className="text-sm text-slate-500 dark:text-white/40 hover:text-slate-800 dark:hover:text-white/80 transition-colors">
                                         {item.label}
                                     </Link>
                                 </li>
@@ -166,21 +164,19 @@ const Footer = () => {
                 </div>
 
                 {/* Bottom Bar */}
-                <div className="border-t border-white/[0.05] pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="border-t border-slate-200 dark:border-white/[0.05] pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <p className="text-xs text-white/25">
+                        <p className="text-xs text-slate-400 dark:text-white/25">
                             &copy; {new Date().getFullYear()} CoAct AI, Inc. All rights reserved.
                         </p>
-                        <span className="text-[10px] text-white/15 bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 rounded-full font-mono">
+                        <span className="text-[10px] text-slate-500 dark:text-white/15 bg-slate-900/[0.03] dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.06] px-2 py-0.5 rounded-full font-mono">
                             v0.2.1
                         </span>
                     </div>
                     <div className="flex items-center gap-5">
-                        <Link to="/privacy" className="text-xs text-white/25 hover:text-white/60 transition-colors">Privacy Policy</Link>
-                        <Link to="/terms" className="text-xs text-white/25 hover:text-white/60 transition-colors">Terms of Service</Link>
-                        <span className="text-xs text-white/20 inline-flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            All systems operational
+                        <span className="text-xs text-slate-400 dark:text-white/20 inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-500 dark:bg-violet-400 animate-pulse" />
+                            Currently in testing
                         </span>
                     </div>
                 </div>

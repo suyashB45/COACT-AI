@@ -36,7 +36,7 @@ const CookieBanner: React.FC = () => {
                             <h4 className="text-foreground font-semibold mb-1">We value your privacy</h4>
                             <p className="text-muted-foreground text-sm">
                                 We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. 
-                                By clicking "Accept", you consent to our use of cookies. Read our <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a> to learn more.
+                                By clicking "Accept", you consent to our use of cookies.
                             </p>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">

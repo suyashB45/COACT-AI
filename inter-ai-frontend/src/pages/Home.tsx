@@ -13,13 +13,14 @@ import Footer from '../components/landing/Footer';
 import TrustLogosSection from '../components/landing/TrustLogosSection';
 import CustomCursor from '../components/landing/CustomCursor';
 import PracticePreview from '../components/landing/PracticePreview';
+import ArcMapSection from '../components/landing/ArcMapSection';
 
 /* ── CTA Banner Section ────────────────────────────── */
 function CTABanner() {
     const navigate = useNavigate();
 
     return (
-        <section className="ds-section py-20 md:py-28 border-b border-white/[0.05]">
+        <section className="ds-section py-20 md:py-28 border-b border-slate-200 dark:border-white/[0.05]">
             <div className="ds-grid" />
             <div className="ds-shimmer-top" />
 
@@ -45,7 +46,7 @@ function CTABanner() {
                     <div className="absolute -bottom-16 -right-16 w-48 h-48 rounded-full bg-blue-500/15 blur-3xl pointer-events-none" />
 
                     <div className="relative z-10 max-w-2xl mx-auto">
-                        <div className="ds-badge mx-auto mb-6">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.05] text-white/80 font-bold text-[11px] uppercase tracking-[0.1em] mx-auto mb-6">
                             <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
                             Start Free Today
                         </div>
@@ -97,7 +98,7 @@ function CTABanner() {
 /* ── Home Page ─────────────────────────────────────── */
 function Home() {
     return (
-        <div className="landing-readable min-h-screen font-sans selection:bg-violet-500/20" style={{ background: '#03050D' }}>
+        <div className="landing-readable min-h-screen font-sans bg-background text-foreground selection:bg-violet-500/20">
             <CustomCursor />
             <Navigation />
             <main>
@@ -106,6 +107,7 @@ function Home() {
                 <PracticePreview />
                 <FeaturesSection />
                 <HowItWorksSection />
+                <ArcMapSection />
                 <TestimonialsSection />
                 <PricingSection />
                 <FAQSection />

@@ -20,6 +20,7 @@ const Navigation = () => {
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 24);
+        onScroll();
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
     }, []);
@@ -81,13 +82,7 @@ const Navigation = () => {
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             >
                 <nav
-                    className={`w-full max-w-6xl flex items-center justify-between h-14 px-5 sm:px-6 rounded-2xl transition-all duration-500 ${
-                        isLanding
-                            ? scrolled
-                                ? 'bg-[#03050D]/90 backdrop-blur-xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)]'
-                                : 'bg-[#03050D]/70 backdrop-blur-md border border-white/[0.06]'
-                            : 'bg-background/90 backdrop-blur-xl border border-border shadow-[0_8px_32px_rgba(0,0,0,0.2)]'
-                    }`}
+                    className={`w-full max-w-6xl flex items-center justify-between h-14 px-5 sm:px-6 rounded-2xl transition-all duration-500 bg-background/90 backdrop-blur-xl border border-border shadow-[0_8px_32px_rgba(0,0,0,0.2)]`}
                 >
                     {/* ── Logo ── */}
                     <Link
@@ -103,8 +98,11 @@ const Navigation = () => {
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-blue-600 shadow-[0_0_12px_rgba(139,92,246,0.5)] group-hover:shadow-[0_0_20px_rgba(139,92,246,0.7)] transition-shadow duration-300">
                             <Zap className="h-4 w-4 text-white fill-white" />
                         </div>
-                        <span className={`text-[15px] font-bold tracking-tight ${isLanding ? 'text-white' : 'text-foreground'}`}>
-                            CoAct<span className="text-violet-400">.AI</span>
+                        <span className={`text-[15px] font-bold tracking-tight text-foreground`}>
+                            CoAct<span className="text-violet-500 dark:text-violet-400">.AI</span>
+                        </span>
+                        <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
+                            In testing
                         </span>
                     </Link>
 
@@ -144,20 +142,16 @@ const Navigation = () => {
                         <ModeToggle />
                         {!loading && (
                             user ? (
-                                <div className="flex items-center gap-1 border-l border-white/10 pl-3 ml-1">
+                                <div className="flex items-center gap-1 border-l border-border pl-3 ml-1">
                                     <button
                                         onClick={() => navigate('/profile')}
-                                        className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-all ${
-                                            isLanding
-                                                ? 'text-white/60 hover:text-white hover:bg-white/[0.06]'
-                                                : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
-                                        }`}
+                                        className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-all text-muted-foreground hover:text-foreground hover:bg-muted/20"
                                     >
                                         <User className="w-3.5 h-3.5" />
                                         Profile
                                     </button>
                                     {/* Thin visual separator before destructive action */}
-                                    <span className="w-px h-4 bg-white/10 mx-1" />
+                                    <span className="w-px h-4 bg-border mx-1" />
                                     <button
                                         onClick={handleLogout}
                                         className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-all text-red-400 hover:text-red-300 hover:bg-red-500/[0.1]"
@@ -168,14 +162,10 @@ const Navigation = () => {
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-2 border-l border-white/10 pl-3 ml-1">
+                                <div className="flex items-center gap-2 border-l border-border pl-3 ml-1">
                                     <button
                                         onClick={() => navigate('/login')}
-                                        className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-all ${
-                                            isLanding
-                                                ? 'text-white/60 hover:text-white hover:bg-white/[0.06]'
-                                                : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
-                                        }`}
+                                        className="text-sm font-medium px-3 py-1.5 rounded-lg transition-all text-muted-foreground hover:text-foreground hover:bg-muted/20"
                                     >
                                         Sign In
                                     </button>
@@ -194,7 +184,7 @@ const Navigation = () => {
                     <div className="flex md:hidden items-center gap-2">
                         <ModeToggle />
                         <button
-                            className={`p-2 rounded-lg transition-colors ${isLanding ? 'text-white/70 hover:text-white hover:bg-white/[0.07]' : 'text-foreground'}`}
+                            className="p-2 rounded-lg transition-colors text-foreground hover:text-foreground hover:bg-muted/20"
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                             aria-label="Toggle menu"
                         >
@@ -212,20 +202,14 @@ const Navigation = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -8 }}
                         transition={{ duration: 0.2 }}
-                        className={`fixed top-[4.5rem] left-4 right-4 z-40 rounded-2xl border p-4 shadow-2xl md:hidden ${
-                            isLanding
-                                ? 'bg-[#03050D]/95 backdrop-blur-xl border-white/[0.08]'
-                                : 'bg-card backdrop-blur-xl border-border'
-                        }`}
+                        className="fixed top-[4.5rem] left-4 right-4 z-40 rounded-2xl border p-4 shadow-2xl md:hidden bg-card backdrop-blur-xl border-border"
                     >
                         <div className="flex flex-col gap-1">
                             {navItems.map((item) => (
                                 <button
                                     key={item.name}
                                     onClick={() => handleNavClick(item)}
-                                    className={`text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                                        isLanding ? 'text-white/70 hover:text-white hover:bg-white/[0.07]' : 'text-foreground hover:bg-muted/30'
-                                    }`}
+                                    className="text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors text-foreground hover:bg-muted/30"
                                 >
                                     {item.name}
                                 </button>
@@ -235,21 +219,17 @@ const Navigation = () => {
                                     <button
                                         key={item.name}
                                         onClick={() => handleNavClick(item)}
-                                        className={`text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                                            isLanding ? 'text-white/70 hover:text-white hover:bg-white/[0.07]' : 'text-foreground hover:bg-muted/30'
-                                        }`}
+                                        className="text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors text-foreground hover:bg-muted/30"
                                     >
                                         {item.name}
                                     </button>
                                 ))}
-                            <div className={`my-2 h-px ${isLanding ? 'bg-white/[0.06]' : 'bg-border'}`} />
+                            <div className="my-2 h-px bg-border" />
                             {user ? (
                                 <>
                                     <button
                                         onClick={() => { navigate('/profile'); setIsMobileMenuOpen(false); }}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                                            isLanding ? 'text-white/70 hover:text-white hover:bg-white/[0.07]' : 'text-foreground hover:bg-muted/30'
-                                        }`}
+                                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors text-foreground hover:bg-muted/30"
                                     >
                                         <User className="w-4 h-4" /> Profile
                                     </button>
@@ -284,17 +264,13 @@ interface NavItemProps {
     onClick: () => void;
 }
 
-function NavItem({ label, isLanding, isActive, onClick }: NavItemProps) {
+function NavItem({ label, isActive, onClick }: NavItemProps) {
     return (
         <button
             onClick={onClick}
             className={`relative px-3.5 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200 group ${
                 isActive
-                    ? isLanding
-                        ? 'text-violet-300'
-                        : 'text-primary'
-                    : isLanding
-                    ? 'text-white/55 hover:text-white'
+                    ? 'text-primary'
                     : 'text-muted-foreground hover:text-foreground'
             }`}
         >
@@ -302,9 +278,7 @@ function NavItem({ label, isLanding, isActive, onClick }: NavItemProps) {
             {/* hover pill background */}
             <span
                 className={`absolute inset-0 rounded-lg transition-all duration-200 scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 ${
-                    isActive
-                        ? isLanding ? 'bg-violet-500/10 scale-100 opacity-100' : 'bg-primary/10 scale-100 opacity-100'
-                        : isLanding ? 'bg-white/[0.06]' : 'bg-muted/30'
+                    isActive ? 'bg-primary/10 scale-100 opacity-100' : 'bg-muted/30'
                 }`}
             />
             {/* active dot */}
