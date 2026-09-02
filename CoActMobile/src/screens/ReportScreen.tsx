@@ -125,6 +125,9 @@ export default function ReportScreen() {
   // --- Parse the data ---
   const meta = rawData?.meta || {};
   const execSummary = rawData?.executive_summary || {};
+  const isMentorship = meta.session_mode === 'mentorship'
+    || rawData?.type === 'mentorship_report'
+    || String(meta.scenario_type || '').toLowerCase().includes('mentorship');
   const gradeStr = meta.overall_grade || execSummary.final_score || '0/10';
   const scoreParts = gradeStr.split('/');
   const scoreNum = parseFloat(scoreParts[0]) || 0;
@@ -158,20 +161,22 @@ export default function ReportScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-        {/* Hero Score */}
+        {/* Hero Card (numeric score hidden for mentorship) */}
         <GlassmorphicCard style={styles.heroCard}>
           <View style={styles.heroTop}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>Performance Score</Text>
-              <Text style={styles.heroSubtitle}>Overall Evaluation</Text>
+              <Text style={styles.heroTitle}>{isMentorship ? 'Mentorship Report' : 'Performance Score'}</Text>
+              <Text style={styles.heroSubtitle}>{isMentorship ? 'Qualitative Development Summary' : 'Overall Evaluation'}</Text>
             </View>
-            <View style={[styles.scoreCircle, {
-              borderColor: scoreNum >= 7 ? Colors.secondary : scoreNum >= 5 ? Colors.tertiary : Colors.recordingRed,
-            }]}>
-              <Text style={[styles.scoreNumber, {
-                color: scoreNum >= 7 ? Colors.secondary : scoreNum >= 5 ? Colors.tertiary : Colors.recordingRed,
-              }]}>{scorePercent}%</Text>
-            </View>
+            {!isMentorship && (
+              <View style={[styles.scoreCircle, {
+                borderColor: scoreNum >= 7 ? Colors.secondary : scoreNum >= 5 ? Colors.tertiary : Colors.recordingRed,
+              }]}>
+                <Text style={[styles.scoreNumber, {
+                  color: scoreNum >= 7 ? Colors.secondary : scoreNum >= 5 ? Colors.tertiary : Colors.recordingRed,
+                }]}>{scorePercent}%</Text>
+              </View>
+            )}
           </View>
           <View style={styles.divider} />
           <Text style={styles.summaryText}>{summary}</Text>

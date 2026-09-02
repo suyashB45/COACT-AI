@@ -1,34 +1,21 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
-from pydantic import BaseModel
 import datetime as dt
-import jwt
 import logging
 
-from database import (
-    get_user_by_email, 
-    create_user,
-    set_2fa_code,
-    verify_2fa_code,
-    update_user_password,
-    RateLimitExceeded
-)
-from email_service import send_security_alert_email, send_otp_email
+import jwt
 from core.config import JWT_SECRET
 from core.dependencies import get_authenticated_user
+from core.security import validate_email, validate_password
 from core.utils import generate_otp
-from core.security import validate_password, validate_email
-# login_limiter is in core.rate_limit ideally, we will mock or import it properly
-# For now we'll import it from app.py or core.rate_limit if we created it. 
-# Let's assume we'll move it to core.rate_limit
+from database import RateLimitExceeded, create_user, get_user_by_email, set_2fa_code, update_user_password, verify_2fa_code
+from email_service import send_otp_email, send_security_alert_email
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 logger = logging.getLogger("coact")
 
-# For the time being, we mock the dependency if not fully extracted
-async def dummy_limiter():
-    pass
-
 from typing import Optional
+
 
 class UserLogin(BaseModel):
     email: str
@@ -50,6 +37,8 @@ class ResetPasswordRequest(BaseModel):
 
 @router.post("/login")
 async def login(request: Request, user: UserLogin):
+    from app import login_limiter
+    await login_limiter(request)
     from database import verify_password
     db_user = get_user_by_email(user.email)
     if not db_user or not verify_password(user.password, db_user["hashed_password"]):
@@ -65,6 +54,8 @@ async def login(request: Request, user: UserLogin):
 
 @router.post("/register")
 async def register(request: Request, user: UserRegister):
+    from app import login_limiter
+    await login_limiter(request)
     if not validate_email(user.email):
         raise HTTPException(status_code=400, detail="Invalid email format")
     
@@ -74,7 +65,7 @@ async def register(request: Request, user: UserRegister):
     
     db_user = get_user_by_email(user.email)
     if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        return {"message": "If this email is not registered, you will receive a welcome email."}
     
     new_user = create_user(user.email, user.password, name=user.name, company=user.company)
     if not new_user:

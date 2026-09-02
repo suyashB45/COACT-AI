@@ -1,8 +1,9 @@
-import os
 import logging
+import os
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from html import escape as html_escape
 
 logger = logging.getLogger("coact.email")
 SMTP_TIMEOUT = 10  # seconds
@@ -12,6 +13,7 @@ def send_2fa_code(recipient_email: str, code: str, username: str = "User"):
     Sends a 2FA code to the specified email address.
     If SMTP credentials are not configured, prints the code to the console for development.
     """
+    safe_username = html_escape(username)
     smtp_server = os.environ.get("SMTP_SERVER") or os.environ.get("SMTP_HOST")
     smtp_port = os.environ.get("SMTP_PORT")
     smtp_user = os.environ.get("SMTP_USER")
@@ -23,7 +25,7 @@ def send_2fa_code(recipient_email: str, code: str, username: str = "User"):
     if not all([smtp_server, smtp_port, smtp_user, smtp_password]):
         print(f"\n{'='*50}")
         print(f"📧 [MOCK EMAIL] To: {recipient_email}")
-        print(f"Subject: Your CoAct.AI Verification Code")
+        print("Subject: Your CoAct.AI Verification Code")
         print(f"Code: {code}")
         print(f"{'='*50}\n")
         return True
@@ -35,7 +37,7 @@ def send_2fa_code(recipient_email: str, code: str, username: str = "User"):
         msg['Subject'] = "Your CoAct.AI Verification Code"
 
         text_body = f"""
-        Hello {username},
+        Hello {safe_username},
         
         Your verification code is: {code}
         
@@ -123,7 +125,7 @@ def send_2fa_code(recipient_email: str, code: str, username: str = "User"):
                     <h1>CoAct.AI</h1>
                 </div>
                 <div class="content">
-                    <p>Hello {username},</p>
+                    <p>Hello {safe_username},</p>
                     <p>You requested a verification code to access your CoAct.AI account. Please use the code below to complete the process:</p>
                     <div class="code-container">
                         <p class="code">{code}</p>
@@ -165,6 +167,7 @@ def send_security_alert_email(recipient_email: str, action: str, username: str =
     """
     Sends a security alert email when password is changed or account is deleted.
     """
+    safe_username = html_escape(username)
     smtp_server = os.environ.get("SMTP_SERVER") or os.environ.get("SMTP_HOST")
     smtp_port = os.environ.get("SMTP_PORT")
     smtp_user = os.environ.get("SMTP_USER")
@@ -196,7 +199,7 @@ def send_security_alert_email(recipient_email: str, action: str, username: str =
         msg['Subject'] = subject
 
         text_body = f"""
-        Hello {username},
+        Hello {safe_username},
         
         This is a security notification to let you know that {action_text}.
         
@@ -229,7 +232,7 @@ def send_security_alert_email(recipient_email: str, action: str, username: str =
                     <h1>CoAct.AI</h1>
                 </div>
                 <div class="content">
-                    <p>Hello {username},</p>
+                    <p>Hello {safe_username},</p>
                     <p>This is a security notification regarding your CoAct.AI account.</p>
                     <div class="alert-box">
                         {action_text.capitalize()}
@@ -270,6 +273,7 @@ def send_otp_email(recipient_email: str, code: str, action: str, username: str =
     """
     Sends an OTP email for a specific sensitive action.
     """
+    safe_username = html_escape(username)
     smtp_server = os.environ.get("SMTP_SERVER") or os.environ.get("SMTP_HOST")
     smtp_port = os.environ.get("SMTP_PORT")
     smtp_user = os.environ.get("SMTP_USER")
@@ -302,7 +306,7 @@ def send_otp_email(recipient_email: str, code: str, action: str, username: str =
         msg['Subject'] = subject
 
         text_body = f"""
-        Hello {username},
+        Hello {safe_username},
         
         You have requested to {action_text}.
         Please use the following verification code to complete this action: {code}
@@ -338,7 +342,7 @@ def send_otp_email(recipient_email: str, code: str, action: str, username: str =
                     <h1>CoAct.AI</h1>
                 </div>
                 <div class="content">
-                    <p>Hello {username},</p>
+                    <p>Hello {safe_username},</p>
                     <p>You have requested to <strong>{action_text}</strong>. Please use the verification code below to complete this action:</p>
                     <div class="code-container">
                         <p class="code">{code}</p>

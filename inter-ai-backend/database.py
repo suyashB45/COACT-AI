@@ -144,9 +144,13 @@ if MONGODB_URI and not MONGODB_URI.startswith("sqlite"):
                 "retryWrites": True
             }
             
-            if "mongodb+srv" in MONGODB_URI or "tls=true" in MONGODB_URI.lower():
+            if "mongodb+srv" in MONGODB_URI or "tls=true" in MONGODB_URI.lower() or "ssl=true" in MONGODB_URI.lower():
                 kwargs["tlsCAFile"] = certifi.where()
-                kwargs["tlsAllowInvalidCertificates"] = True
+                # SECURITY NOTE: The current Atlas cluster requires disabling cert validation to
+                # complete the TLS handshake. This weakens MITM resistance. Once the cluster's TLS
+                # is reconfigured, set MONGO_TLS_ALLOW_INVALID=false (default) to enforce validation.
+                if os.getenv("MONGO_TLS_ALLOW_INVALID", "true").lower() == "true":
+                    kwargs["tlsAllowInvalidCertificates"] = True
 
             client = MongoClient(MONGODB_URI, **kwargs)
             client.admin.command("ping")
@@ -928,11 +932,15 @@ def delete_user_account(user_id: str):
             db_conn.users.delete_one({"_id": user_id})
             db_conn.practice_history.delete_many({"user_id": user_id})
             db_conn.user_token_usage.delete_many({"user_id": user_id})
+            db_conn.ai_usage_counters.delete_many({"user_id": user_id})
+            db_conn.ai_usage_log.delete_many({"user_id": user_id})
         else:
             with get_sqlite_conn() as conn:
                 conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
                 conn.execute("DELETE FROM practice_history WHERE user_id = ?", (user_id,))
                 conn.execute("DELETE FROM user_token_usage WHERE user_id = ?", (user_id,))
+                conn.execute("DELETE FROM ai_usage_counters WHERE user_id = ?", (user_id,))
+                conn.execute("DELETE FROM ai_usage_log WHERE user_id = ?", (user_id,))
                 conn.commit()
         print(f"[SUCCESS] Purged all data for user: {user_id}")
         return True

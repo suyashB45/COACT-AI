@@ -1,0 +1,37 @@
+# Railway-optimized Dockerfile for the frontend.
+# Railway terminates TLS at its edge and provides HTTP on PORT, so this image
+# simply builds the SPA and serves it with the Node/Express server (server.js).
+#
+# Build with the backend's public Railway URL so the SPA calls the API directly:
+#   docker build --build-arg VITE_API_URL=https://<backend>.up.railway.app -f Dockerfile.railway .
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+ARG VITE_API_URL
+# The SPA must know where the backend lives. Fail the build early rather than
+# silently shipping a build that calls /api on the wrong origin.
+RUN test -n "$VITE_API_URL" || (echo "ERROR: VITE_API_URL build-arg is required on Railway" && exit 1)
+ENV VITE_API_URL=$VITE_API_URL
+RUN npm run build
+
+FROM node:20-alpine
+
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=build /app/dist /app/dist
+COPY server.js /app/server.js
+
+ENV PORT=3000
+EXPOSE 3000
+
+USER node
+
+CMD ["node", "server.js"]

@@ -77,6 +77,11 @@ const MiniMeter = ({ title, meter, icon: Icon, iconColor }: {
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.max(2, pct)}%` }}
                     transition={{ duration: 1.2, ease: "easeOut" }}
+                    role="progressbar"
+                    aria-label={`${title} usage`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(pct)}
                     className={`h-full rounded-full ${level.bar}`}
                 />
             </div>
@@ -163,6 +168,11 @@ export default function AiUsageCard() {
                         initial={{ width: 0 }}
                         animate={{ width: `${Math.max(2, dailyPct)}%` }}
                         transition={{ duration: 1.2, ease: "easeOut" }}
+                        role="progressbar"
+                        aria-label="Daily AI token usage"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(dailyPct)}
                         className={`h-full rounded-full ${dailyLevel.bar}`}
                     />
                 </div>

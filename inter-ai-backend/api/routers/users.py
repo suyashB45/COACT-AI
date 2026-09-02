@@ -1,27 +1,29 @@
-from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
-from database import (
-    get_user_by_id, 
-    update_user_name, 
-    update_user_password, 
-    verify_password,
-    set_2fa_code,
-    verify_2fa_code,
-    enable_2fa,
-    disable_2fa,
-    delete_user_account,
-    get_user_usage,
-    RateLimitExceeded
-)
-from email_service import send_security_alert_email, send_otp_email
-from core.config import MONTHLY_TOKEN_LIMIT, MONTHLY_SESSION_LIMIT
 import logging
+
+from core.config import MONTHLY_SESSION_LIMIT, MONTHLY_TOKEN_LIMIT
+from database import (
+    RateLimitExceeded,
+    delete_user_account,
+    disable_2fa,
+    enable_2fa,
+    get_user_by_id,
+    get_user_usage,
+    set_2fa_code,
+    update_user_name,
+    update_user_password,
+    verify_2fa_code,
+    verify_password,
+)
+from email_service import send_otp_email, send_security_alert_email
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 logger = logging.getLogger("coact")
 router = APIRouter(prefix="/api/user", tags=["Users"])
 
 from core.dependencies import get_authenticated_user
 from core.utils import generate_otp
+
 
 class UpdateNameRequest(BaseModel):
     name: str
@@ -104,11 +106,39 @@ class Toggle2FARequest(BaseModel):
 @router.put("/2fa")
 async def toggle_2fa(request: Request, payload: Toggle2FARequest):
     user = get_authenticated_user(request)
+    user_id_str = user.id
+    db_user = get_user_by_id(user_id_str)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    otp_code = generate_otp()
+    action = "enable_2fa" if payload.enabled else "disable_2fa"
+    try:
+        set_2fa_code(user_id_str, otp_code, action)
+    except RateLimitExceeded as e:
+        raise HTTPException(status_code=429, detail=str(e))
+
+    send_otp_email(db_user["email"], otp_code, action, db_user.get("name", "User"))
+    return {"status": "otp_required", "action": action}
+
+class Verify2FARequest(BaseModel):
+    otp: str
+    enabled: bool
+
+@router.post("/2fa/verify")
+async def verify_toggle_2fa(request: Request, payload: Verify2FARequest):
+    user = get_authenticated_user(request)
+    user_id_str = user.id
+    action = "enable_2fa" if payload.enabled else "disable_2fa"
+
+    if not verify_2fa_code(user_id_str, payload.otp, action):
+        raise HTTPException(status_code=400, detail="Invalid, expired, or locked verification code")
+
     if payload.enabled:
-        success = enable_2fa(user.id)
+        success = enable_2fa(user_id_str)
     else:
-        success = disable_2fa(user.id)
-        
+        success = disable_2fa(user_id_str)
+
     if success:
         return {"status": "success", "is_2fa_enabled": payload.enabled}
     raise HTTPException(status_code=500, detail="Failed to toggle 2FA")

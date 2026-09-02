@@ -256,6 +256,11 @@ def extract_usage_metadata(response) -> Optional[tuple]:
         if out is None:
             out = int(total) - int(inp)
         return int(inp), int(out)
+    # Fallback: prompt_tokens + completion_tokens without total_tokens
+    prompt = md.get("prompt_tokens")
+    completion = md.get("completion_tokens")
+    if prompt is not None and completion is not None:
+        return int(prompt), int(completion)
     return None
 
 
@@ -273,7 +278,7 @@ def record_chain_usage(response, model: Optional[str] = None, *,
     else:
         inp = estimate_tokens(messages)
         out = estimate_tokens(output_text)
-    return record_llm_result(model, input_tokens=inp, output_tokens=out, messages=None, output_text=None)
+    return record_llm_result(model, input_tokens=inp, output_tokens=out, messages=messages, output_text=output_text)
 
 
 # ---------------------------------------------------------

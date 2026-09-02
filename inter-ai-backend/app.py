@@ -113,10 +113,12 @@ class TokenBucketLimiter:
         self._lock = asyncio.Lock()
 
     def _get_client_ip(self, request: Request) -> str:
-        """Extract the client IP address, respecting proxy headers."""
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        """Extract the client IP address, respecting proxy headers only when TRUST_PROXY is set."""
+        trust_proxy = os.getenv("TRUST_PROXY", "false").lower() == "true"
+        if trust_proxy:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
         if request.client:
             return request.client.host
         return "127.0.0.1"
@@ -191,13 +193,17 @@ for origin in default_origins:
     if origin not in cors_origins:
         cors_origins.append(origin)
 
+_cors_regex = r"https://(www\.)?coact-ai\.com"
+if not is_prod:
+    _cors_regex += r"|http://localhost:\d+|http://127\.0\.0\.1:\d+"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins if "*" not in cors_origins else ["*"],
-    allow_origin_regex=r"https://.*\.up\.railway\.app|https://.*\.railway\.app|https://.*\.vercel\.app|https://.*\.pages\.dev|https://.*coact-ai\.com|http://localhost:.*|http://127.0.0.1:.*",
+    allow_origin_regex=_cors_regex,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # ---------------------------------------------------------
@@ -211,7 +217,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["X-XSS-Protection"] = "0"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         if os.environ.get("FLASK_ENV") == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"

@@ -1,6 +1,8 @@
 from typing import TypedDict
-from langgraph.graph import StateGraph, START, END
+
 from cli_report import llm_reply
+from langgraph.graph import END, START, StateGraph
+
 
 # Define the state for the graph
 class AgentState(TypedDict):

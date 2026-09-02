@@ -286,3 +286,74 @@ class TestEnvLimits:
         assert AiRateLimits(requests_per_minute=1).limit_type_name("input_tokens_per_hour") == "hourly_input_tokens"
         assert AiRateLimits(requests_per_minute=1).limit_type_name("output_tokens_per_hour") == "hourly_output_tokens"
         assert AiRateLimits(requests_per_minute=1).limit_type_name("daily_tokens_per_user") == "daily_tokens"
+
+
+# --------------------------------------------------------------------------
+# extract_usage_metadata
+# --------------------------------------------------------------------------
+
+class TestExtractUsageMetadata:
+    def test_none_response(self):
+        assert usage_service.extract_usage_metadata(None) is None
+
+    def test_no_metadata(self):
+        assert usage_service.extract_usage_metadata(object()) is None
+
+    def test_usage_metadata_direct(self):
+        class FakeResp:
+            usage_metadata = {"input_tokens": 100, "output_tokens": 50}
+        assert usage_service.extract_usage_metadata(FakeResp()) == (100, 50)
+
+    def test_response_metadata_usage(self):
+        class FakeResp:
+            usage_metadata = None
+            response_metadata = {"usage": {"prompt_tokens": 80, "completion_tokens": 20}}
+        assert usage_service.extract_usage_metadata(FakeResp()) == (80, 20)
+
+    def test_total_tokens_only_with_prompt(self):
+        class FakeResp:
+            usage_metadata = {"total_tokens": 150, "prompt_tokens": 100}
+        assert usage_service.extract_usage_metadata(FakeResp()) == (100, 50)
+
+    def test_total_tokens_only_with_completion(self):
+        class FakeResp:
+            usage_metadata = {"total_tokens": 200, "completion_tokens": 60}
+        assert usage_service.extract_usage_metadata(FakeResp()) == (140, 60)
+
+    def test_total_tokens_no_prompt_no_completion(self):
+        class FakeResp:
+            usage_metadata = {"total_tokens": 100}
+        assert usage_service.extract_usage_metadata(FakeResp()) is None
+
+
+# --------------------------------------------------------------------------
+# record_chain_usage
+# --------------------------------------------------------------------------
+
+class TestRecordChainUsage:
+    def test_no_context_noop(self):
+        """No usage_context set → record_chain_usage returns False."""
+        class FakeResp:
+            usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+        assert usage_service.record_chain_usage(FakeResp(), model="test") is False
+
+    def test_with_context_records_exact(self):
+        """With context set and provider-exact tokens, records them."""
+        uid = _uid()
+        with usage_service.usage_context(uid, endpoint="test"):
+            class FakeResp:
+                usage_metadata = {"input_tokens": 30, "output_tokens": 12}
+            result = usage_service.record_chain_usage(FakeResp(), model="gpt-4")
+            assert result is True
+        snap = usage_service.get_usage(uid)
+        assert snap["daily"]["tokens"]["used"] == 42
+
+    def test_estimate_fallback(self):
+        """No usage_metadata → falls back to len//4 estimation."""
+        uid = _uid()
+        with usage_service.usage_context(uid, endpoint="test"):
+            messages = [{"content": "x" * 400}]
+            result = usage_service.record_chain_usage(None, model="gpt-4", messages=messages, output_text="y" * 80)
+            assert result is True
+        snap = usage_service.get_usage(uid)
+        assert snap["daily"]["tokens"]["used"] > 0

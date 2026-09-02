@@ -273,7 +273,6 @@ export default function Conversation() {
             silentAudio.volume = 0
             silentAudio.play().then(() => {
                 audioUnlockedRef.current = true
-                console.log('[TTS] Audio unlocked via user gesture')
             }).catch(() => {})
         }
         document.addEventListener('click', unlock, { once: true })
@@ -804,8 +803,6 @@ export default function Conversation() {
     const handleInterrupt = useCallback(() => {
         if (!isAiSpeakingRef.current && !isProcessingRef.current) return;
 
-        console.log("Interrupting AI...");
-
         // 1. Abort TTS requests
         if (ttsAbortRef.current) {
             ttsAbortRef.current.abort();
@@ -1253,6 +1250,7 @@ export default function Conversation() {
                                             }}
                                             className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-all"
                                             title="Discard"
+                                            aria-label="Discard draft"
                                         >
                                             <X className="w-4 h-4 text-white/50" />
                                         </button>
@@ -1267,6 +1265,7 @@ export default function Conversation() {
                                             disabled={!pendingTranscript.trim() || state.isProcessing}
                                             className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary hover:bg-primary/80 flex items-center justify-center transition-all disabled:opacity-40 hover:scale-105 shadow-lg shadow-primary/30"
                                             title="Send Message"
+                                            aria-label="Send Message"
                                         >
                                             <Send className="w-5 h-5 text-white" />
                                         </button>

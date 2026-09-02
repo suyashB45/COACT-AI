@@ -15,6 +15,6 @@ export const useAiUsage = ({ poll = false, enabled = true }: { poll?: boolean; e
         enabled,
         retry: 1,
         refetchInterval: poll ? 60_000 : false,
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
     })
 }

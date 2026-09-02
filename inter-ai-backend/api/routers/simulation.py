@@ -66,9 +66,13 @@ def get_relevant_questions(user_msg: str, active_fw: list) -> list:
     return []
 
 def sanitize_llm_output(output: Any) -> str:
-    if isinstance(output, tuple):
-        return str(output[0]).strip()
-    return str(output).strip()
+    import re as _re
+    text = str(output[0]).strip() if isinstance(output, tuple) else str(output).strip()
+    text = _re.sub(r"<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>", "", text, flags=_re.IGNORECASE)
+    text = _re.sub(r"<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>", "", text, flags=_re.IGNORECASE)
+    text = _re.sub(r"javascript:", "", text, flags=_re.IGNORECASE)
+    text = _re.sub(r"on\w+\s*=", "", text, flags=_re.IGNORECASE)
+    return text
 
 
 @router.get("/history")
@@ -795,8 +799,11 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter),
     except Exception:
         user = None
     session_user_id = sess.get("user_id")
-    if session_user_id and (not user or session_user_id != user.id):
-        return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+    if session_user_id:
+        if not user or session_user_id != user.id:
+            return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+    elif not user:
+        return JSONResponse(content={"error": "Unauthorized"}, status_code=401)
         
     if user is not None and not check_token_limit(user.id, MONTHLY_TOKEN_LIMIT):
         return JSONResponse(content={"error": f"Monthly token limit ({MONTHLY_TOKEN_LIMIT}) exceeded. Please try again next month."}, status_code=429)
@@ -805,7 +812,7 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter),
     if not data:
         return JSONResponse(content={"error": "Invalid JSON or Content-Type"}, status_code=400)
 
-    user_msg = normalize_text(data.get("message", ""))
+    user_msg = sanitize_input(normalize_text(data.get("message", "")), max_length=5000)
     audio_url = data.get("audio_url")
     
     # Update transcript
@@ -1056,8 +1063,11 @@ async def complete_session(session_id: str, request: Request, background_tasks: 
     except Exception:
         user = None
     session_user_id = sess.get("user_id")
-    if session_user_id and (not user or session_user_id != user.id):
-        return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+    if session_user_id:
+        if not user or session_user_id != user.id:
+            return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+    elif not user:
+        return JSONResponse(content={"error": "Unauthorized"}, status_code=401)
         
     if user is not None and not check_token_limit(user.id, MONTHLY_TOKEN_LIMIT):
         return JSONResponse(content={"error": f"Monthly token limit ({MONTHLY_TOKEN_LIMIT}) exceeded. Please try again next month."}, status_code=429)
@@ -1104,10 +1114,23 @@ async def complete_session(session_id: str, request: Request, background_tasks: 
     return {"message": "Report generation started", "status": "generating", "scenario_type": scenario_type}
 
 @router.get("/session/{session_id}/report-status")
-async def report_status(session_id: str):
+async def report_status(session_id: str, request: Request):
+    try:
+        user = get_authenticated_user(request)
+    except Exception:
+        user = None
+
     sess = get_session(session_id)
     if not sess:
         return JSONResponse(content={"error": "Not found"}, status_code=404)
+
+    session_user_id = sess.get("user_id")
+    if session_user_id:
+        if not user:
+            return JSONResponse(content={"error": "Unauthorized"}, status_code=401)
+        if session_user_id != user.id:
+            return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+
     return {
         "status": sess.get("report_status", "unknown"),
         "ready": sess.get("report_data") is not None
@@ -1290,42 +1313,27 @@ def _build_comparison(sess, response, session_id):
 
 @router.get("/session/{session_id}/report_data")
 async def get_report_data(session_id: str, request: Request):
-    # 1. AUTHENTICATE USER (OPTIONAL - allow unauthenticated access for guest sessions)
+    # 1. AUTHENTICATE USER
     try:
         user = get_authenticated_user(request)
     except Exception:
-        user = None
+        return JSONResponse(content={"error": "Unauthorized"}, status_code=401)
     
-    # 2. VERIFY OWNERSHIP (only if user is authenticated)
-    # Check in-memory first
+    # 2. VERIFY OWNERSHIP
     sess = SESSIONS.get(session_id)
     if sess:
-        # If session has a user_id and user is authenticated, verify ownership
         session_user_id = sess.get("user_id")
-        if session_user_id:
-            # Session has a user - requires authentication
-            if not user:
-                return JSONResponse(content={"error": "Unauthorized: This session requires authentication"}, status_code=401)
-            # Verify it belongs to the authenticated user
-            if session_user_id != user.id:
-                return JSONResponse(content={"error": "Forbidden: This session belongs to another user"}, status_code=403)
-        # else: session has no user_id (guest session) - allow access without authentication
+        if session_user_id and session_user_id != user.id:
+            return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+        if not session_user_id:
+            sess["user_id"] = user.id
     else:
-        # Check database
         if USE_DATABASE:
             db_sess = get_session_from_db(session_id)
             if not db_sess:
                 return JSONResponse(content={"error": "Session not found"}, status_code=404)
-            
-            # If session has a user_id, require authentication and ownership verification
-            if db_sess.get("user_id"):
-                if not user:
-                    return JSONResponse(content={"error": "Unauthorized: This session requires authentication"}, status_code=401)
-                if str(db_sess.get("user_id")) != user.id:
-                    return JSONResponse(content={"error": "Forbidden: This session belongs to another user"}, status_code=403)
-            # else: guest session - allow access
-            
-            # Load into memory for processing
+            if db_sess.get("user_id") and str(db_sess.get("user_id")) != user.id:
+                return JSONResponse(content={"error": "Forbidden"}, status_code=403)
             sess = db_sess
             SESSIONS[session_id] = sess
         else:
@@ -1657,6 +1665,35 @@ import tempfile
 @router.websocket("/session/{session_id}/live")
 async def live_session_websocket(websocket: WebSocket, session_id: str):
     await websocket.accept()
+
+    # Authenticate WebSocket connection via token query parameter
+    token = websocket.query_params.get("token")
+    ws_user = None
+    if token:
+        try:
+            import jwt as _jwt
+            from core.config import JWT_SECRET
+            payload = _jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            user_id = payload.get("sub")
+            if user_id:
+                from database import get_user_by_id
+                ws_user = get_user_by_id(user_id)
+        except Exception:
+            pass
+
+    # Verify session ownership before processing
+    sess_check = get_session_from_db(session_id)
+    if not sess_check:
+        await websocket.send_json({"type": "error", "error": "Session not found"})
+        await websocket.close(code=4004)
+        return
+    sess_user_id = sess_check.get("user_id")
+    if sess_user_id:
+        if not ws_user or ws_user["id"] != sess_user_id:
+            await websocket.send_json({"type": "error", "error": "Unauthorized"})
+            await websocket.close(code=4003)
+            return
+
     audio_buffer = bytearray()
     
     tts_queue = asyncio.Queue()

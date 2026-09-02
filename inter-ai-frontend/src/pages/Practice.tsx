@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import Navigation from "../components/landing/Navigation"
 import AiUsageCard from "@/components/AiUsageCard"
+import { useAiUsage } from "@/hooks/useAiUsage"
 import { getApiUrl, getAuthHeaders, getRateLimitInfo, type AiRateLimitInfo } from "../lib/api"
 
 const ICON_MAP: any = {
@@ -380,6 +381,10 @@ export default function Practice() {
 
     const [globalMode, setGlobalMode] = useState<"assessment" | "mentorship">("assessment")
 
+    const { data: aiUsage } = useAiUsage({ poll: true })
+    const atDailyLimit = !!aiUsage && aiUsage.daily.tokens.limit > 0
+        && aiUsage.daily.tokens.used >= aiUsage.daily.tokens.limit
+    const usageBlocked = !!atDailyLimit
 
     // Helper function to parse scenario text
     const parseScenarioDetails = (scenarioText: string) => {
@@ -424,6 +429,25 @@ export default function Practice() {
         flip_roles?: boolean
     }) => {
         if (isStartingSession) return
+
+        // Pre-emptive guard: if the daily quota is already exhausted, don't
+        // start a session that will be cut off. Navigate to the limit screen.
+        if (usageBlocked && aiUsage) {
+            navigate('/limit-reached', {
+                state: {
+                    rateLimit: {
+                        error: 'rate_limit_exceeded',
+                        message: 'You have reached your daily AI usage limit. New AI requests are paused until the quota resets.',
+                        limit_type: 'daily_tokens',
+                        limit: aiUsage.daily.tokens.limit,
+                        used: aiUsage.daily.tokens.used,
+                        remaining: aiUsage.daily.tokens.remaining,
+                        retry_after: 0,
+                    },
+                },
+            })
+            return
+        }
 
         try {
             setIsStartingSession(true)
@@ -537,6 +561,18 @@ export default function Practice() {
 
                 <div className="max-w-2xl mx-auto mb-16">
                     <AiUsageCard />
+                    {usageBlocked && aiUsage && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="mt-6 flex items-center gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3"
+                        >
+                            <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+                            <p className="text-sm text-foreground">
+                                You've reached your daily AI usage limit. Start a session below is paused until the quota resets — new conversations won't be able to start right now.
+                            </p>
+                        </motion.div>
+                    )}
                 </div>
 
                 {/* Character Selection */}
