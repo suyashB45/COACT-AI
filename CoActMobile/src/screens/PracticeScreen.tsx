@@ -57,9 +57,12 @@ export default function PracticeScreen() {
           role: scenario.user_role,
           ai_role: displayAiRole,
           scenario: scenario.scenario,
+          framework: 'auto',
           scenario_type: scenario.scenario_type,
           ai_character: selectedCharacter,
           title: scenario.title,
+          mode: scenario.mode,
+          simulation_id: scenario.simulation_id,
         },
         token
       );

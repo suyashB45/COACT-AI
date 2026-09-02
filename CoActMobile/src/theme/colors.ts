@@ -59,9 +59,6 @@ export const Colors = {
   glassBorderLight: 'rgba(255, 255, 255, 0.12)',
 
   // ─── Semantic Aliases (convenience) ───────────────────
-  textPrimary: '#ffffff',
-  textSecondary: '#e8eaf2',
-  textMuted: '#a8afc0',
   recordingRed: '#ef4444',
   recordingRedTranslucent: 'rgba(239, 68, 68, 0.2)',
 
