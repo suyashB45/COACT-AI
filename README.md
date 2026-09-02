@@ -244,11 +244,11 @@ Returns the current user's usage snapshot with requests, hourly input/output tok
 Here is a preview of the CoAct.AI dashboard interface and brand theme mockup:
 
 <p align="center">
-  <img src="inter-ai-frontend/src/assets/dashboard_mockup.png" alt="CoAct.AI Dashboard Interface" width="800"/>
+  <img src="images/first/image.png" alt="CoAct.AI Interface Preview" width="800"/>
 </p>
 
 <p align="center">
-  <img src="logos/concept_3_brand_theme_mockups.png" alt="CoAct.AI Brand Theme Mockup" width="800"/>
+  <img src="images/second/image%20copy.png" alt="CoAct.AI Interface Preview" width="800"/>
 </p>
 
 ---
