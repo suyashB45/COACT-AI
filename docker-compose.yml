@@ -37,12 +37,10 @@ services:
       - "8000"
     volumes:
       - ./inter-ai-backend/reports:/app/reports
-      - ./inter-ai-backend/data:/app/data
-      - backend-db:/app/db
     environment:
       - MONGODB_URI=${MONGODB_URI}
       - PORT=8000
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-30}
       - RATE_LIMIT_INPUT_TOKENS_PER_HOUR=${RATE_LIMIT_INPUT_TOKENS_PER_HOUR:-50000}
       - RATE_LIMIT_OUTPUT_TOKENS_PER_HOUR=${RATE_LIMIT_OUTPUT_TOKENS_PER_HOUR:-20000}
@@ -107,6 +105,3 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-
-volumes:
-  backend-db:

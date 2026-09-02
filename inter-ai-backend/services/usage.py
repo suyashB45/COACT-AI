@@ -8,7 +8,7 @@ Design notes
   * input tokens / output tokens -> per UTC hour window
   * total tokens -> per UTC day window
 - Counters live in Redis when REDIS_URL is set (fastest, with TTLs), otherwise in
-  MongoDB / SQLite via database.py. Redis failures automatically fall back to the DB,
+  MongoDB via database.py. Redis failures automatically fall back to the DB,
   so a Redis outage never breaks the API.
 - `usage_context()` + `record_llm_result()` let LLM call-sites (llm_reply, chain.invoke,
   async streams) report tokens without threading parameters through every layer.

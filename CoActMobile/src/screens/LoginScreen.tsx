@@ -1,6 +1,6 @@
 /**
  * LoginScreen — Authentication screen matching the login mockup.
- * Dark glassmorphic login form with Supabase auth.
+ * Dark glassmorphic login form with backend JWT auth.
  */
 import React, { useState } from 'react';
 import {

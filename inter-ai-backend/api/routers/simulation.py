@@ -758,7 +758,7 @@ async def start_session(request: Request, _ = Depends(standard_limiter), _ai_lim
         "meta": {"framework_counts": {}, "relevance_issues": 0}
     }
     SESSIONS[session_id] = session_data
-    # Save to Supabase immediately when session starts
+    # Save to MongoDB immediately when session starts
     save_session_to_db(session_data)
 
     return ({
@@ -1017,7 +1017,7 @@ def run_report_generation(session_id: str, sess: dict, fw_display: str, mode: st
         sess["report_status"] = "ready"
         sess["completed"] = True
         sess["report_file"] = "dynamic"
-        save_session_to_db(sess) # Save completed status and report_data to Supabase
+        save_session_to_db(sess) # Save completed status and report_data to MongoDB
         logger.info(f"Report generated for {session_id}")
     except Exception as e:
         import traceback

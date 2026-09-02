@@ -11,7 +11,7 @@ Before you begin, ensure you have:
 - [ ] A Linux server (Ubuntu 20.04+ recommended) with root/sudo access
 - [ ] Domain name pointed to your server IP (e.g., `coact-ai.com`)
 - [ ] API keys for Groq, OpenAI, and Sarvam AI
-- [ ] Supabase project created
+- [ ] MongoDB cluster (Atlas/Railway) is reachable with `MONGODB_URI` set
 
 ---
 
@@ -313,7 +313,7 @@ sudo ./renew-ssl.sh
 - [ ] SSL certificates are active and auto-renewing
 - [ ] Firewall rules allow only necessary ports (80, 443, 22)
 - [ ] SSH key authentication is enabled (disable password auth)
-- [ ] Regular backups of Supabase database are configured
+- [ ] Regular backups of MongoDB database are configured
 
 ---
 
@@ -372,7 +372,7 @@ sudo docker system prune -a --volumes
 
 - **Documentation**: See [README.md](./README.md) and [ENV_SETUP.md](./ENV_SETUP.md)
 - **Issues**: Create an issue on GitHub
-- **Database**: [Supabase Docs](https://supabase.com/docs)
+- **Database**: [MongoDB Docs](https://www.mongodb.com/docs)
 - **Groq API**: [Groq Docs](https://console.groq.com/docs/quickstart)
 - **Sarvam AI**: [Sarvam Docs](https://sarvam.ai/docs)
 

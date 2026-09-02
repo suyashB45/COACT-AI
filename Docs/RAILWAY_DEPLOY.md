@@ -104,13 +104,12 @@ must contain the frontend's public URL.
 
 ## 6. Critical caveats
 
-- **MongoDB is mandatory.** If `MONGODB_URI` is missing/unreachable the app silently falls back
-  to a SQLite file on Railway's **ephemeral** disk — every restart/deploy erases all data. The
+- **MongoDB is mandatory.** If `MONGODB_URI` is missing or unreachable, the backend **fails to
+  start** with a clear configuration/connection error — there is no fallback database. The
   Railway Mongo plugin string is only reachable from other Railway services (private network), and
   TLS is used only if the URI carries `ssl=true`/`tls=true` (plaintext is fine inside the private
   network; `database.py` auto-detects both). After deploy, confirm the backend log shows
-  `Connected to MongoDB database: ...` and **no** `Operating with SQLite local database fallback`
-  warning.
+  `Connected to MongoDB database: ...`.
 - **Migration from Atlas (optional)**: if you previously ran on MongoDB Atlas, point the Railway
   Mongo URI's database at the same database name and copy the collections over (e.g. with
   `mongodump`/`mongorestore` or `mongoexport`/`mongoimport`) before switching traffic.
@@ -129,8 +128,9 @@ must contain the frontend's public URL.
 - **`401` on everything**: `JWT_SECRET` differs between deploys — set it as a fixed variable.
 - **Frontend build fails**: `VITE_API_URL` build arg is missing — add it to the frontend service
   variables and redeploy.
-- **Data missing after redeploy**: the backend is using SQLite fallback. Fix `MONGODB_URI` (Railway
-  Mongo plugin string; remember it is private-network-only and the database path should be `/coact`).
+- **Data missing after redeploy**: the backend cannot start if MongoDB is unreachable. Fix
+  `MONGODB_URI` (Railway Mongo plugin string; remember it is private-network-only and the database
+  path should be `/coact`).
 - **Mongo connection refused → `ENOTFOUND ...railway.internal`**: Railway's private networking DNS
   occasionally fails for some projects. Workaround: reference the plugin's **TCP proxy** endpoint
   (`RAILWAY_TCP_PROXY_DOMAIN` + `RAILWAY_TCP_PROXY_PORT`, resolved from the plugin's Variables tab)

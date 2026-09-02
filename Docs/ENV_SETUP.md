@@ -71,18 +71,8 @@ CoAct.AI uses MongoDB Atlas for session and practice history data persistence.
 MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-address>/coact?retryWrites=true&w=majority
 ```
 
-### Supabase (Auth and Storage)
-
-CoAct.AI uses Supabase for user authentication and optionally other services.
-
-**Update in `.env`**:
-```env
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_KEY=<anon-key>
-SUPABASE_SERVICE_KEY=<service-role-key>
-```
-
-> **⚠️ Warning**: The `SUPABASE_SERVICE_KEY` bypasses Row Level Security. Keep it secret and only use it in backend code.
+> **⚠️ Note**: MongoDB is the sole persistent database. If `MONGODB_URI` is missing or the
+> connection fails, the backend will not start.
 
 ### CORS Configuration
 
@@ -104,7 +94,7 @@ Contains backend-specific configuration. Used by the Flask application.
 
 ### AI Usage & Rate Limiting
 
-AI requests (chat, transcription, session start, and report generation) are metered per authenticated user with configurable limits. Counters are stored in **Redis** when `REDIS_URL` is set (fast, with automatic TTL expiry); if Redis is unreachable the backend transparently falls back to Mongo/SQLite.
+AI requests (chat, transcription, session start, and report generation) are metered per authenticated user with configurable limits. Counters are stored in **Redis** when `REDIS_URL` is set (fast, with automatic TTL expiry); if Redis is unreachable the backend transparently falls back to MongoDB.
 
 | Variable | Default | Description |
 | --- | --- | --- |
@@ -174,7 +164,7 @@ git status
 ### 🌍 Environment-Specific Configurations
 
 For production deployments:
-- Use separate Supabase databases for dev/staging/prod
+- Use separate MongoDB databases for dev/staging/prod
 - Configure environment variables via deployment platform
 - Never store production credentials in local `.env` files
 
@@ -182,7 +172,7 @@ For production deployments:
 
 Regularly review:
 - Who has access to Azure Portal
-- Supabase project members
+- MongoDB Atlas project members
 - Service principal permissions
 
 ## Troubleshooting
@@ -218,7 +208,7 @@ Regularly review:
 
 - **Groq API**: [Documentation](https://console.groq.com/docs/quickstart)
 - **Sarvam AI**: [Documentation](https://sarvam.ai/docs)
-- **Supabase**: [Documentation](https://supabase.com/docs)
+- **MongoDB**: [Documentation](https://www.mongodb.com/docs)
 - **Project Issues**: Create an issue in the repository
 
 ## Development vs Production

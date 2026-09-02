@@ -34,6 +34,7 @@ fpdf2==2.8.7
 # Testing
 pytest==9.0.3
 pytest-asyncio==1.4.0
+mongomock==4.3.0
 
 # HTTP Client
 httpx[http2]>=0.27.0

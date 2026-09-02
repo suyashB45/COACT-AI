@@ -8,7 +8,7 @@ The backend handles the core logic of the CoAct.AI application:
 - **Speech-to-Text (STT)**: Utilizes Groq API (`whisper-large-v3-turbo`) for near-instant audio transcription.
 - **Reasoning**: Powered by Groq API (`llama-3.3-70b-versatile`) to generate intelligent responses.
 - **Text-to-Speech (TTS)**: Streams AI responses using Sarvam AI (`bulbul:v3`) or OpenAI.
-- **Database**: SQLite for local development, easily migrating to Supabase for cloud production.
+- **Database**: MongoDB for all persistent application data.
 
 ## Setup & Running Locally
 

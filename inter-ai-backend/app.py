@@ -79,9 +79,6 @@ USE_DATABASE = True # Re-enabled database persistence
 from contextlib import asynccontextmanager
 
 import httpx
-from database import Base, engine
-
-Base.metadata.create_all(bind=engine)
 
 # Global connection pool for Sarvam API (reduces latency by eliminating TCP handshake)
 shared_httpx_client = None

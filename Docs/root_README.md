@@ -15,7 +15,7 @@ The platform is built on a modern, high-performance stack prioritizing speed and
 | ------------------- | ---------------------------------------------------------------------- |
 | **Frontend**        | React (Vite), TypeScript, TailwindCSS                                  |
 | **Backend**         | Python (FastAPI)                                                       |
-| **Database**        | SQLite (SQLAlchemy) for local dev, Supabase (PostgreSQL) for cloud     |
+| **Database**        | MongoDB                                                              |
 | **LLM (Reasoning)** | Groq API (`llama-3.3-70b-versatile`)                                   |
 | **STT (Speech-to-Text)**| Groq API (`whisper-large-v3-turbo`)                                |
 | **TTS (Text-to-Speech)**| Sarvam AI (`bulbul:v3` for Indian accents) or OpenAI (`tts-1`)     |

@@ -61,7 +61,7 @@ graph TD
    - **Rate Limiting**: Token-based rate limiting with per-user quotas (requests/minute, hourly tokens, daily tokens).
    - **AI Usage Tracking**: Redis-backed counters with DB fallback, atomic operations across workers, automatic TTL expiry.
    - **Caching**: Unified Cache supporting Redis for session state management, with local TTLCache fallback.
-   - **Database**: MongoDB for production data persistence, with SQLite fallback for local development.
+   - **Database**: MongoDB for all persistent application data.
 4. **AI Processing Layer (API Based Architecture)**:
    - **Speech-to-Text (STT)**: Uses `Groq Whisper API` for fast streaming transcription.
    - **Reasoning & Live Chat**: Uses `Groq API` for blazing fast text generation.

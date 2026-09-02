@@ -76,10 +76,6 @@ letsencrypt/
 *.bak
 *.cache
 
-# Database files
-inter-ai-backend/coact_local.db
-*.db
-
 # Sensitive files
 inter-ai-backend/new_service_key.txt
 *.pem
