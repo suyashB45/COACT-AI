@@ -7,14 +7,17 @@ Handles both:
   - PDF rendering of the mentorship reflection report
 """
 
-import datetime as dt
 from cli_report import (
-    COLORS, DashboardPDF, sanitize_text, parse_json_robustly,
-    detect_scenario_type, setup_litellm_model, report_llm,
+    COLORS,
+    REPORT_MODEL_NAME,
+    DashboardPDF,
+    detect_scenario_type,
+    parse_json_robustly,
+    report_llm,
+    sanitize_text,
 )
-from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
-
+from langchain_core.prompts import PromptTemplate
 
 # ─────────────────────────────────────────────────────────────────────
 # 1. LLM PROMPT & DATA GENERATION
@@ -23,8 +26,8 @@ from langchain_core.output_parsers import JsonOutputParser
 def build_mentorship_prompt(role, ai_role, scenario, scenario_type):
     """Return the mentorship-specific LLM instruction string."""
     return f"""
-### MENTORSHIP REFLECTION REPORT (NO SCORES)
-OBJECTIVE: Produce a qualitative coaching debrief that helps the participant understand what happened in this session, why the AI behaved as it did, and exactly what to do differently in the next assessed attempt. NO numerical scores anywhere.
+### COACTAI — MENTORSHIP REPORT (COMPLETELY QUALITATIVE, NO SCORES)
+OBJECTIVE: Produce a qualitative mentor's development summary of this mentorship session. It should feel like a mentor's written summary after a coaching conversation — guidance, development, and continuity — NOT an assessment. NO scores, NO marks, NO ratings, NO performance scorecard, NO heat-map scoring, NO impact scores, NO ranking, NO pass/fail anywhere.
 
 Return JSON with this EXACT structure — every field is required:
 {{
@@ -32,61 +35,138 @@ Return JSON with this EXACT structure — every field is required:
     "scenario_id": "{scenario_type}",
     "outcome_status": "Completed",
     "overall_grade": "Practice Simulation",
-    "summary": "One sentence describing what this session was a first attempt at.",
+    "summary": "One sentence describing what this mentorship session was about.",
     "session_mode": "mentorship",
     "scenario": "{scenario}"
   }},
-  "type": "mentorship_reflection",
-  "mentorship_focus": "One sentence naming the specific skill this session was designed to develop (e.g., 'Preparing for a behavioral-coaching conversation with a high-performing but disruptive team member').",
-  "executive_summary": "3-4 sentences. Acknowledge this was a first attempt. Name what the participant did, what stayed at the surface, and why that matters. Tone: honest, constructive, not discouraging. Reference the AI pushback pattern if relevant.",
-  "about_coactai": "CoAct.AI is an advanced simulation platform designed to provide hyper-realistic, AI-driven roleplay scenarios. It evaluates communication, behavioral patterns, and performance in critical situations. By leveraging cutting-edge AI, CoAct.AI offers objective analysis, helping professionals identify blind spots, hone their skills, and develop actionable strategies for growth.",
-  "how_ai_approached": "2-3 paragraphs explaining the AI's strategy. What did the AI open with and why? What was the AI testing for? When the participant gave a vague or weak response, what did the AI do — and why was that deliberate? Use specific moments from the transcript.",
-  "how_you_responded": {{
-    "opening_approach": "1-2 sentences describing how the participant opened the conversation and what that signalled.",
-    "handling_pushback": "1-2 sentences on what the participant did when the AI challenged or pushed back.",
-    "depth_of_engagement": "1-2 sentences on whether the conversation went beyond surface-level.",
-    "closing_the_conversation": "1-2 sentences on how (or whether) the participant closed with a plan or next step."
+  "type": "mentorship_report",
+  "timing": {{
+    "duration": "X min X sec",
+    "start_time": "X:XX AM/PM",
+    "end_time": "X:XX AM/PM"
   }},
-  "what_went_well": [
-    "+ Specific strength observed — tied to what the participant actually said or did"
-  ],
-  "where_you_can_grow": [
-    "- Specific gap — describe the behavior that was missing and why it matters",
-    "- Specific gap 2",
-    "- Specific gap 3"
-  ],
-  "suggested_approach_for_next_assessment": [
+  "conversation_snapshot": {{
+    "primary_topic": "The main topic discussed in this session",
+    "main_objective": "The main objective the mentee brought into this session",
+    "key_topics": ["Topic 1", "Topic 2", "Topic 3"],
+    "summary": "2-3 sentence overall summary of the conversation"
+  }},
+  "conversation_analysis": {{
+    "phase_breakdown": [
+      {{
+        "phase": "Opening",
+        "time_range": "0-3 min",
+        "summary": "What happened in this phase of the conversation",
+        "participant_technique": "A technique the mentee used in this phase",
+        "impact": "How this influenced the direction of the conversation"
+      }}
+    ],
+    "key_turning_points": [
+      {{
+        "moment": "A single pivotal exchange in the conversation",
+        "what_happened": "What the mentee said or did at this moment",
+        "why_significant": "Why this mattered for the conversation"
+      }}
+    ],
+    "dialogue_dynamics": [
+      {{
+        "dimension": "Balance of Talk Time / Questioning / Active Listening / Tone",
+        "observation": "Observation of the mentee's behaviour in this dimension",
+        "assessment": "QUALITATIVE label ONLY (High / Moderate / Developing) — never a number"
+      }}
+    ],
+    "notable_moments": [
+      "A concrete, high-impact moment or exchange worth flagging",
+      "Another notable moment"
+    ]
+  }},
+  "executive_dashboard": {{
+    "main_goal": "The mentee's primary goal for this session",
+    "topics_discussed": ["Topic 1", "Topic 2"],
+    "key_insights": ["Key insight 1", "Key insight 2", "Key insight 3"],
+    "development_areas": ["Development area 1", "Development area 2"],
+    "key_actions": ["Action 1", "Action 2"]
+  }},
+  "mentorship_focus": "One sentence naming the primary focus of the mentorship session (e.g., Career Development, Leadership Development, Technical Growth, Communication, Personal Development, Decision Making — or a specific skill).",
+  "goal_progress": [
     {{
-      "step": "Before you start",
-      "instruction": "Specific preparation action the participant should take before their next attempt."
-    }},
-    {{
-      "step": "During the conversation",
-      "instruction": "Specific in-session behavior to try — include an example phrase or sentence if possible."
-    }},
-    {{
-      "step": "To close strong",
-      "instruction": "What the participant should always do before ending the conversation."
-    }},
-    {{
-      "step": "Mindset shift",
-      "instruction": "A reframe that changes how the participant approaches this type of conversation."
+      "goal": "The goal discussed",
+      "progress_observed": "Describe the progress observed during the session",
+      "current_situation": "Describe the mentee's current situation",
+      "what_remains": "What still remains to be addressed",
+      "evidence": "Exact verbatim [MENTEE] quote from the transcript that supports the observation",
+      "improvement": "Qualitative, encouraging guidance on how the mentee can keep building on this goal"
     }}
   ],
-  "questions_to_reflect_on": [
-    "Reflective question 1 — personal, scenario-specific, prompts genuine self-examination",
-    "Reflective question 2",
-    "Reflective question 3"
+  "skill_development": [
+    {{
+      "skill": "The skill discussed or developed",
+      "current_observation": "Observation of the mentee's current level",
+      "development_direction": "The direction to develop this skill",
+      "evidence": "Exact verbatim [MENTEE] quote from the transcript that supports the observation",
+      "improvement": "Qualitative, specific suggestion for building this skill — no scores"
+    }}
   ],
-  "what_to_expect_in_next_assessment": "2-3 sentences. Tell the participant what the next graded session will focus on and what 2-3 specific behaviors will be scored. Be concrete — name the exact things to rehearse."
+  "mentor_guidance": {{
+    "advice_given": ["Advice 1", "Advice 2"],
+    "recommendations": ["Recommendation 1", "Recommendation 2"],
+    "explanations": ["Explanation 1", "Explanation 2"],
+    "examples_provided": ["Example 1", "Example 2"],
+    "resources_suggested": ["Resource 1", "Resource 2"],
+    "additional_guidance_needed": ["Area where more guidance would help"]
+  }},
+  "mentee_reflection": {{
+    "concerns_expressed": ["Concern 1", "Concern 2"],
+    "challenges_identified": ["Challenge 1", "Challenge 2"],
+    "self_reflections": ["Reflection 1", "Reflection 2"],
+    "questions_raised": ["Question 1", "Question 2"],
+    "areas_of_uncertainty": ["Uncertainty 1", "Uncertainty 2"],
+    "key_realizations": ["Realization 1", "Realization 2"]
+  }},
+  "strengths_and_development": {{
+    "strengths": ["Strength 1 — positive capability observed", "Strength 2"],
+    "development_opportunities": ["Opportunity 1 — skill/knowledge to develop", "Opportunity 2"]
+  }},
+  "key_insights": [
+    "Concise, evidence-based insight from the conversation"
+  ],
+  "recommended_mentorship_questions": [
+    "Question to ask in the next session (e.g., 'What progress have you made since our last discussion?')",
+    "Second recommended question",
+    "Third recommended question"
+  ],
+  "action_plan": [
+    {{
+      "action": "Action the mentee agreed to take",
+      "purpose": "Why this action matters",
+      "expected_outcome": "The expected result of taking this action",
+      "priority": "High"
+    }}
+  ],
+  "next_mentorship_focus": {{
+    "progress_review": "What progress should be reviewed in the next session",
+    "unresolved_challenges": "Unresolved challenges to revisit",
+    "new_development_areas": "New development areas to explore",
+    "follow_up_on_previous_actions": "Which previous actions need follow-up",
+    "next_milestone": "The next milestone the mentee wants to achieve"
+  }}
 }}
 
 KEY INSTRUCTIONS:
-1. NO numerical scores anywhere in the output.
-2. The language should feel like a mentor debrief after watching a first run-through — honest, warm, specific.
-3. Use the actual transcript. Reference specific moments, phrases, and AI responses.
-4. suggested_approach_for_next_assessment must include at least one example phrase or sentence the participant can actually say.
-5. questions_to_reflect_on must be personal and scenario-specific — not generic coaching questions.
+1. COMPLETELY QUALITATIVE. NO numerical scores, marks, ratings, percentages, rankings, or pass/fail anywhere in the output. Use descriptive, encouraging, mentor-style language.
+2. The report must feel like a mentor's development summary — guidance, reflection, and continuity — not a graded assessment.
+3. Use the actual transcript. Reference specific moments, phrases, and topics discussed.
+4. mentor_guidance must reflect what the MENTOR (AI character, role "{ai_role}") actually advised — quote or paraphrase their advice.
+5. mentee_reflection must reflect the MENTEE's (human, role "{role}") own words, concerns, and realizations — quote where possible.
+6. recommended_mentorship_questions must be useful questions for the NEXT mentorship conversation.
+7. action_plan must include NO owner and NO score — only action, purpose, expected outcome, and priority (priority MUST be one of exactly "High", "Medium", "Low"). No numerical rating of priority.
+8. Keep every section concise, specific, and evidence-based.
+9. PROOF FOR EVERY OBSERVATION: Every goal_progress and skill_development entry MUST include (a) "evidence" = an exact verbatim [MENTEE] quote that supports the observation, and (b) "improvement" = qualitative, encouraging, actionable guidance. Never leave these blank.
+10. CONTENT INTELLIGENCE: Analyze the actual conversation. Do not invent behaviours, emotions, goals, skills, challenges, or outcomes. Quote the mentee's real words.
+11. NO REPETITION: Never repeat the same observation verbatim across sections. Each section delivers a different layer: Context → Development → Guidance → Reflection → Insights → Action → Next Session.
+12. PROFESSIONAL LANGUAGE: Use framing such as "The conversation indicates...", "A recurring theme was...", "An opportunity for development is...", "The discussion demonstrated evidence of...". Avoid "The AI thinks", "The mentor believes", "You did a great job", "This was amazing".
+13. ENTERPRISE TONE: Write like a senior leadership/development consultant producing an internal progress note — measured, specific, encouraging but not effusive. Refer to the participant as "the mentee", not "you". Do NOT address the mentee in the second person. If evidence is insufficient, use exactly: "Insufficient evidence from the conversation."
+14. conversation_analysis MUST be COMPLETELY QUALITATIVE and trace the actual dialogue: phase_breakdown (2-4 phases) shows what happened and the mentee's technique and its impact; key_turning_points (1-3) names pivotal exchanges and why they mattered; dialogue_dynamics (2-4 dimensions such as talk-time balance, questioning quality, active listening, tone) uses ONLY qualitative labels ("High", "Moderate", "Developing") for assessment — NEVER a number, "/10", or rating; notable_moments (1-3) flags concrete exchanges. This section must trace the ARC of the conversation, not repeat observations from other sections.
 """
 
 
@@ -114,7 +194,7 @@ def analyze_mentorship_report_data(transcript, role, ai_role, scenario,
     if not user_msgs:
         meta["outcome_status"] = "Not Started"
         meta["summary"] = "Session started but no interaction recorded."
-        return {"meta": meta, "type": "mentorship_reflection"}
+        return {"meta": meta, "type": "mentorship_report"}
 
     unified_instruction = build_mentorship_prompt(role, ai_role, scenario, scenario_type)
 
@@ -167,6 +247,9 @@ def analyze_mentorship_report_data(transcript, role, ai_role, scenario,
             json_text = "".join(str(x) for x in content).strip()
         else:
             json_text = str(content).strip()
+
+        from services.usage import record_chain_usage
+        record_chain_usage(raw_response, REPORT_MODEL_NAME, messages=system_prompt + "\n" + full_conversation, output_text=json_text)
         data = parse_json_robustly(json_text)
 
         if data is None:
@@ -178,13 +261,13 @@ def analyze_mentorship_report_data(transcript, role, ai_role, scenario,
         data["meta"]["scenario_type"] = scenario_type
         data["meta"]["session_mode"] = "mentorship"
         if "type" not in data:
-            data["type"] = "mentorship_reflection"
+            data["type"] = "mentorship_report"
 
         return data
 
     except Exception as e:
         print(f"[ERROR] Mentorship report generation failed: {e}")
-        return {"meta": meta, "type": "mentorship_reflection", "error": str(e)}
+        return {"meta": meta, "type": "mentorship_report", "error": str(e)}
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -204,138 +287,13 @@ _TEXT_MAIN  = COLORS["text_main"]
 _TEXT_LIGHT = COLORS["text_light"]
 _WHITE  = (255, 255, 255)
 
-_CONTENT_LEFT  = 12
-_CONTENT_WIDTH = 186
-_BULLET_X      = 16
-_BULLET_TEXT_X = 22
-_BULLET_TEXT_W = 174
-
-
-def _section_title(pdf, title, color):
-    """Colored accent bar + section heading."""
-    pdf.check_space(20)
-    pdf.ln(8)
-    pdf.set_fill_color(*color)
-    pdf.rect(10, pdf.get_y(), 3, 10, "F")
-    pdf.set_xy(16, pdf.get_y() + 1.5)
-    pdf.set_font("helvetica", "B", 12)
-    pdf.set_text_color(*color)
-    FPDF_cell(pdf, 0, 7, title, 0, 1)
-    pdf.ln(3)
-
-
-def _sub_label(pdf, text, color=None):
-    pdf.check_space(10)
-    pdf.set_x(_CONTENT_LEFT)
-    pdf.set_font("helvetica", "B", 8.5)
-    pdf.set_text_color(*(color or _TEXT_LIGHT))
-    FPDF_cell(pdf, 0, 5, text.upper(), 0, 1)
-    pdf.ln(1)
-
-
-def _bullet_item(pdf, text, icon=None, icon_color=None):
-    pdf.check_space(8)
-    if icon and icon_color:
-        pdf.set_xy(_BULLET_X, pdf.get_y())
-        pdf.set_font("helvetica", "B", 9)
-        pdf.set_text_color(*icon_color)
-        FPDF_cell(pdf, 6, 5, icon, 0, 0)
-    else:
-        pdf.set_xy(_BULLET_X, pdf.get_y())
-        pdf.set_font("helvetica", "", 9)
-        pdf.set_text_color(*_TEXT_LIGHT)
-        FPDF_cell(pdf, 6, 5, "-", 0, 0)
-    pdf.set_font("helvetica", "", 9)
-    pdf.set_text_color(*_TEXT_MAIN)
-    y = pdf.draw_wrapped_text(_BULLET_TEXT_X, pdf.get_y(), _BULLET_TEXT_W, 5, str(text))
-    pdf.set_y(y + 1)
-
-
-def _divider(pdf):
-    pdf.ln(4)
-    pdf.set_draw_color(*COLORS["divider"])
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(4)
-
-
-def FPDF_cell(pdf, *args, **kwargs):
-    """Call the base FPDF.cell to bypass DashboardPDF overrides."""
-    super(DashboardPDF, pdf).cell(*args, **kwargs)
-
-
-# ── Cover page (called from DashboardPDF.header) ─────────────────
-
-def draw_mentorship_cover(pdf):
-    """Draw the mentorship-specific cover page.
-    Called inside DashboardPDF.header() when session_mode == 'mentorship'.
-    """
-    pdf.linear_gradient(0, 0, 210, 55, (15, 23, 42), (30, 58, 95), "H")
-
-    # Title
-    pdf.set_xy(10, 8)
-    pdf.set_font("helvetica", "B", 22)
-    pdf.set_text_color(255, 255, 255)
-    FPDF_cell(pdf, 0, 10, "Mentorship Reflection Report", 0, 0, "L")
-
-    # Platform
-    pdf.set_xy(10, 20)
-    pdf.set_font("helvetica", "", 10)
-    pdf.set_text_color(147, 197, 253)
-    FPDF_cell(pdf, 60, 5, "COACT.AI", 0, 0, "L")
-
-    # Mode badge
-    pdf.set_xy(10, 27)
-    pdf.set_font("helvetica", "B", 9)
-    pdf.set_text_color(16, 185, 129)
-    FPDF_cell(pdf, 60, 5, "Mode: Practice Simulation", 0, 0, "L")
-
-    # Scenario (right side)
-    scenario_txt = getattr(pdf, "scenario_text", "")
-    if scenario_txt:
-        text = str(scenario_txt).replace("CONTEXT:", "").replace("Situation:", "").strip()
-        for marker in ["AI BEHAVIOR:", "AI ROLE:", "USER ROLE:", "SCENARIO:"]:
-            if marker in text:
-                text = text.split(marker)[0].strip()
-        
-        pdf.set_xy(80, 20)
-        pdf.set_font("helvetica", "", 9)
-        pdf.set_text_color(200, 220, 255)
-        label = text if len(text) <= 60 else text[:57] + "..."
-        FPDF_cell(pdf, 120, 5, f"Scenario: {label}", 0, 0, "R")
-
-    # Participant name
-    if hasattr(pdf, "user_name") and pdf.user_name:
-        pdf.set_xy(80, 27)
-        pdf.set_font("helvetica", "I", 9)
-        pdf.set_text_color(200, 220, 255)
-        FPDF_cell(pdf, 120, 5, f"Participant: {pdf.user_name}", 0, 0, "R")
-
-    # Date
-    pdf.set_xy(80, 34)
-    pdf.set_font("helvetica", "", 9)
-    pdf.set_text_color(200, 220, 255)
-    FPDF_cell(pdf, 120, 5, dt.datetime.now().strftime("%B %d, %Y"), 0, 0, "R")
-
-    # Tagline
-    pdf.set_xy(10, 42)
-    pdf.set_font("helvetica", "I", 8)
-    pdf.set_text_color(148, 163, 184)
-    FPDF_cell(
-        pdf, 0, 5,
-        "This report summarizes key interaction patterns and learning insights from your practice simulation.",
-        0, 0, "L",
-    )
-    pdf.ln(50)
-
-
 # ── Body sections ────────────────────────────────────────────────
 
 def draw_mentorship_body(pdf, data):
     """
-    Renders the Mentorship Report focusing on development, mentoring, and role progression.
-    NO numerical scores are included.
+    Renders the Mentorship Report — a qualitative mentor's development summary.
+    NO numerical scores, marks, ratings, or scorecards anywhere.
     """
-    SLATE = (30, 41, 59)
     EMERALD = (16, 185, 129)
     BLUE = (59, 130, 246)
     AMBER = (245, 158, 11)
@@ -346,25 +304,64 @@ def draw_mentorship_body(pdf, data):
     LIGHT_BG = (248, 250, 252)
     TEXT_MAIN = _TEXT_MAIN
     TEXT_LIGHT = _TEXT_LIGHT
-    CONTENT_LEFT = _CONTENT_LEFT
-    CONTENT_WIDTH = _CONTENT_WIDTH
+
+    # Roles + scenario context (same design as the assessment report)
+    pdf.draw_context_summary()
 
     def block_title(title, color):
-        pdf.check_space(18)
+        pdf.check_space(70)
         pdf.ln(6)
-        pdf.set_fill_color(*color)
-        pdf.rect(10, pdf.get_y(), 3, 9, 'F')
-        pdf.set_xy(16, pdf.get_y() + 1)
+        band_y = pdf.get_y()
+        pdf.set_fill_color(*LIGHT_BG)
+        pdf.rect(10, band_y, 190, 12, 'F')
+        num = title.split('.')[0].strip() if '.' in title else ''
+        label = title.split('.', 1)[1].strip() if '.' in title else title
+        if num:
+            pdf.set_fill_color(*color)
+            pdf.rect(12, band_y + 2, 8, 8, 'F')
+            pdf.set_xy(13, band_y + 3.5)
+            pdf.set_font('helvetica', 'B', 8)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(6, 5, num, 0, 0, 'C')
+            pdf.set_xy(24, band_y + 3)
+        else:
+            pdf.set_xy(14, band_y + 3)
         pdf.set_font('helvetica', 'B', 11)
         pdf.set_text_color(*color)
-        pdf.cell(0, 7, title.upper(), 0, 1)
+        pdf.cell(0, 6, label.upper(), 0, 1)
+        pdf.set_y(band_y + 14)
         pdf.ln(2)
+        # One-line purpose statement beneath the section header
+        if title in _SEC_INTRO:
+            pdf.set_x(12)
+            pdf.set_font('helvetica', 'I', 8)
+            pdf.set_text_color(*TEXT_LIGHT)
+            pdf.multi_cell(186, 4, _SEC_INTRO[title])
+            pdf.ln(1)
+
+    _SEC_INTRO = {
+        "1. Timing": "Session logistics and engagement scale.",
+        "2. Conversation Snapshot": "The narrative arc and core intent of the mentorship dialogue.",
+        "3. Executive Dashboard": "A consolidated read on the quality of the mentorship session.",
+        "4. Mentorship Focus": "The development area the session was designed around.",
+        "5. Goal Progress": "Traction on the mentee's goals, with observed evidence.",
+        "6. Skill Development": "Competencies being built and how to accelerate them.",
+        "7. Mentor Guidance": "The guidance provided and its developmental impact.",
+        "8. Mentee Reflection": "The mentee's own perspective on the session and growth.",
+        "9. Strengths & Development Opportunities": "Emerging strengths and focus areas, framed qualitatively.",
+        "10. Key Insights": "The most material takeaways from the conversation.",
+        "11. Recommended Mentorship Questions": "Questions to deepen reflection and ownership.",
+        "12. Action Plan": "Prioritised next steps to convert insight into growth.",
+"13. Next Mentorship Focus": "Where the relationship should direct its attention next.",
+        "14. Conversation Analysis": "A granular walkthrough of the dialogue and the moments that shaped it.",
+    }
 
     def small_label(text, color=None):
         pdf.set_x(12)
         pdf.set_font('helvetica', 'B', 8)
         pdf.set_text_color(*(color or TEXT_LIGHT))
         pdf.cell(0, 5, text.upper(), 0, 1)
+        pdf.ln(1)
 
     def body_text(text):
         pdf.set_x(12)
@@ -372,126 +369,490 @@ def draw_mentorship_body(pdf, data):
         pdf.set_text_color(*TEXT_MAIN)
         pdf.multi_cell(186, 5, sanitize_text(str(text)))
 
+    def bullet(text, color=None):
+        pdf.set_x(15)
+        pdf.set_font('helvetica', '', 9)
+        pdf.set_text_color(*(color or TEXT_MAIN))
+        pdf.multi_cell(180, 5, "• " + sanitize_text(str(text)))
+        pdf.ln(1)
+
     def divider():
         pdf.ln(4)
         pdf.set_draw_color(226, 232, 240)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(3)
 
-    # 1. Session Overview
-    conv_snapshot = data.get('conversation_snapshot', {})
-    if conv_snapshot.get('conversation_flow_overview'):
-        block_title("1. Session Overview", BLUE)
-        body_text(conv_snapshot['conversation_flow_overview'])
-        divider()
-
-    # 2. Response Strategies
-    strategies = data.get('ai_response_strategy_observed', [])
-    if strategies:
-        block_title("2. Response Strategies", EMERALD)
-        for s in strategies:
-            pdf.set_x(15)
-            pdf.set_font('helvetica', '', 9)
-            pdf.set_text_color(*TEXT_MAIN)
-            pdf.multi_cell(180, 5, "• " + sanitize_text(str(s)))
-        divider()
-
-    # 3. Questioning Techniques
-    techniques = data.get('questioning_techniques_used_by_ai', [])
-    if techniques:
-        block_title("3. Questioning Techniques", PURPLE)
-        for t in techniques:
-            pdf.set_x(15)
-            pdf.set_font('helvetica', '', 9)
-            pdf.set_text_color(*TEXT_MAIN)
-            pdf.multi_cell(180, 5, "• " + sanitize_text(str(t)))
-        divider()
-
-    # 4. Emotional Handling Patterns
-    patterns = data.get('emotional_handling_patterns', [])
-    if patterns:
-        block_title("4. Emotional Handling Patterns", ROSE)
-        for p in patterns:
-            pdf.set_x(15)
-            pdf.set_font('helvetica', '', 9)
-            pdf.set_text_color(*TEXT_MAIN)
-            pdf.multi_cell(180, 5, "• " + sanitize_text(str(p)))
-        divider()
-
-    # 5. Key Turning Points
-    turning_points = data.get('turning_points', [])
-    if turning_points:
-        block_title("5. Key Turning Points", AMBER)
-        for tp in turning_points:
-            small_label(f"Point {tp.get('point_number', '')}: {tp.get('title', '')}", AMBER)
-            body_text(tp.get('description', ''))
-            pdf.ln(1)
-            pdf.set_x(12)
-            pdf.set_font('helvetica', 'I', 9)
-            pdf.set_text_color(*TEXT_LIGHT)
-            pdf.multi_cell(186, 5, "Technique & Impact:")
-            pdf.set_x(12)
-            pdf.set_font('helvetica', '', 9)
-            pdf.set_text_color(*TEXT_MAIN)
-            impact_text = f"{sanitize_text(str(tp.get('ai_technique_used', '')))} - {sanitize_text(str(tp.get('impact', '')))}"
-            pdf.multi_cell(186, 5, impact_text)
-            pdf.ln(3)
-        divider()
-
-    # 6. Phrases Demonstrated
-    phrases = data.get('example_phrases_demonstrated', [])
-    if phrases:
-        block_title("6. Phrases Demonstrated", TEAL)
-        for p in phrases:
-            pdf.set_x(12)
+    # 1. Timing
+    timing = data.get('timing', {}) if isinstance(data.get('timing'), dict) else {}
+    if timing:
+        block_title("1. Timing", BLUE)
+        pdf.set_fill_color(*LIGHT_BG)
+        pdf.rect(10, pdf.get_y(), 190, 34, 'F')
+        y = pdf.get_y() + 4
+        for label, key in [("Session Duration", "duration"), ("Start Time", "start_time"), ("End Time", "end_time")]:
+            val = timing.get(key, '')
+            if not val:
+                continue
+            pdf.set_xy(15, y)
             pdf.set_font('helvetica', 'B', 9)
+            pdf.set_text_color(*INDIGO)
+            pdf.cell(65, 6, sanitize_text(str(label)))
+            pdf.set_font('helvetica', '', 9)
             pdf.set_text_color(*TEXT_MAIN)
-            pdf.multi_cell(186, 5, '"' + sanitize_text(str(p.get('phrase', ''))) + '"')
-            pdf.ln(1)
-            pdf.set_x(15)
-            pdf.set_font('helvetica', 'I', 8)
-            pdf.set_text_color(*TEXT_LIGHT)
-            pdf.multi_cell(180, 5, f"Context: {sanitize_text(str(p.get('context', '')))} | Technique: {sanitize_text(str(p.get('technique', '')))}")
+            pdf.cell(0, 6, sanitize_text(str(val)), 0, 1)
+            y += 8
+        pdf.set_y(y + 4)
+        divider()
+
+    # 2. Conversation Snapshot
+    cs = data.get('conversation_snapshot', {}) if isinstance(data.get('conversation_snapshot'), dict) else {}
+    if cs:
+        block_title("2. Conversation Snapshot", PURPLE)
+        if cs.get('primary_topic'):
+            small_label("What Was Discussed", INDIGO)
+            body_text(cs['primary_topic'])
+            pdf.ln(2)
+        if cs.get('main_objective'):
+            small_label("Main Objective", INDIGO)
+            body_text(cs['main_objective'])
+            pdf.ln(2)
+        topics = cs.get('key_topics', [])
+        if topics:
+            small_label("Key Topics Covered", INDIGO)
+            for t in topics:
+                bullet(t)
+            pdf.ln(2)
+        if cs.get('summary'):
+            small_label("Overall Summary")
+            body_text(cs['summary'])
+        divider()
+
+    # 3. Executive Dashboard (no scores)
+    ed = data.get('executive_dashboard', {}) if isinstance(data.get('executive_dashboard'), dict) else {}
+    if ed:
+        block_title("3. Executive Dashboard", EMERALD)
+        if ed.get('main_goal'):
+            small_label("Main Goal", EMERALD)
+            body_text(ed['main_goal'])
+            pdf.ln(2)
+        defined_labels = [
+            ("Topics Discussed", "topics_discussed", TEXT_MAIN),
+            ("Key Insights", "key_insights", TEXT_MAIN),
+            ("Development Areas", "development_areas", TEXT_MAIN),
+            ("Key Actions", "key_actions", TEXT_MAIN),
+        ]
+        for label, key, color in defined_labels:
+            items = ed.get(key, [])
+            if items:
+                small_label(label, color)
+                for it in (items if isinstance(items, list) else [items]):
+                    bullet(it)
+                pdf.ln(2)
+        divider()
+
+    # 4. Mentorship Focus
+    focus = data.get('mentorship_focus', '')
+    if focus:
+        block_title("4. Mentorship Focus", BLUE)
+        body_text(focus)
+        divider()
+
+    # 5. Goal Progress
+    goal_progress = data.get('goal_progress', [])
+    if isinstance(goal_progress, dict):
+        goal_progress = [goal_progress]
+    if isinstance(goal_progress, list) and goal_progress:
+        block_title("5. Goal Progress", EMERALD)
+        for gp in goal_progress:
+            if not isinstance(gp, dict):
+                continue
+            pdf.check_space(20)
+            if gp.get('goal'):
+                small_label("Goal Discussed", EMERALD)
+                body_text(gp['goal'])
+            if gp.get('progress_observed'):
+                small_label("Progress Observed")
+                body_text(gp['progress_observed'])
+            if gp.get('current_situation'):
+                small_label("Current Situation")
+                body_text(gp['current_situation'])
+            if gp.get('what_remains'):
+                small_label("What Remains to Address")
+                body_text(gp['what_remains'])
+            if gp.get('evidence'):
+                small_label("Evidence from the Mentee", INDIGO)
+                pdf.set_x(15)
+                pdf.set_font('helvetica', 'I', 8)
+                pdf.set_text_color(*TEXT_LIGHT)
+                pdf.multi_cell(184, 5, '"' + sanitize_text(str(gp['evidence'])) + '"')
+                pdf.ln(1)
+            if gp.get('improvement'):
+                small_label("How to Build on This", EMERALD)
+                pdf.set_x(15)
+                pdf.set_font('helvetica', '', 8)
+                pdf.set_text_color(*EMERALD)
+                pdf.multi_cell(184, 5, sanitize_text(str(gp['improvement'])))
+                pdf.ln(1)
             pdf.ln(3)
         divider()
 
-    # 7. Takeaways to Practice
-    takeaways = data.get('learning_takeaways', {}).get('what_you_can_observe_and_practice', [])
-    if takeaways:
-        block_title("7. Takeaways to Practice", BLUE)
-        for t in takeaways:
-            pdf.set_x(15)
-            pdf.set_font('helvetica', '', 9)
-            pdf.set_text_color(*TEXT_MAIN)
-            pdf.multi_cell(180, 5, "• " + sanitize_text(str(t)))
+    # 6. Skill Development
+    skills = data.get('skill_development', [])
+    if isinstance(skills, dict):
+        skills = [skills]
+    if isinstance(skills, list) and skills:
+        block_title("6. Skill Development", PURPLE)
+        for sk in skills:
+            if not isinstance(sk, dict):
+                continue
+            pdf.check_space(20)
+            if sk.get('skill'):
+                small_label("Skill", PURPLE)
+                body_text(sk['skill'])
+            if sk.get('current_observation'):
+                small_label("Current Observation")
+                body_text(sk['current_observation'])
+            if sk.get('development_direction'):
+                small_label("Development Direction", EMERALD)
+                body_text(sk['development_direction'])
+            if sk.get('evidence'):
+                small_label("Evidence from the Mentee", INDIGO)
+                pdf.set_x(15)
+                pdf.set_font('helvetica', 'I', 8)
+                pdf.set_text_color(*TEXT_LIGHT)
+                pdf.multi_cell(184, 5, '"' + sanitize_text(str(sk['evidence'])) + '"')
+                pdf.ln(1)
+            if sk.get('improvement'):
+                small_label("How to Improve", EMERALD)
+                pdf.set_x(15)
+                pdf.set_font('helvetica', '', 8)
+                pdf.set_text_color(*EMERALD)
+                pdf.multi_cell(184, 5, sanitize_text(str(sk['improvement'])))
+                pdf.ln(1)
+            pdf.ln(3)
         divider()
 
-    # 8. Alternative Pathways
-    alt_pathways = data.get('alternative_pathways', {})
-    alternatives = alt_pathways.get('alternatives', []) if isinstance(alt_pathways, dict) else (alt_pathways if isinstance(alt_pathways, list) else [])
-    if alternatives:
-        block_title("8. Alternative Pathways", INDIGO)
-        if isinstance(alt_pathways, dict) and alt_pathways.get('note'):
-            body_text(alt_pathways['note'])
-            pdf.ln(1)
-        for a in alternatives:
-            pdf.set_x(15)
-            pdf.set_font('helvetica', '', 9)
-            pdf.set_text_color(*TEXT_MAIN)
-            pdf.multi_cell(180, 5, "• " + sanitize_text(str(a)))
+    # 7. Mentor Guidance
+    mg = data.get('mentor_guidance', {}) if isinstance(data.get('mentor_guidance'), dict) else {}
+    if mg:
+        block_title("7. Mentor Guidance", INDIGO)
+        label_map = [
+            ("Advice Given", "advice_given", TEXT_MAIN),
+            ("Recommendations", "recommendations", TEXT_MAIN),
+            ("Explanations", "explanations", TEXT_MAIN),
+            ("Examples Provided", "examples_provided", TEXT_MAIN),
+            ("Resources Suggested", "resources_suggested", TEXT_MAIN),
+            ("Additional Guidance That May Be Useful", "additional_guidance_needed", TEXT_MAIN),
+        ]
+        for label, key, color in label_map:
+            items = mg.get(key, [])
+            if not items:
+                continue
+            small_label(label, color)
+            for it in (items if isinstance(items, list) else [items]):
+                bullet(it)
+            pdf.ln(2)
         divider()
 
-    # 9. Reflection Prompts
-    prompts = data.get('closing_reflection_prompts', [])
-    if prompts:
-        block_title("9. Reflection Prompts", SLATE)
-        body_text("The participant may consider:")
+    # 8. Mentee Reflection
+    mr = data.get('mentee_reflection', {}) if isinstance(data.get('mentee_reflection'), dict) else {}
+    if mr:
+        block_title("8. Mentee Reflection", AMBER)
+        label_map = [
+            ("Concerns Expressed", "concerns_expressed", TEXT_MAIN),
+            ("Challenges Identified", "challenges_identified", TEXT_MAIN),
+            ("Self-Reflections", "self_reflections", TEXT_MAIN),
+            ("Questions Raised", "questions_raised", TEXT_MAIN),
+            ("Areas of Uncertainty", "areas_of_uncertainty", TEXT_MAIN),
+            ("Key Realizations", "key_realizations", TEXT_MAIN),
+        ]
+        for label, key, color in label_map:
+            items = mr.get(key, [])
+            if not items:
+                continue
+            small_label(label, color)
+            for it in (items if isinstance(items, list) else [items]):
+                bullet(it)
+            pdf.ln(2)
+        divider()
+
+    # 9. Strengths & Development Opportunities
+    sd = data.get('strengths_and_development', {}) if isinstance(data.get('strengths_and_development'), dict) else {}
+    strengths = sd.get('strengths', [])
+    opportunities = sd.get('development_opportunities', [])
+    if isinstance(strengths, str):
+        strengths = [strengths]
+    if isinstance(opportunities, str):
+        opportunities = [opportunities]
+    if strengths or opportunities:
+        block_title("9. Strengths & Development Opportunities", TEAL)
+        col_left = 12
+        col_right = 104
+        col_w = 90
+        max_rows = max(len(strengths), len(opportunities))
+        pdf.check_space(max_rows * 10 + 15)
+        y = pdf.get_y() + 2
+        pdf.set_xy(col_left, y)
+        pdf.set_font('helvetica', 'B', 9)
+        pdf.set_text_color(*EMERALD)
+        pdf.cell(col_w, 6, "STRENGTHS", 0, 1)
+        sy = pdf.get_y() + 1
+        for s in strengths:
+            pdf.set_xy(col_left, sy)
+            pdf.set_font('helvetica', '', 8)
+            pdf.set_text_color(*TEXT_MAIN)
+            sy = pdf.draw_wrapped_text(col_left, sy, col_w, 4, "+ " + sanitize_text(str(s)))
+            sy += 3
+        pdf.set_xy(col_right, y)
+        pdf.set_font('helvetica', 'B', 9)
+        pdf.set_text_color(*ROSE)
+        pdf.cell(col_w, 6, "DEVELOPMENT OPPORTUNITIES", 0, 1)
+        oy = pdf.get_y() + 1
+        for o in opportunities:
+            pdf.set_xy(col_right, oy)
+            pdf.set_font('helvetica', '', 8)
+            pdf.set_text_color(*TEXT_MAIN)
+            oy = pdf.draw_wrapped_text(col_right, oy, col_w, 4, "→ " + sanitize_text(str(o)))
+            oy += 3
+        max_y = max(sy if strengths else y, oy if opportunities else y)
+        pdf.set_y(max_y + 4)
+        divider()
+
+    # 10. Key Insights
+    insights = data.get('key_insights', [])
+    if isinstance(insights, str):
+        insights = [insights]
+    if isinstance(insights, list) and insights:
+        block_title("10. Key Insights", BLUE)
+        for ins in insights:
+            bullet(ins)
+        divider()
+
+    # 11. Recommended Mentorship Questions
+    questions = data.get('recommended_mentorship_questions', [])
+    if isinstance(questions, str):
+        questions = [questions]
+    if isinstance(questions, list) and questions:
+        block_title("11. Recommended Mentorship Questions", INDIGO)
+        body_text("Useful questions for the next mentorship conversation:")
         pdf.ln(1)
-        for p in prompts:
+        for q in questions:
             pdf.set_x(15)
             pdf.set_font('helvetica', '', 9)
             pdf.set_text_color(*TEXT_MAIN)
-            pdf.multi_cell(180, 5, "? " + sanitize_text(str(p)))
+            pdf.multi_cell(180, 5, "? " + sanitize_text(str(q)))
+            pdf.ln(1)
+        divider()
+
+    # 12. Action Plan
+    actions = data.get('action_plan', [])
+    if isinstance(actions, dict):
+        actions = [actions]
+    if isinstance(actions, list) and actions:
+        block_title("12. Action Plan", EMERALD)
+        for i, a in enumerate(actions, 1):
+            if not isinstance(a, dict):
+                continue
+            action = str(a.get('action', ''))
+            purpose = str(a.get('purpose', ''))
+            outcome = str(a.get('expected_outcome', ''))
+            prio = str(a.get('priority', ''))
+            lines = 1 + max(
+                len(action) / 184,
+                len(purpose) / 184,
+                len(outcome) / 184,
+            )
+            pdf.check_space(int(lines * 4) + 22)
+            box_y = pdf.get_y()
+            pdf.set_fill_color(*LIGHT_BG)
+            pdf.rect(10, box_y, 190, 20, 'F')
+            pdf.set_xy(14, box_y + 2)
+            pdf.set_font('helvetica', 'B', 9)
+            pdf.set_text_color(*EMERALD)
+            pdf.cell(150, 6, f"{i}. {sanitize_text(action)}", 0, 0)
+            pdf.set_font('helvetica', 'B', 8)
+            pdf.set_text_color(*(EMERALD if prio.lower() == 'high' else (AMBER if prio.lower() == 'medium' else TEXT_LIGHT)))
+            pdf.cell(0, 6, prio, 0, 1, 'R')
+            pdf.set_x(14)
+            pdf.set_font('helvetica', '', 8)
+            pdf.set_text_color(*TEXT_MAIN)
+            if purpose:
+                pdf.multi_cell(184, 4, "Purpose: " + sanitize_text(purpose))
+            if outcome:
+                pdf.set_x(14)
+                pdf.multi_cell(184, 4, "Expected outcome: " + sanitize_text(outcome))
+            pdf.set_y(box_y + 20)
+            pdf.ln(1)
+        divider()
+
+    # 13. Next Mentorship Focus
+    nxt = data.get('next_mentorship_focus', {}) if isinstance(data.get('next_mentorship_focus'), dict) else {}
+    if nxt:
+        block_title("13. Next Mentorship Focus", PURPLE)
+        label_map = [
+            ("Progress Review", "progress_review", TEXT_MAIN),
+            ("Unresolved Challenges", "unresolved_challenges", TEXT_MAIN),
+            ("New Development Areas", "new_development_areas", TEXT_MAIN),
+            ("Follow-Up on Previous Actions", "follow_up_on_previous_actions", TEXT_MAIN),
+            ("Next Milestone", "next_milestone", TEXT_MAIN),
+        ]
+        for label, key, color in label_map:
+            val = nxt.get(key, '')
+            if not val:
+                continue
+            small_label(label, color)
+            body_text(val)
+            pdf.ln(2)
+
+    # 14. Conversation Analysis
+    ca = data.get('conversation_analysis', {}) if isinstance(data.get('conversation_analysis'), dict) else {}
+    phases = ca.get('phase_breakdown', []) if isinstance(ca.get('phase_breakdown'), list) else []
+    turning = ca.get('key_turning_points', []) if isinstance(ca.get('key_turning_points'), list) else []
+    dynamics = ca.get('dialogue_dynamics', []) if isinstance(ca.get('dialogue_dynamics'), list) else []
+    notable = ca.get('notable_moments', []) if isinstance(ca.get('notable_moments'), list) else []
+    if phases or turning or dynamics or notable:
+        block_title("14. Conversation Analysis", TEAL)
+
+        if phases:
+            pdf.ln(1)
+            small_label("Phase-by-Phase Walkthrough", TEAL)
+            for ph in phases:
+                if not isinstance(ph, dict):
+                    continue
+                ph_name = str(ph.get('phase', ''))
+                ph_time = str(ph.get('time_range', ''))
+                ph_sum = str(ph.get('summary', ''))
+                ph_tech = str(ph.get('participant_technique', ''))
+                ph_impact = str(ph.get('impact', ''))
+                lines = sum(max(1, int((len(x) + 179) / 180)) for x in [ph_sum, ph_tech, ph_impact] if x)
+                label_rows = sum(1 for x in [ph_tech, ph_impact] if x)
+                box_h = 12 + lines * 4.6 + label_rows * 4.6
+                pdf.check_space(box_h + 2)
+                box_y = pdf.get_y()
+                pdf.set_fill_color(*LIGHT_BG)
+                pdf.rect(10, box_y, 190, box_h, 'F')
+                pdf.set_fill_color(*TEAL)
+                pdf.rect(12, box_y + 2, 30, 7, 'F')
+                pdf.set_xy(12, box_y + 3)
+                pdf.set_font('helvetica', 'B', 7)
+                pdf.set_text_color(255, 255, 255)
+                pdf.cell(30, 5, sanitize_text(ph_name[:16]), 0, 0, 'C')
+                pdf.set_xy(46, box_y + 3)
+                pdf.set_font('helvetica', 'I', 7)
+                pdf.set_text_color(*TEXT_LIGHT)
+                pdf.cell(70, 5, sanitize_text(ph_time), 0, 1)
+                yy = box_y + 11
+                if ph_sum:
+                    pdf.set_xy(14, yy)
+                    pdf.set_font('helvetica', '', 8.5)
+                    pdf.set_text_color(*TEXT_MAIN)
+                    yy = pdf.draw_wrapped_text(14, yy, 182, 4.4, sanitize_text(ph_sum))
+                    yy += 2
+                if ph_tech:
+                    pdf.set_font('helvetica', 'B', 8)
+                    pdf.set_text_color(*INDIGO)
+                    pdf.set_xy(14, yy)
+                    pdf.cell(0, 4.4, "Technique:")
+                    yy += 4.4
+                    pdf.set_font('helvetica', '', 8.5)
+                    pdf.set_text_color(*TEXT_MAIN)
+                    pdf.set_xy(14, yy)
+                    yy = pdf.draw_wrapped_text(14, yy, 182, 4.4, sanitize_text(ph_tech))
+                    yy += 2
+                if ph_impact:
+                    pdf.set_font('helvetica', 'B', 8)
+                    pdf.set_text_color(*EMERALD)
+                    pdf.set_xy(14, yy)
+                    pdf.cell(0, 4.4, "Impact:")
+                    yy += 4.4
+                    pdf.set_font('helvetica', '', 8.5)
+                    pdf.set_text_color(*TEXT_MAIN)
+                    pdf.set_xy(14, yy)
+                    yy = pdf.draw_wrapped_text(14, yy, 182, 4.4, sanitize_text(ph_impact))
+                pdf.set_y(box_y + box_h + 1)
+            pdf.ln(1)
+
+        if turning:
+            pdf.ln(2)
+            pdf.check_space(30)
+            small_label("Key Turning Points", INDIGO)
+            for i, tp in enumerate(turning, 1):
+                if not isinstance(tp, dict):
+                    continue
+                moment = str(tp.get('moment', ''))
+                happened = str(tp.get('what_happened', ''))
+                significance = str(tp.get('why_significant', ''))
+                lines = sum(max(1, int((len(x) + 175) / 176)) for x in [moment, happened, significance] if x)
+                box_h = 8 + lines * 3.8
+                pdf.check_space(box_h + 2)
+                box_y = pdf.get_y()
+                pdf.set_fill_color(*LIGHT_BG)
+                pdf.rect(10, box_y, 190, box_h, 'F')
+                pdf.set_fill_color(*INDIGO)
+                pdf.rect(12, box_y + 2, 8, 8, 'F')
+                pdf.set_xy(13, box_y + 3)
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font('helvetica', 'B', 7)
+                pdf.cell(6, 5, str(i), 0, 0, 'C')
+                pdf.set_text_color(*INDIGO)
+                pdf.set_font('helvetica', 'B', 9)
+                pdf.draw_wrapped_text(24, box_y + 2, 173, 4.2, sanitize_text(moment))
+                yy = box_y + 7
+                if happened:
+                    pdf.set_xy(14, yy)
+                    pdf.set_text_color(*TEXT_MAIN)
+                    pdf.set_font('helvetica', '', 8.5)
+                    yy = pdf.draw_wrapped_text(14, yy, 182, 4.0, "What happened: " + sanitize_text(happened))
+                    yy += 1
+                if significance:
+                    pdf.set_xy(14, yy)
+                    pdf.set_text_color(*EMERALD)
+                    pdf.set_font('helvetica', '', 8.5)
+                    pdf.draw_wrapped_text(14, yy, 182, 4.0, "Why it mattered: " + sanitize_text(significance))
+                pdf.set_y(box_y + box_h + 1)
+            pdf.ln(1)
+
+        if dynamics:
+            pdf.ln(2)
+            small_label("Dialogue Dynamics", INDIGO)
+            for dyn in dynamics:
+                if not isinstance(dyn, dict):
+                    continue
+                dim_name = str(dyn.get('dimension', ''))
+                obs = str(dyn.get('observation', ''))
+                assess = str(dyn.get('assessment', ''))
+                lines = max(1, int((len(obs) + 150) / 151))
+                pdf.check_space(lines * 5 + 16)
+                y0 = pdf.get_y()
+                pdf.set_fill_color(*LIGHT_BG)
+                pdf.rect(10, y0, 190, lines * 5 + 14, 'F')
+                pdf.set_font('helvetica', 'B', 9)
+                pdf.set_text_color(*INDIGO)
+                pdf.draw_wrapped_text(14, y0 + 3, 120, 5, sanitize_text(dim_name))
+                pdf.set_font('helvetica', 'B', 8)
+                acc = str(assess).lower()
+                acol = EMERALD if acc.startswith('high') else (AMBER if acc.startswith('mod') else (ROSE if acc.startswith('dev') else TEXT_LIGHT))
+                pdf.set_text_color(*acol)
+                pdf.draw_wrapped_text(140, y0 + 3, 56, 5, sanitize_text(assess)[:40])
+                if obs:
+                    pdf.set_xy(14, y0 + 9)
+                    pdf.set_font('helvetica', '', 8.5)
+                    pdf.set_text_color(*TEXT_MAIN)
+                    pdf.draw_wrapped_text(14, y0 + 9, 182, 4.4, sanitize_text(obs))
+                pdf.set_y(y0 + lines * 5 + 16)
+            pdf.ln(1)
+
+        if notable:
+            pdf.ln(2)
+            small_label("Notable Moments", EMERALD)
+            for nm in notable:
+                pdf.check_space(8)
+                pdf.set_x(15)
+                pdf.set_font('helvetica', '', 9)
+                pdf.set_text_color(*TEXT_MAIN)
+                pdf.multi_cell(180, 5, "• " + sanitize_text(str(nm)))
+                pdf.ln(1)
+            pdf.ln(1)
         divider()
 
 # 3. PUBLIC ENTRY POINT
@@ -541,7 +902,11 @@ def generate_mentorship_report(transcript, role, ai_role, scenario,
     pdf.set_context(role, ai_role, scenario)
     pdf._session_mode = "mentorship"
 
-    pdf.add_page()   # triggers header() → mentorship cover
+    pdf.add_page()   # triggers header() → shared cover page
+
+    # Summary banner (same design as assessment report)
+    meta = data.get('meta', {}) if isinstance(data, dict) else {}
+    pdf.draw_banner(meta, scenario_type=scenario_type)
 
     # Body
     draw_mentorship_body(pdf, data)

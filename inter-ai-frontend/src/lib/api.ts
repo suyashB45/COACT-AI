@@ -186,3 +186,60 @@ export const getUserUsage = async (): Promise<UserUsage> => {
 
     return response.json();
 };
+
+// --- AI Usage (token-based rate limiting & quotas) ---
+
+export interface AiUsageMeter {
+    limit: number;
+    used: number;
+    remaining: number;
+    reset_at: string;
+}
+
+export interface AiUsage {
+    requests: AiUsageMeter;
+    hourly: {
+        input_tokens: AiUsageMeter;
+        output_tokens: AiUsageMeter;
+    };
+    daily: {
+        tokens: AiUsageMeter;
+    };
+}
+
+export interface AiRateLimitInfo {
+    error: string;
+    message: string;
+    limit_type: string;
+    limit: number;
+    used: number;
+    remaining: number;
+    retry_after: number;
+}
+
+export const getAiUsage = async (): Promise<AiUsage> => {
+    const response = await fetch(getApiUrl('/api/usage'), {
+        headers: { ...getAuthHeaders() }
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || 'Failed to load AI usage');
+    }
+
+    return response.json();
+};
+
+export const getRateLimitInfo = (data: any): AiRateLimitInfo | null => {
+    if (!data || typeof data !== 'object') return null;
+    if (data.error !== 'rate_limit_exceeded' || !data.limit_type) return null;
+    return {
+        error: data.error,
+        message: data.message || 'AI usage limit exceeded.',
+        limit_type: data.limit_type,
+        limit: Number(data.limit) || 0,
+        used: Number(data.used) || 0,
+        remaining: Number(data.remaining) || 0,
+        retry_after: Number(data.retry_after) || 0,
+    };
+};

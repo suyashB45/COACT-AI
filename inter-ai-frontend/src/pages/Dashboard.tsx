@@ -15,6 +15,7 @@ import {
 } from "recharts"
 
 import Navigation from "../components/landing/Navigation"
+import AiUsageCard from "@/components/AiUsageCard"
 import { getApiUrl, getAuthHeaders, getUserUsage, UserUsage } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -157,6 +158,8 @@ export default function Dashboard() {
                 {usageData && !usageLoading && (
                     <MonthlyUsage usage={usageData} />
                 )}
+
+                <AiUsageCard />
 
                 {noData ? (
                     <motion.div

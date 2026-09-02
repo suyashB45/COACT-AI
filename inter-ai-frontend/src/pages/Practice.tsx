@@ -13,7 +13,8 @@ import {
     Type, User, MessageSquare, BrainCircuit, Loader2
 } from "lucide-react"
 import Navigation from "../components/landing/Navigation"
-import { getApiUrl, getAuthHeaders } from "../lib/api"
+import AiUsageCard from "@/components/AiUsageCard"
+import { getApiUrl, getAuthHeaders, getRateLimitInfo, type AiRateLimitInfo } from "../lib/api"
 
 const ICON_MAP: any = {
     Users, ShoppingCart, GraduationCap, AlertTriangle, DollarSign, UserCog
@@ -456,12 +457,14 @@ export default function Practice() {
                     setStartingScenarioTitle(null)
                     
                     let errorMsg = undefined
+                    let rateLimit: AiRateLimitInfo | null = null
                     try {
                         const errorData = await response.json()
                         if (errorData.error) errorMsg = errorData.error
+                        rateLimit = getRateLimitInfo(errorData)
                     } catch (e) {}
 
-                    navigate('/limit-reached', { state: { message: errorMsg } })
+                    navigate('/limit-reached', { state: { message: errorMsg, rateLimit } })
                     return
                 }
                 throw new Error('Failed to start session')
@@ -531,6 +534,10 @@ export default function Practice() {
                         Select a partner, choose your mode, and master your skills.
                     </p>
                 </motion.div>
+
+                <div className="max-w-2xl mx-auto mb-16">
+                    <AiUsageCard />
+                </div>
 
                 {/* Character Selection */}
                 <div className="flex flex-col items-center mb-20 relative">

@@ -42,6 +42,11 @@ services:
     environment:
       - MONGODB_URI=${MONGODB_URI}
       - PORT=8000
+      - REDIS_URL=redis://redis:6379/0
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-30}
+      - RATE_LIMIT_INPUT_TOKENS_PER_HOUR=${RATE_LIMIT_INPUT_TOKENS_PER_HOUR:-50000}
+      - RATE_LIMIT_OUTPUT_TOKENS_PER_HOUR=${RATE_LIMIT_OUTPUT_TOKENS_PER_HOUR:-20000}
+      - RATE_LIMIT_DAILY_TOKENS=${RATE_LIMIT_DAILY_TOKENS:-200000}
       - MPLCONFIGDIR=/tmp
       - REPORT_MODEL=${REPORT_MODEL:-llama-3.3-70b-versatile}
       - CHAT_MODEL=${CHAT_MODEL:-llama-3.1-8b-instant}
@@ -65,6 +70,31 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - "256mb"
+      - --maxmemory-policy
+      - noeviction
+    expose:
+      - "6379"
+    restart: always
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     logging:
       driver: "json-file"
       options:

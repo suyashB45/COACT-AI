@@ -1,17 +1,18 @@
-import os
-import json
-import gzip
 import base64
-import uuid
-import time
+import gzip
+import json
 import logging
+import os
 import sqlite3
+import time
+import uuid
 from datetime import datetime, timezone
-from pymongo import MongoClient, ASCENDING, DESCENDING
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
-import certifi
-import bcrypt
 from typing import Any
+
+import bcrypt
+import certifi
+from pymongo import ASCENDING, DESCENDING, MongoClient
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 logger = logging.getLogger("coact.database")
 
@@ -78,6 +79,32 @@ def init_sqlite_db():
                     PRIMARY KEY (user_id, date)
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS ai_usage_counters (
+                    user_id TEXT,
+                    scope TEXT,
+                    window_start TEXT,
+                    count INTEGER DEFAULT 0,
+                    PRIMARY KEY (user_id, scope, window_start)
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS ai_usage_log (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT,
+                    organization_id TEXT,
+                    request_id TEXT,
+                    endpoint TEXT,
+                    model TEXT,
+                    input_tokens INTEGER DEFAULT 0,
+                    output_tokens INTEGER DEFAULT 0,
+                    total_tokens INTEGER DEFAULT 0,
+                    created_at TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ai_usage_log_user ON ai_usage_log (user_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ai_usage_log_org ON ai_usage_log (organization_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ai_usage_log_created ON ai_usage_log (created_at)")
             conn.commit()
         logger.info(f"SQLite local fallback database initialized at {SQLITE_DB_PATH}")
     except Exception as e:
@@ -135,7 +162,7 @@ if MONGODB_URI and not MONGODB_URI.startswith("sqlite"):
                 logger.warning(f"MongoDB connection attempt {attempt}/{MAX_RETRIES} failed: {e}. Retrying in {wait}s...")
                 time.sleep(wait)
             else:
-                logger.warning(f"MongoDB connection unavailable. Operating with SQLite local database fallback.")
+                logger.warning("MongoDB connection unavailable. Operating with SQLite local database fallback.")
         except Exception as e:
             logger.warning(f"MongoDB initialization warning: {e}. Operating with SQLite local database fallback.")
             break
@@ -190,6 +217,22 @@ if db_conn is not None:
             [("user_id", ASCENDING), ("date", ASCENDING)],
             name="idx_user_date",
             unique=True,
+            background=True
+        )
+
+        db_conn.ai_usage_counters.create_index(
+            [("scope", ASCENDING), ("window_start", ASCENDING)],
+            name="idx_ai_usage_scope_window",
+            background=True
+        )
+        db_conn.ai_usage_log.create_index(
+            [("user_id", ASCENDING), ("created_at", DESCENDING)],
+            name="idx_ai_usage_log_user_created",
+            background=True
+        )
+        db_conn.ai_usage_log.create_index(
+            [("organization_id", ASCENDING), ("created_at", DESCENDING)],
+            name="idx_ai_usage_log_org_created",
             background=True
         )
         logger.info("MongoDB indexes verified/created successfully")
@@ -640,6 +683,114 @@ def add_token_usage(user_id, tokens):
         return True
     except Exception as e:
         print(f"[ERROR] DB Add Token Usage failed for user {user_id}: {e}")
+        return False
+
+# ---------------------------------------------------------
+# AI Usage Rate-Limit Counters & Durable Usage Log
+# ---------------------------------------------------------
+def increment_ai_usage_counter(user_id: str, scope: str, window_start: str, amount: int = 1) -> int:
+    """Atomically increment a per-user counter for a given scope+window.
+
+    scope is one of: 'requests_per_minute', 'input_tokens_per_hour',
+    'output_tokens_per_hour', 'daily_tokens_per_user'.
+    window_start is the UTC window key (e.g. '2026-09-02T14:30', '2026-09-02T14', '2026-09-02').
+    Returns the updated count.
+    """
+    try:
+        if db_conn is not None:
+            result = db_conn.ai_usage_counters.find_one_and_update(
+                {
+                    "_id": {"user_id": str(user_id), "scope": scope, "window_start": window_start},
+                },
+                {
+                    "$inc": {"count": amount},
+                    "$setOnInsert": {"user_id": str(user_id), "scope": scope, "window_start": window_start},
+                },
+                upsert=True,
+                return_document=True,
+            )
+            return int(result.get("count", 0)) if result else 0
+        else:
+            with get_sqlite_conn() as conn:
+                conn.execute("""
+                    INSERT INTO ai_usage_counters (user_id, scope, window_start, count)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(user_id, scope, window_start) DO UPDATE SET
+                        count = count + excluded.count
+                """, (str(user_id), scope, window_start, amount))
+                conn.commit()
+                cur = conn.execute(
+                    "SELECT count FROM ai_usage_counters WHERE user_id = ? AND scope = ? AND window_start = ?",
+                    (str(user_id), scope, window_start)
+                )
+                row = cur.fetchone()
+                return int(row["count"]) if row else amount
+    except Exception as e:
+        print(f"[ERROR] DB Increment AI Usage Counter failed: {e}")
+        return 0
+
+def get_ai_usage_counter(user_id: str, scope: str, window_start: str) -> int:
+    try:
+        if db_conn is not None:
+            record = db_conn.ai_usage_counters.find_one(
+                {"_id": {"user_id": str(user_id), "scope": scope, "window_start": window_start}}
+            )
+            return int(record.get("count", 0)) if record else 0
+        else:
+            with get_sqlite_conn() as conn:
+                cur = conn.execute(
+                    "SELECT count FROM ai_usage_counters WHERE user_id = ? AND scope = ? AND window_start = ?",
+                    (str(user_id), scope, window_start)
+                )
+                row = cur.fetchone()
+                return int(row["count"]) if row else 0
+    except Exception as e:
+        print(f"[ERROR] DB Get AI Usage Counter failed: {e}")
+        return 0
+
+def log_ai_usage(
+    user_id: str,
+    endpoint: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    request_id: str | None = None,
+    organization_id: str | None = None,
+) -> bool:
+    """Append a durable, per-request AI usage log entry."""
+    try:
+        record_id = request_id or str(uuid.uuid4())
+        total = max(0, int(input_tokens)) + max(0, int(output_tokens))
+        doc = {
+            "_id": record_id,
+            "user_id": str(user_id),
+            "organization_id": organization_id,
+            "request_id": record_id,
+            "endpoint": endpoint,
+            "model": model,
+            "input_tokens": max(0, int(input_tokens)),
+            "output_tokens": max(0, int(output_tokens)),
+            "total_tokens": total,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if db_conn is not None:
+            db_conn.ai_usage_log.insert_one(doc)
+            return True
+        else:
+            with get_sqlite_conn() as conn:
+                conn.execute("""
+                    INSERT INTO ai_usage_log (id, user_id, organization_id, request_id, endpoint, model,
+                                              input_tokens, output_tokens, total_tokens, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    str(record_id), doc["user_id"], doc["organization_id"], doc["request_id"],
+                    doc["endpoint"], doc["model"], doc["input_tokens"], doc["output_tokens"],
+                    doc["total_tokens"], doc["created_at"],
+                ))
+                conn.commit()
+                return True
+    except Exception as e:
+        print(f"[ERROR] DB Log AI Usage failed: {e}")
         return False
 
 # ---------------------------------------------------------

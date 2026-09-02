@@ -68,7 +68,7 @@ CoAct.AI uses MongoDB Atlas for session and practice history data persistence.
 
 **Update in `.env`**:
 ```env
-MONGODB_URI=mongodb+srv://suyashbalasubramaniam_db_user:RZmQbu4TeqBO8MLN@<cluster-address>/coact?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-address>/coact?retryWrites=true&w=majority
 ```
 
 ### Supabase (Auth and Storage)
@@ -101,6 +101,34 @@ Contains deployment-wide configuration. Used by Docker Compose and deployment sc
 Contains backend-specific configuration. Used by the Flask application.
 
 > **📝 Note**: Some variables are duplicated between root and backend `.env` files to support both Docker and local development workflows.
+
+### AI Usage & Rate Limiting
+
+AI requests (chat, transcription, session start, and report generation) are metered per authenticated user with configurable limits. Counters are stored in **Redis** when `REDIS_URL` is set (fast, with automatic TTL expiry); if Redis is unreachable the backend transparently falls back to Mongo/SQLite.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `REDIS_URL` | *(empty → DB fallback)* | Redis connection string, e.g. `redis://redis:6379/0` |
+| `RATE_LIMIT_REQUESTS_PER_MINUTE` | `30` | Max AI requests per user per minute |
+| `RATE_LIMIT_INPUT_TOKENS_PER_HOUR` | `50000` | Max model input tokens per user per hour |
+| `RATE_LIMIT_OUTPUT_TOKENS_PER_HOUR` | `20000` | Max model output tokens per user per hour |
+| `RATE_LIMIT_DAILY_TOKENS` | `200000` | Max (input + output) tokens per user per day |
+
+Exceeding a limit returns `429` with:
+
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "AI usage limit exceeded.",
+  "limit_type": "daily_tokens",
+  "limit": 200000,
+  "used": 200000,
+  "remaining": 0,
+  "retry_after": 3600
+}
+```
+
+`limit_type` is one of `requests_per_minute`, `hourly_input_tokens`, `hourly_output_tokens`, or `daily_tokens`. The dashboard can read current usage from `GET /api/usage`.
 
 ## Verification
 

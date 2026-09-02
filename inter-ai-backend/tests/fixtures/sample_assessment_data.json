@@ -1,0 +1,219 @@
+{
+  "scenario_type": "COA-01-SALE-001",
+  "meta": {
+    "scenario_id": "COA-01-SALE-001",
+    "scenario_type": "coaching",
+    "session_mode": "coaching",
+    "outcome_status": "Completed",
+    "overall_grade": "8.2/10",
+    "summary": "A coaching roleplay where the manager practiced giving structured, development-focused feedback to a sales associate who has missed target for three consecutive months.",
+    "overall_performance": "8.2/10 - Strong performance",
+    "emotional_trajectory": "Positive - Built trust and closed on a commitment",
+    "session_quality": "High - Structured, empathic, action-driven",
+    "key_themes": ["Delegation", "Feedback", "Goal-Setting", "Accountability"]
+  },
+  "timing": {
+    "duration": "12 minutes",
+    "start_time": "10:05 AM",
+    "end_time": "10:17 AM",
+    "conversation_turns": "14",
+    "speaker_distribution": "Manager 50% / Associate 50%"
+  },
+  "conversation_snapshot": {
+    "primary_topic": "Addressing consistent under-performance and building a co-owned improvement plan for the sales associate.",
+    "key_objectives": [
+      "Communicate under-performance without triggering defensiveness",
+      "Diagnose root causes behind missed targets",
+      "Co-create a realistic improvement plan with measurable milestones"
+    ],
+    "main_challenges": [
+      "Associate was defensive about the feedback at first",
+      "Manager initially over-explained instead of asking open questions"
+    ],
+    "summary": "The manager opened with a concrete SBI-style observation, used open questions to surface a resource-constraint root cause, and closed by co-creating a support-and-accountability plan.",
+    "key_themes": "Feedback skills, Empathy, Goal alignment, Ownership"
+  },
+  "conversation_analysis": {
+    "phase_breakdown": [
+      {
+        "phase": "Opening",
+        "time_range": "0-3 min",
+        "summary": "The manager opened with an SBI-style observation about three months of missed target, naming the concern directly but stating the intent to solve it together.",
+        "participant_technique": "Situation-Behaviour-Impact framing delivered without blame",
+        "impact": "Set a constructive, non-defensive tone that invited the associate to engage honestly on the real cause."
+      },
+      {
+        "phase": "Middle",
+        "time_range": "3-9 min",
+        "summary": "The manager used open questions and reflective listening to surface workload as the root cause behind repeated under-performance.",
+        "participant_technique": "Open-ended questioning and paraphrasing",
+        "impact": "Shifted the conversation from outcome-focused criticism to resource-and-process diagnosis."
+      },
+      {
+        "phase": "Closing",
+        "time_range": "9-12 min",
+        "summary": "The manager converted insights into a concrete plan with a weekly cadence, an agreed close target, and a named check-in date.",
+        "participant_technique": "Co-creating measurable next steps",
+        "impact": "Closed on a support-and-accountability commitment, giving the associate ownership of a realistic action plan."
+      }
+    ],
+    "key_turning_points": [
+      {
+        "moment": "The manager's opening admission that the goal is to succeed 'together'.",
+        "what_happened": "The manager reframed the conversation from blame to partnership.",
+        "why_significant": "Prevented a defensive spiral and enabled honest root-cause discussion."
+      },
+      {
+        "moment": "Paraphrasing the workload constraint back to the associate.",
+        "what_happened": "The manager reflected 'the volume of accounts is stretching you thin,' validating the associate's experience.",
+        "why_significant": "Demonstrated empathy and built psychological safety, which prompted a cand about priorities."
+      },
+      {
+        "moment": "Locking a Wednesday check-in and a concrete close target.",
+        "what_happened": "The manager moved from discussion to a dated, measurable commitment.",
+        "why_significant": "Converted insight into accountability and provided a clear milestone for the improvement plan."
+      }
+    ],
+    "dialogue_dynamics": [
+      {
+        "dimension": "Balance of talk time",
+        "observation": "The manager dominated openings but ceded space to let the associate explain the resource constraint.",
+        "assessment": "7/10"
+      },
+      {
+        "dimension": "Questioning quality",
+        "observation": "Strong open opener, but follow-up probes were limited and only one root cause was explored.",
+        "assessment": "7/10"
+      },
+      {
+        "dimension": "Active listening",
+        "observation": "Accurate paraphrasing and reflective statements demonstrated genuine comprehension.",
+        "assessment": "9/10"
+      },
+      {
+        "dimension": "Tone",
+        "observation": "Consistently empathic and non-judgemental, holding accountability without aggression.",
+        "assessment": "9/10"
+      }
+    ],
+    "notable_moments": [
+      "The manager's statement 'I'm not here to blame you. My job is to figure out how we fix it' calibrated the conversation from the first turn.",
+      "The shift from 'everything feels urgent' to a prioritised, date-bound plan reflected a growth in the manager's coaching assertiveness."
+    ]
+  },
+  "executive_dashboard": {
+    "session_duration": "12 min",
+    "key_themes": "Feedback · Empathy",
+    "strength_areas": "Empathy, Structure",
+    "missed_opportunities": "Deep probing",
+    "coaching_opportunities": "Role-play practice",
+    "recommended_actions": "Follow-up check-in"
+  },
+  "coaching_efficacy": {
+    "dimensions": {
+      "goal_alignment": {"score": "9/10", "evidence": "I want you to succeed here, so let's work it out together.", "reasoning": "Learner framed the goal as shared and supportive.", "improvement": "State the specific target metric up front so the goal is even more measurable."},
+      "question_quality": {"score": "7/10", "evidence": "What's getting in the way and how do we fix it?", "reasoning": "Good open opening question but few follow-up probes.", "improvement": "Add one probing follow-up question per answer to go deeper."},
+      "active_listening": {"score": "8/10", "evidence": "So the volume of accounts is stretching you thin.", "reasoning": "Learner paraphrased the core issue accurately.", "improvement": "Also reflect feelings, not just facts, to deepen empathy."},
+      "feedback_quality": {"score": "9/10", "evidence": "I'm not here to blame you. My job is to figure out how we fix it.", "reasoning": "Feedback was specific, supportive, and forward-looking.", "improvement": "Add one concrete observed example to anchor the feedback further."},
+      "depth_of_exploration": {"score": "6/10", "evidence": "Actually I've been spread thin across accounts.", "reasoning": "Learner surfaced a root cause but did not explore it fully.", "improvement": "Ask two consecutive why-style questions to reach the deeper cause."},
+      "actionability": {"score": "9/10", "evidence": "Let's lock in a Wednesday check-in and a close target.", "reasoning": "Learner converted talk into a concrete, dated plan.", "improvement": "Assign a named owner and success measure to each action."},
+      "participant_engagement": {"score": "8/10", "evidence": "That feels much more doable than just working harder.", "reasoning": "Learner was engaged and responsive throughout.", "improvement": "Invite the associate to set an agenda item to increase ownership."}
+    }
+  },
+  "heat_map": {
+    "dimensions": ["Feedback", "Questioning", "Active Listening", "Empathy"],
+    "segments": [
+      {"label": "Open", "intensity": [7, 6, 8, 7]},
+      {"label": "Middle", "intensity": [9, 8, 9, 8]},
+      {"label": "Close", "intensity": [8, 6, 8, 9]}
+    ]
+  },
+  "skill_visualization": {
+    "communication": {"clarity": "9/10", "concise": "7/10", "assertive": "8/10"},
+    "leadership": {"delegation": "7/10", "motivating": "8/10", "coaching": "9/10"},
+    "interpersonal": {"empathy": "9/10", "active_listening": "8/10", "conflict_resolution": "6/10"}
+  },
+  "goal_attainment": [
+    {"goal": "Deliver clear feedback", "evidence": "Used SBI model; specific and non-judgemental", "status": "Achieved", "remaining_development": "None — goal met"},
+    {"goal": "Diagnose root cause", "evidence": "Asked open questions to surface workload constraint", "status": "Partially Achieved", "remaining_development": "Probe one level deeper on future sessions"},
+    {"goal": "Co-create action plan", "evidence": "Agreed on support, milestone and review date", "status": "Achieved", "remaining_development": "Add named action owners"},
+    {"goal": "Role-play resistance", "evidence": "Not practiced in this session", "status": "Needs Attention", "remaining_development": "Practise with a structured script"}
+  ],
+  "performance_scorecard": {
+    "dimensions": [
+      {"dimension": "Rapport Building", "score": "9/10", "evidence": "I understand. I'm not here to blame you.", "reasoning": "Learner built trust by validating feelings first.", "improvement": "Name the emotion explicitly before pivoting to problem-solving."},
+      {"dimension": "Questioning Skill", "score": "7/10", "evidence": "What's getting in the way and how do we fix it?", "reasoning": "Strong opener, limited depth of follow-up.", "improvement": "Layer one or two probing questions on each answer."},
+      {"dimension": "Active Listening", "score": "8/10", "evidence": "So the volume of accounts is stretching you thin.", "reasoning": "Accurate paraphrase demonstrates comprehension.", "improvement": "Mirror feeling words too, not just content."},
+      {"dimension": "Goal Alignment", "score": "9/10", "evidence": "Let's lock in a Wednesday check-in and a close target.", "reasoning": "Learner co-created a shared, dated goal.", "improvement": "Add a measurable success indicator per goal."}
+    ],
+    "overall_performance": "8.2/10 - Strong performance",
+    "scoring_methodology": "Dimensions rated on a 1-10 scale based on transcript evidence of each coaching competency."
+  },
+  "deep_dive_analysis": {
+    "communication_style": {
+      "observed_style": "Warm, structured, and solutions-oriented.",
+      "clarity": "High - used concrete examples.",
+      "directness": "Direct about the issue but framed kindly.",
+      "conciseness": "Occasionally wordy; could tighten.",
+      "assertiveness": "Appropriate - held accountability without aggression.",
+      "listening": "Strong - paraphrased and reflected feelings.",
+      "questioning": "Good mix of open and closing questions.",
+      "strength": "Combines empathy with a clear, structured delivery.",
+      "development_area": "Could reduce over-explaining and let the associate respond more."
+    },
+    "behaviour_analysis": {
+      "initiative": {"score": "8/10", "evidence": "Proactively set the agenda and next steps."},
+      "accountability": {"score": "9/10", "evidence": "Held the associate to a specific follow-up."},
+      "collaboration": {"score": "9/10", "evidence": "Co-created the plan rather than dictating it."},
+      "decision_making": {"score": "7/10", "evidence": "Decided structure quickly; some rigidity."},
+      "adaptability": {"score": "8/10", "evidence": "Adapted tone when associate became defensive."},
+      "conflict_response": {"score": "8/10", "evidence": "De-escalated defensiveness with empathy."},
+      "problem_solving": {"score": "8/10", "evidence": "Diagnosed workload root cause."},
+      "ownership": {"score": "9/10", "evidence": "Took responsibility for the follow-up cadence."}
+    },
+    "emotional_intelligence": {
+      "self_awareness": {"score": "8/10", "evidence": "Acknowledged his tendency to over-explain.", "improvement": "Pause before elaborating."},
+      "self_regulation": {"score": "8/10", "evidence": "Stayed calm when associate got defensive.", "improvement": "Practise pause."},
+      "empathy": {"score": "9/10", "evidence": "Validated the associate's workload concerns.", "improvement": "Sustain."},
+      "social_awareness": {"score": "8/10", "evidence": "Picked up on non-verbal cues.", "improvement": "Name cues aloud."},
+      "relationship_management": {"score": "8/10", "evidence": "Ended on mutual commitment.", "improvement": "Strengthen follow-up."}
+    }
+  },
+  "strengths_and_opportunities": {
+    "strengths": [
+      "Empathetic, safe feedback delivery",
+      "Structured SBI approach",
+      "Co-created ownership with the associate",
+      "Strong closing on commitment"
+    ],
+    "missed_opportunities": [
+      "Depth of root-cause probing",
+      "Opportunity to role-play the response",
+      "Tightening length of explanations"
+    ]
+  },
+  "ideal_coaching_questions": [
+    {
+      "question": "What specifically feels hardest about the situation right now?",
+      "definition": "Open probe used during diagnosis.",
+      "impact": "Uncovered the actual workload constraint.",
+      "impact_score": 9
+    },
+    {
+      "question": "What would 'good' look like for you in three weeks?",
+      "definition": "Forward-focused goal question.",
+      "impact": "Turned abstract targets into concrete outcomes.",
+      "impact_score": 8
+    }
+  ],
+  "action_plan": [
+    {"action": "Run a structured 1:1 weekly", "why_it_matters": "Builds rhythm and trust", "success_indicator": "Both parties bring agenda", "priority": "High"},
+    {"action": "Reduce explanation length", "why_it_matters": "Increases dialogue balance", "success_indicator": "Ask-then-answer ratio", "priority": "Medium"},
+    {"action": "Role-play difficult feedback", "why_it_matters": "Builds confidence in real scenarios", "success_indicator": "Delivers SBI unaided", "priority": "Medium"}
+  ],
+  "recommended_next_steps": [
+    "Practise layered probing questions so each answer is explored one level deeper before moving on.",
+    "Shorten explanations and invite the associate to respond more, to improve dialogue balance.",
+    "Run one structured role-play on handling defensiveness before the next live 1:1."
+  ]
+}

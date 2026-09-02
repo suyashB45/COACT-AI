@@ -1,14 +1,37 @@
 import { motion } from 'framer-motion'
-import { AlertCircle, ArrowLeft, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Sparkles, Timer, Gauge } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { AiRateLimitInfo } from '@/lib/api'
+
+const formatTokens = (n: number) => n.toLocaleString('en-US')
+
+const LIMIT_TYPE_LABELS: Record<string, string> = {
+    requests_per_minute: 'Requests per minute',
+    hourly_input_tokens: 'Hourly input tokens',
+    hourly_output_tokens: 'Hourly output tokens',
+    daily_tokens: 'Daily token allowance',
+}
+
+const formatReset = (retryAfter: number) => {
+    if (retryAfter >= 3600) {
+        const h = Math.round(retryAfter / 3600)
+        return `~${h} hour${h > 1 ? 's' : ''}`
+    }
+    const m = Math.max(1, Math.round(retryAfter / 60))
+    return `~${m} minute${m > 1 ? 's' : ''}`
+}
 
 export default function LimitReached() {
     const navigate = useNavigate()
     const location = useLocation()
-    
-    // Fallback message if one isn't provided by the backend
+
+    const rateLimit = (location.state?.rateLimit as AiRateLimitInfo | null) ?? null
+
     const defaultMessage = "You've experienced all the sessions available in your current plan. Upgrade to unlock unlimited scenarios, advanced coaching analytics, and Custom Scenario Builders."
     const customMessage = location.state?.message || defaultMessage
+
+    const limitLabel = rateLimit ? (LIMIT_TYPE_LABELS[rateLimit.limit_type] || rateLimit.limit_type) : null
+    const usedPct = rateLimit && rateLimit.limit > 0 ? Math.min(100, Math.round((rateLimit.used / rateLimit.limit) * 100)) : null
 
     return (
         <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 relative overflow-hidden">
@@ -30,34 +53,65 @@ export default function LimitReached() {
                 </div>
                 
                 <h1 className="text-3xl sm:text-4xl font-black mb-4 tracking-tight">
-                    Demo Limit Reached
+                    Usage Limit Reached
                 </h1>
                 
-                <p className="text-muted-foreground mb-8 text-lg leading-relaxed">
+                <p className="text-muted-foreground mb-6 text-lg leading-relaxed">
                     {customMessage}
                 </p>
-                
+
+                {rateLimit && limitLabel && usedPct !== null && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15, duration: 0.4 }}
+                        className="mb-8 space-y-4 rounded-2xl border border-border/50 bg-background/40 p-5 text-left"
+                    >
+                        <div className="flex items-center justify-between text-sm">
+                            <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                                <Gauge className="w-4 h-4 text-electric-blue" /> {limitLabel}
+                            </span>
+                            <span className="font-mono font-black text-foreground">
+                                {formatTokens(rateLimit.used)} <span className="opacity-50">/ {formatTokens(rateLimit.limit)}</span>
+                            </span>
+                        </div>
+                        <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.max(2, usedPct)}%` }}
+                                transition={{ duration: 1, ease: "easeOut" }}
+                                className="h-full rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]"
+                            />
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span className="font-semibold flex items-center gap-1.5">
+                                <Timer className="w-4 h-4" /> AI access resumes in {formatReset(rateLimit.retry_after)}
+                            </span>
+                            <span className="font-black uppercase tracking-wider text-rose-500">Limit reached · {usedPct}% used</span>
+                        </div>
+                    </motion.div>
+                )}
+
                 <div className="space-y-4">
                     <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => window.location.href = "mailto:team@coact-ai.com?subject=Upgrade%20Inquiry"}
-                        className="w-full relative group overflow-hidden bg-primary text-primary-foreground font-bold py-4 px-8 rounded-full flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all"
-                    >
-                        <span className="relative z-10 flex items-center gap-2 text-base">
-                            Contact Sales to Upgrade <Sparkles className="w-5 h-5" />
-                        </span>
-                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
-                    </motion.button>
-                    
-                    <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
                         onClick={() => navigate('/dashboard')}
-                        className="w-full bg-card hover:bg-muted border border-border/50 text-foreground font-semibold py-4 px-8 rounded-full flex items-center justify-center gap-2 transition-colors text-base"
+                        className="w-full bg-primary bg-gradient-to-r from-primary to-purple-600 text-primary-foreground font-bold py-4 px-8 rounded-full flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all"
                     >
                         <ArrowLeft className="w-5 h-5" /> Back to Dashboard
                     </motion.button>
+
+                    {!rateLimit && (
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => window.location.href = "mailto:team@coact-ai.com?subject=Upgrade%20Inquiry"}
+                            className="w-full relative group overflow-hidden bg-card hover:bg-muted border border-border/50 text-foreground font-semibold py-4 px-8 rounded-full flex items-center justify-center gap-2 transition-colors"
+                        >
+                            <Sparkles className="w-5 h-5" /> Contact Sales to Upgrade
+                        </motion.button>
+                    )}
                 </div>
             </motion.div>
         </div>

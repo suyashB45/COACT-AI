@@ -1,14 +1,15 @@
-from fastapi import Request, HTTPException
+import asyncio
+import datetime as dt
 import os
 import time
-import asyncio
-from typing import Dict, Optional, Any
+from typing import Optional
+
 import jwt
-import datetime as dt
 from cachetools import TTLCache
+from database import get_user_by_id
+from fastapi import HTTPException, Request
 
 from core.config import JWT_SECRET
-from database import get_user_by_id
 
 # Enforce JWT Secret security at import/module load time
 if os.environ.get("FLASK_ENV") == "production" and JWT_SECRET == "super-secret-key-change-in-production":
@@ -111,3 +112,23 @@ def get_authenticated_user(request: Optional[Request] = None) -> DummyUser:
             pass # ignore invalid date format
 
     return DummyUser(id=user["id"], email=user["email"])
+
+
+def enforce_ai_rate_limits(request: Request) -> None:
+    """Optional-auth dependency that enforces token-based AI usage limits.
+
+    Authenticated users are accounted per-user (request/min + hourly input/output
+    tokens + daily total). Unauthenticated/guest requests pass through; the existing
+    per-IP token-bucket limiter still covers them. Raises AiRateLimitExceeded (429)
+    when a limit is hit; its handler in app.py returns the structured payload.
+    """
+    try:
+        user = get_authenticated_user(request)
+    except HTTPException:
+        return None
+
+    from services.usage import AiRateLimitExceeded, check_and_consume
+    denied = check_and_consume(user.id)
+    if denied is not None:
+        raise AiRateLimitExceeded(denied)
+    return None

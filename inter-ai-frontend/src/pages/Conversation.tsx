@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Square, ArrowLeft, Clock, User, History, X, Loader2, Video, VideoOff, Phone, Mic, Send, Edit3, AlertCircle } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { getApiUrl, getAuthHeaders } from "@/lib/api"
+import { getApiUrl, getAuthHeaders, getRateLimitInfo, type AiRateLimitInfo } from "@/lib/api"
+import { AI_USAGE_QUERY_KEY } from "@/hooks/useAiUsage"
 
 interface TranscriptMessage {
     role: "user" | "assistant"
@@ -53,6 +55,7 @@ const formatTime = (seconds: number) => {
 export default function Conversation() {
     const params = useParams()
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
     const sessionId = params.sessionId as string
     const recognitionRef = useRef<any>(null)
     const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -645,12 +648,14 @@ export default function Conversation() {
             if (!response.ok) {
                 if (response.status === 429 || response.status === 403) {
                     let errorMsg = undefined
+                    let rateLimit: AiRateLimitInfo | null = null
                     try {
                         const errorData = await response.json()
                         if (errorData.error) errorMsg = errorData.error
+                        rateLimit = getRateLimitInfo(errorData)
                     } catch (e) {}
                     
-                    navigate('/limit-reached', { state: { message: errorMsg } })
+                    navigate('/limit-reached', { state: { message: errorMsg, rateLimit } })
                     return
                 }
                 throw new Error("Failed to get AI response")
@@ -783,6 +788,9 @@ export default function Conversation() {
                 }
                 localStorage.setItem(`session_${sessionId}`, JSON.stringify(updated))
             }
+
+            // Keep the AI usage meters fresh after an AI request completes.
+            queryClient.invalidateQueries({ queryKey: AI_USAGE_QUERY_KEY })
         } catch (error: any) {
             if (error.name === 'AbortError') return
             console.error("Conversation Error:", error)

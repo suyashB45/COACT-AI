@@ -1,24 +1,17 @@
-import os
-import json
-import re
 import asyncio
-import uuid
 import datetime as dt
-import tempfile
-import secrets
+import json
 import logging
-import numpy as np
-import concurrent.futures
-from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, Request, Response, UploadFile, File, Form, WebSocket, WebSocketDisconnect, BackgroundTasks
-from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import io
-from dotenv import load_dotenv
+import os
+import re
+import secrets
+from typing import Any, Dict, Optional
+
 from cachetools import TTLCache
-from functools import lru_cache
-from fastapi import HTTPException
-from langsmith import traceable
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 load_dotenv(override=True)
 # ---------------------------------------------------------
@@ -67,8 +60,8 @@ def sanitize_input(text: str, max_length: int = 2000) -> str:
 
 # Proxy config moved to top
 
+
 import jwt
-from functools import wraps
 
 # JWT configuratiohttps://canva.link/ziqoo65mo52pdprn
 JWT_SECRET = os.environ.get("JWT_SECRET", "super-secret-key-change-in-production")
@@ -77,18 +70,16 @@ if os.environ.get("FLASK_ENV") == "production" and JWT_SECRET == "super-secret-k
 # ---------------------------------------------------------
 # Custom Modules & Setup
 # ---------------------------------------------------------
-from cli_report import generate_report, llm_reply, analyze_full_report_data, detect_scenario_type
-from database import get_user_analytics_from_db, get_session_from_db, get_user_sessions_from_db, save_session_to_db, get_previous_session_scores, clear_user_sessions_from_db, check_token_limit, add_token_usage, check_monthly_session_limit, create_user, get_user_by_email, get_user_by_id, verify_password, delete_user_account, update_user_name, update_user_password, enable_2fa, disable_2fa, set_2fa_code, verify_2fa_code, RateLimitExceeded
-from email_service import send_security_alert_email, send_otp_email
-from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel
+from database import get_session_from_db, get_user_by_id
+
 # Database Models
 USE_DATABASE = True # Re-enabled database persistence
 
 # Create Flask app
-from database import db, engine, Base
 from contextlib import asynccontextmanager
+
 import httpx
+from database import Base, engine
 
 Base.metadata.create_all(bind=engine)
 
@@ -102,14 +93,18 @@ async def lifespan(app: FastAPI):
     yield
     await shared_httpx_client.aclose()
 
-from fastapi import Depends
 import time
+
 
 class TokenBucketLimiter:
     """
     A custom Token Bucket Rate Limiter Dependency for FastAPI.
     Maintains a steady flow of allowed requests, with support for initial bursts.
     """
+    # Bound the bucket map so it cannot grow unbounded under many unique IPs.
+    MAX_BUCKETS = 10_000
+    STALE_AFTER_SECONDS = 900  # evict buckets idle for >15 minutes
+
     def __init__(self, capacity: int, refill_rate_per_sec: float):
         self.capacity = capacity
         self.refill_rate = refill_rate_per_sec
@@ -126,6 +121,16 @@ class TokenBucketLimiter:
             return request.client.host
         return "127.0.0.1"
 
+    def _evict_stale_buckets(self, now: float) -> None:
+        """Drop idle buckets, then the oldest one if still at capacity."""
+        cutoff = now - self.STALE_AFTER_SECONDS
+        stale = [ip for ip, (_, last) in self.buckets.items() if last < cutoff]
+        for ip in stale:
+            del self.buckets[ip]
+        if len(self.buckets) >= self.MAX_BUCKETS:
+            oldest = min(self.buckets, key=lambda ip: self.buckets[ip][1])
+            del self.buckets[oldest]
+
     async def __call__(self, request: Request):
         ip = self._get_client_ip(request)
         now = time.time()
@@ -133,7 +138,10 @@ class TokenBucketLimiter:
         async with self._lock:
             # Initialize bucket if new IP
             if ip not in self.buckets:
-                self.buckets[ip] = (float(self.capacity), now)
+                if len(self.buckets) >= self.MAX_BUCKETS:
+                    self._evict_stale_buckets(now)
+                if ip not in self.buckets:
+                    self.buckets[ip] = (float(self.capacity), now)
             
             tokens, last_refill = self.buckets[ip]
             
@@ -197,6 +205,7 @@ app.add_middleware(
 # ---------------------------------------------------------
 from starlette.middleware.base import BaseHTTPMiddleware
 
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -213,6 +222,15 @@ app.add_middleware(SecurityHeadersMiddleware)
 # ---------------------------------------------------------
 # Global Exception Handler (prevents stack trace leakage)
 # ---------------------------------------------------------
+from services.usage import AiRateLimitExceeded
+
+
+@app.exception_handler(AiRateLimitExceeded)
+async def ai_rate_limit_exceeded_handler(request: Request, exc: AiRateLimitExceeded):
+    """Return the structured 429 payload for AI usage/quota limit hits."""
+    return JSONResponse(status_code=429, content=exc.payload)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Catch unhandled exceptions and return a generic error to clients."""
@@ -229,6 +247,7 @@ MONTHLY_TOKEN_LIMIT = 50000
 # In-Memory Storage with TTL Cache (Auto-cleanup, prevents memory leaks)
 # ---------------------------------------------------------
 import redis
+
 
 class UnifiedCache:
     def __init__(self, maxsize=500, ttl=3600):
@@ -389,9 +408,11 @@ def verify_session_ownership(session_id: str, user_id: Optional[str] = None) -> 
 # ---------------------------------------------------------
 
 # --- ROUTER IMPORTS ---
-from api.routers import auth, users, simulation, system
+from api.routers import auth, simulation, system, usage, users
+
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(usage.router)
 app.include_router(simulation.router)
 app.include_router(system.router)
 

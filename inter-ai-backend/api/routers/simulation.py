@@ -1,34 +1,53 @@
-from fastapi import APIRouter, Request, HTTPException, Depends, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, Response
+import asyncio
+import base64
 import datetime as dt
 import json
-import uuid
-import os
 import logging
-import base64
+import os
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse, Response
 
 router = APIRouter(prefix="/api", tags=["Simulation"])
 logger = logging.getLogger("coact")
 
 # Mocks and dependencies
-from core.dependencies import get_authenticated_user
-from database import get_user_sessions_from_db, save_session_to_db, check_token_limit, check_monthly_session_limit, add_token_usage
-from core.utils import generate_otp
-from services.simulation_service import *
-from app import SESSIONS, MONTHLY_TOKEN_LIMIT, standard_limiter, shared_httpx_client
-from core.config import MONTHLY_SESSION_LIMIT
-
-from langsmith import traceable
-import httpx
-from typing import Any
-from fastapi.responses import StreamingResponse
-from fastapi import BackgroundTasks
 import io
-from cli_report import generate_report, llm_reply, analyze_full_report_data, detect_scenario_type
-from database import get_session_from_db, get_user_analytics_from_db, get_previous_session_scores, clear_user_sessions_from_db
-from app import get_session, USE_DATABASE
-from core.security import sanitize_input
+from contextlib import nullcontext
+from typing import Any, List, Optional
 
+import httpx
+from app import MONTHLY_TOKEN_LIMIT, SESSIONS, USE_DATABASE, get_session, standard_limiter
+from cli_report import CHAT_MODEL_NAME, analyze_full_report_data, detect_scenario_type, generate_report, llm_reply
+from core.config import MONTHLY_SESSION_LIMIT
+from core.dependencies import enforce_ai_rate_limits, get_authenticated_user
+from core.security import sanitize_input
+from database import (
+    check_monthly_session_limit,
+    check_token_limit,
+    clear_user_sessions_from_db,
+    get_previous_session_scores,
+    get_session_from_db,
+    get_user_analytics_from_db,
+    get_user_sessions_from_db,
+    save_session_to_db,
+)
+from fastapi import BackgroundTasks
+from fastapi.responses import StreamingResponse
+from langsmith import traceable
+from services.simulation_service import (
+    build_followup_prompt,
+    build_simulation_followup,
+    build_summary_prompt,
+    detect_framework_fallback,
+)
+from services.usage import (
+    check_and_consume,
+    estimate_tokens,
+    record_usage,
+    usage_context,
+)
 
 _local_httpx_client = None
 
@@ -110,16 +129,14 @@ async def websocket_transcribe_stream(websocket: WebSocket):
 
 
 @router.post("/transcribe")
-async def transcribe_audio(request: Request):
+async def transcribe_audio(request: Request, _ai_limits = Depends(enforce_ai_rate_limits)):
     """Speech-to-Text using OpenAI Whisper model."""
     import tempfile
     
-    WHISPER_MODEL = os.getenv("WHISPER_DEPLOYMENT_NAME", "whisper")
     SUPPORTED_FORMATS = {'.webm', '.mp3', '.mp4', '.wav', '.m4a', '.ogg', '.flac', '.mpeg'}
     
     try:
         form_data = await request.form()
-        session_id = form_data.get("session_id")
         
         if 'file' not in form_data:
             logger.info(" [DEBUG] returning 400: 'file' not in form_data")
@@ -170,7 +187,7 @@ async def transcribe_audio(request: Request):
         audio_url = None
         
         try:
-            logger.info(f" [INFO] Transcribing audio with Groq Whisper API...")
+            logger.info(" [INFO] Transcribing audio with Groq Whisper API...")
             
             # Use Groq's OpenAI-compatible Whisper API
             groq_whisper_model = os.getenv("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo")
@@ -295,6 +312,20 @@ async def transcribe_audio(request: Request):
                 if wpm:
                     logger.info(f" [SPEECH] WPM: {wpm} ({wpm_label})")
             
+            # Account Whisper usage under the user's quota when authenticated
+            try:
+                user = get_authenticated_user(request)
+            except Exception:
+                user = None
+            if user is not None:
+                record_usage(
+                    user.id,
+                    endpoint="transcribe",
+                    model=groq_whisper_model,
+                    input_tokens=estimate_tokens(transcribed_text),
+                    output_tokens=0,
+                )
+
             return ({
                 "text": transcribed_text, 
                 "audio_url": audio_url,
@@ -506,7 +537,7 @@ def detect_session_mode(scenario: str, ai_role: str) -> str:
     return "learning"
 
 @router.post("/session/start")
-async def start_session(request: Request, _ = Depends(standard_limiter)):
+async def start_session(request: Request, _ = Depends(standard_limiter), _ai_limits = Depends(enforce_ai_rate_limits)):
     logger.info("[DEBUG] Entered /session/start")
     # Audio cleanup logic removed
 
@@ -638,39 +669,42 @@ async def start_session(request: Request, _ = Depends(standard_limiter)):
     elif needs_auto_framework:
         # Run BOTH LLM calls in parallel (framework + summary)
         import asyncio
-        async def get_fw():
-            return await asyncio.to_thread(select_framework_for_scenario, scenario or "", ai_role or "", simulation_id)
-            
-        async def get_summary():
-            return await asyncio.to_thread(
-                llm_reply,
-                build_summary_prompt(role, ai_role, scenario, ["GROW", "EQ"], mode=mode, ai_character=ai_character, simulation_id=simulation_id),
-                max_tokens=150,
-                return_usage=True,
-                run_name="session_opening_parallel",
-                run_tags=["session_start", mode or "coaching"],
-                use_chat_model=True
-            )
-            
-        framework, summary_tuple = await asyncio.gather(get_fw(), get_summary())
-        
+        ctx = usage_context(user.id, endpoint="start_session", model=CHAT_MODEL_NAME) if user is not None else nullcontext()
+        with ctx:
+            async def get_fw():
+                return await asyncio.to_thread(select_framework_for_scenario, scenario or "", ai_role or "", simulation_id)
+
+            async def get_summary():
+                return await asyncio.to_thread(
+                    llm_reply,
+                    build_summary_prompt(role, ai_role, scenario, ["GROW", "EQ"], mode=mode, ai_character=ai_character, simulation_id=simulation_id),
+                    max_tokens=150,
+                    return_usage=True,
+                    run_name="session_opening_parallel",
+                    run_tags=["session_start", mode or "coaching"],
+                    use_chat_model=True
+                )
+
+            framework, summary_tuple = await asyncio.gather(get_fw(), get_summary())
+
         if isinstance(summary_tuple, tuple):
             summary = sanitize_llm_output(summary_tuple[0])
-            if user is not None: add_token_usage(user.id, summary_tuple[1].get('total_tokens', 0))
         else:
             summary = sanitize_llm_output(summary_tuple)
         logger.info(f"[PERF] Parallel framework+summary completed in {_time.time()-_t_start:.2f}s")
     else:
         import asyncio
-        summary_tuple = await asyncio.to_thread(
-            llm_reply,
-            build_summary_prompt(role, ai_role, scenario, framework, mode=mode, ai_character=ai_character, simulation_id=simulation_id),
-            max_tokens=150,
-            return_usage=True,
-            run_name="session_opening",
-            run_tags=["session_start", mode or "coaching"],
-            use_chat_model=True
-        )
+        ctx = usage_context(user.id, endpoint="start_session", model=CHAT_MODEL_NAME) if user is not None else nullcontext()
+        with ctx:
+            summary_tuple = await asyncio.to_thread(
+                llm_reply,
+                build_summary_prompt(role, ai_role, scenario, framework, mode=mode, ai_character=ai_character, simulation_id=simulation_id),
+                max_tokens=150,
+                return_usage=True,
+                run_name="session_opening",
+                run_tags=["session_start", mode or "coaching"],
+                use_chat_model=True
+            )
         if isinstance(summary_tuple, tuple):
             summary = summary_tuple[0]
             summary_usage = summary_tuple[1]
@@ -679,7 +713,6 @@ async def start_session(request: Request, _ = Depends(standard_limiter)):
             summary_usage = {}
         summary = sanitize_llm_output(summary)
         logger.info(f"[TOKEN] Summary call | request={summary_usage.get('request_tokens', 0)} response={summary_usage.get('response_tokens', 0)} total={summary_usage.get('total_tokens', 0)}")
-        if user is not None: add_token_usage(user.id, summary_usage.get('total_tokens', 0))
         logger.info(f"[PERF] Sequential summary completed in {_time.time()-_t_start:.2f}s")
     
     # Determine if this is a multi-character scenario
@@ -738,7 +771,7 @@ async def start_session(request: Request, _ = Depends(standard_limiter)):
 
 
 @router.post("/session/{session_id}/chat")
-async def chat(session_id: str, request: Request, _ = Depends(standard_limiter)):
+async def chat(session_id: str, request: Request, _ = Depends(standard_limiter), _ai_limits = Depends(enforce_ai_rate_limits)):
     sess = get_session(session_id)
     if not sess: 
         return JSONResponse(content={"error": "Session not found"}, status_code=404)
@@ -814,14 +847,16 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
     
     if stream:
         async def event_generator():
+
             from cli_report import chat_llm
-            import asyncio
             full_raw_response = ""
+            last_usage_metadata = None
             
             try:
                 # Need to run astream in a separate thread or use the async client directly.
                 # ChatOpenAI's astream works async native if setup correctly
                 async for chunk in chat_llm.astream(messages, config={"run_name": f"chat_turn_{turn_count}"}):
+                    last_usage_metadata = getattr(chunk, 'usage_metadata', None)
                     if chunk.content:
                         token = chunk.content
                         if isinstance(token, list):
@@ -851,6 +886,19 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
                 meta["framework_counts"] = counts
                 sess["meta"] = meta
                 
+            # Record token usage for this streaming turn (exact when the provider reports it)
+            if user is not None:
+                last_usage = last_usage_metadata or {}
+                inp = last_usage.get('input_tokens')
+                out = last_usage.get('output_tokens')
+                record_usage(
+                    user.id,
+                    endpoint="chat",
+                    model=CHAT_MODEL_NAME,
+                    input_tokens=inp if inp is not None else estimate_tokens(messages),
+                    output_tokens=out if out is not None else estimate_tokens(full_raw_response),
+                )
+
             sess["transcript"].append({"role": "assistant", "content": clean_response})
             save_session_to_db(sess)
             
@@ -881,13 +929,16 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
     token_usage = graph_state["token_usage"]
     logger.info(f"[TOKEN] Chat turn {turn_count} | request={token_usage['request_tokens']} response={token_usage['response_tokens']} total={token_usage['total_tokens']} | {len(messages)} messages")
     
-    if user is not None: add_token_usage(user.id, token_usage.get('total_tokens', 0))
+    if user is not None:
+        record_usage(
+            user.id,
+            endpoint="chat",
+            model=CHAT_MODEL_NAME,
+            input_tokens=token_usage.get('request_tokens', 0),
+            output_tokens=token_usage.get('response_tokens', 0),
+        )
     
-    # 1. Extract Thought
-    thought_match = re.search(r"\[THOUGHT\](.*?)\[/THOUGHT\]", raw_response, re.DOTALL)
-    thought_content = thought_match.group(1).strip() if thought_match else None
-    
-    # 2. Remove Thought
+    # 1. Remove Thought
     visible_response = re.sub(r"\[THOUGHT\].*?\[/THOUGHT\]", "", raw_response, flags=re.DOTALL).strip()
     
     # 3. Clean tags
@@ -918,7 +969,17 @@ async def chat(session_id: str, request: Request, _ = Depends(standard_limiter))
 
 def run_report_generation(session_id: str, sess: dict, fw_display: str, mode: str, scenario_type: str):
     logger.info(f"[COST] Generating report data for {session_id} (scenario_type: {scenario_type}) in background...")
+    # Fail fast on missing API key instead of burning retries and returning an empty report
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    if not groq_key or groq_key in ("not-needed", "your_groq_api_key_here"):
+        logger.error(f" [ERROR] GROQ_API_KEY not configured; skipping report generation for {session_id}")
+        sess["report_status"] = "error"
+        save_session_to_db(sess)
+        return
     try:
+        if sess.get("report_data"):
+            logger.info(f"Report data already present for {session_id}; skipping generation.")
+            return
         session_mode = sess.get("session_mode")
         is_mentorship = (session_mode == "mentorship" or mode == "mentorship" or str(scenario_type).lower().strip() == "mentorship")
         
@@ -958,8 +1019,33 @@ def run_report_generation(session_id: str, sess: dict, fw_display: str, mode: st
         sess["report_status"] = "error"
         save_session_to_db(sess)
 
+_pending_report_generations: set[str] = set()
+_report_generation_spawn_lock = asyncio.Lock()
+
+
+async def _run_report_generation(session_id: str, fw_display: str, mode: str, scenario_type: str):
+    """Schedule report generation off the event loop, deduped per session."""
+    async with _report_generation_spawn_lock:
+        if session_id in _pending_report_generations:
+            logger.info(f"Report generation already in progress for {session_id}; skipping duplicate.")
+            return
+        _pending_report_generations.add(session_id)
+    try:
+        sess = get_session(session_id)
+        if sess is None or sess.get("report_data"):
+            return
+        # LLM calls + JSON assembly are CPU/IO-heavy and blocking; run off the event loop.
+        # When the session belongs to a user, account its report tokens under their quota.
+        sess_user_id = sess.get("user_id")
+        ctx = usage_context(sess_user_id, endpoint="report_generation") if sess_user_id else nullcontext()
+        with ctx:
+            await asyncio.to_thread(run_report_generation, session_id, sess, fw_display, mode, scenario_type)
+    finally:
+        async with _report_generation_spawn_lock:
+            _pending_report_generations.discard(session_id)
+
 @router.post("/session/{session_id}/complete")
-async def complete_session(session_id: str, request: Request, background_tasks: BackgroundTasks):
+async def complete_session(session_id: str, request: Request, background_tasks: BackgroundTasks, _ai_limits = Depends(enforce_ai_rate_limits)):
     sess = get_session(session_id)
     if not sess: 
         return JSONResponse(content={"error": "Not found"}, status_code=404)
@@ -975,8 +1061,6 @@ async def complete_session(session_id: str, request: Request, background_tasks: 
         
     if user is not None and not check_token_limit(user.id, MONTHLY_TOKEN_LIMIT):
         return JSONResponse(content={"error": f"Monthly token limit ({MONTHLY_TOKEN_LIMIT}) exceeded. Please try again next month."}, status_code=429)
-    
-    report_path = os.path.join(ensure_reports_dir(), f"{session_id}_report.pdf")
     
     try:
         framework_data = json.loads(sess["framework"]) if sess["framework"] and sess["framework"].startswith("[") else sess["framework"]
@@ -1007,11 +1091,11 @@ async def complete_session(session_id: str, request: Request, background_tasks: 
             logger.info(f" [SUCCESS] Resolved user name from auth: {user_name}")
         sess["user_name"] = user_name
     
-    # Run in background if not already generated
+    # Run in background if not already generated (deduped + threadpooled)
     if not sess.get("report_data"):
         sess["report_status"] = "generating"
         save_session_to_db(sess)
-        background_tasks.add_task(run_report_generation, session_id, sess, fw_display, mode, scenario_type)
+        background_tasks.add_task(_run_report_generation, session_id, fw_display, mode, scenario_type)
     else:
         sess["report_status"] = "ready"
         sess["completed"] = True
@@ -1082,26 +1166,27 @@ async def view_report(session_id: str, request: Request):
         # Generate to temporary file, read as bytes, and delete
         tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
         tmp.close()
-        
-        generate_report(
-            sess.get("transcript", []), 
-            sess.get("role", "User"), 
-            sess.get("ai_role", "AI"),
-            sess.get("scenario", ""), 
-            fw_display, 
-            filename=tmp.name,
-            mode=mode,
-            precomputed_data=sess["report_data"],
-            scenario_type=scenario_type,
-            user_name=user_name,
-            ai_character=sess.get("ai_character", "alex"),
-            session_mode=sess.get("session_mode")
-        )
-        
-        with open(tmp.name, "rb") as f:
-            pdf_bytes = f.read()
-            
-        os.unlink(tmp.name)
+        try:
+            # PDF generation is CPU-bound; run off the event loop.
+            await asyncio.to_thread(
+                generate_report,
+                sess.get("transcript", []),
+                sess.get("role", "User"),
+                sess.get("ai_role", "AI"),
+                sess.get("scenario", ""),
+                fw_display,
+                filename=tmp.name,
+                mode=mode,
+                precomputed_data=sess["report_data"],
+                scenario_type=scenario_type,
+                user_name=user_name,
+                ai_character=sess.get("ai_character", "alex"),
+                session_mode=sess.get("session_mode"),
+            )
+            with open(tmp.name, "rb") as f:
+                pdf_bytes = f.read()
+        finally:
+            os.unlink(tmp.name)
         
         return StreamingResponse(
             io.BytesIO(pdf_bytes),
@@ -1565,11 +1650,9 @@ async def get_analytics(request: Request):
 
 
 import asyncio
-import tempfile
-import base64
 import re
-import subprocess
-from fastapi import WebSocketDisconnect
+import tempfile
+
 
 @router.websocket("/session/{session_id}/live")
 async def live_session_websocket(websocket: WebSocket, session_id: str):
@@ -1682,14 +1765,32 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                     if not sess:
                         await websocket.send_json({"type": "error", "error": "Session not found"})
                         continue
-                        
+
+                    # Enforce per-user AI usage limits before spending LLM tokens
+                    sess_user_id = sess.get("user_id")
+                    if sess_user_id:
+                        denied = check_and_consume(sess_user_id)
+                        if denied is not None:
+                            await websocket.send_json({
+                                "type": "limit_reached",
+                                "limit_type": denied.get("limit_type"),
+                                "limit": denied.get("limit"),
+                                "used": denied.get("used"),
+                                "remaining": denied.get("remaining"),
+                                "retry_after": denied.get("retry_after"),
+                                "message": denied.get("message"),
+                            })
+                            continue
+
                     sess.setdefault("transcript", []).append({"role": "user", "content": transcribed_text})  # type: ignore
                     messages = build_followup_prompt(sess, transcribed_text, [])
                     
                     # 3. Stream LLM
                     sentence_buffer = ""
                     full_response = ""
+                    last_usage_metadata = None
                     async for chunk in chat_llm.astream(messages):
+                        last_usage_metadata = getattr(chunk, 'usage_metadata', None)
                         token = chunk.content
                         if isinstance(token, list):
                             token = "".join([t.get("text", "") if isinstance(t, dict) else t for t in token])
@@ -1708,7 +1809,20 @@ async def live_session_websocket(websocket: WebSocket, session_id: str):
                                 
                     if len(sentence_buffer.strip()) > 2:
                         await tts_queue.put(sentence_buffer.strip())
-                        
+
+                    # Account tokens for this voice turn (exact when the provider reports them)
+                    if sess_user_id:
+                        last_usage = last_usage_metadata or {}
+                        inp = last_usage.get('input_tokens')
+                        out = last_usage.get('output_tokens')
+                        record_usage(
+                            sess_user_id,
+                            endpoint="chat",
+                            model=CHAT_MODEL_NAME,
+                            input_tokens=inp if inp is not None else estimate_tokens(messages),
+                            output_tokens=out if out is not None else estimate_tokens(full_response),
+                        )
+
                     # Save AI response
                     sess["transcript"].append({"role": "ai", "content": full_response})  # type: ignore
                     save_session_to_db(sess)

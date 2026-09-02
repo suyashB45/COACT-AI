@@ -1,0 +1,30 @@
+[tool.ruff]
+# Production lint config for the CoAct AI backend.
+# Focus on correctness + import hygiene; keep stylistic churn low on an
+# established, largely untyped codebase.
+line-length = 200
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "F",   # pyflakes: unused vars/imports, undefined names, redefinition
+    "I",   # isort: import sorting
+]
+# Exclude cosmetic/legacy rules that would otherwise force large churn on an
+# established codebase without adding correctness value.
+ignore = [
+    "E501",   # line too long (existing code style)
+]
+
+[tool.pytest.ini_options]
+# Disable conflicting third-party pytest entrypoints (ROS tooling on this
+# machine ships broken/late plugins that break collection). Running with
+# `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` provides an additional belt-and-suspenders
+# guard against any other auto-enabled plugin.
+addopts = "-p no:launch_testing -p no:launch_ros"
+testpaths = ["inter-ai-backend/tests"]
+# fpdf2 emits DeprecationWarnings for `ln`/`txt` kwargs across the report code;
+# these are library-level noise, not actionable project issues.
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
