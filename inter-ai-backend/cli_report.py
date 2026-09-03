@@ -77,8 +77,11 @@ def setup_litellm_model(model_name, is_chat=False):
     )
 
 # Model names for Groq exclusively
-REPORT_MODEL_NAME = os.getenv("REPORT_MODEL") or os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-CHAT_MODEL_NAME = os.getenv("CHAT_MODEL") or os.getenv("CHAT_MODEL_NAME", "llama-3.1-8b-instant")
+# NOTE: Groq deprecated the Llama chat models (llama-3.1-8b-instant /
+# llama-3.3-70b-versatile) on 2026-08-16. The current replacements hosted by
+# Groq are openai/gpt-oss-20b (chat) and openai/gpt-oss-120b (report).
+REPORT_MODEL_NAME = os.getenv("REPORT_MODEL") or os.getenv("MODEL_NAME", "openai/gpt-oss-120b")
+CHAT_MODEL_NAME = os.getenv("CHAT_MODEL") or os.getenv("CHAT_MODEL_NAME", "openai/gpt-oss-20b")
 
 report_llm = setup_litellm_model(REPORT_MODEL_NAME, is_chat=False)
 chat_llm = setup_litellm_model(CHAT_MODEL_NAME, is_chat=True)
