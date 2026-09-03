@@ -3,6 +3,7 @@
 import * as MapLibreGL from "maplibre-gl";
 import type { PopupOptions, MarkerOptions } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import type * as GeoJSON from "geojson";
 import {
   createContext,
@@ -23,9 +24,9 @@ import { X, Minus, Plus, Locate, Maximize, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 if (typeof window !== "undefined" && !MapLibreGL.getWorkerUrl()) {
-  MapLibreGL.setWorkerUrl(
-    `https://unpkg.com/maplibre-gl@${MapLibreGL.getVersion()}/dist/maplibre-gl-worker.mjs`,
-  );
+  // Serve the MapLibre Web Worker from our own origin instead of a CDN so it
+  // isn't blocked by the production Content-Security-Policy (default-src 'self').
+  MapLibreGL.setWorkerUrl(maplibreWorkerUrl);
 }
 
 const defaultStyles = {
