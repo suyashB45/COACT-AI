@@ -16,6 +16,16 @@ export const getApiUrl = (endpoint: string) => {
     return `${API_BASE_URL}${path}`;
 };
 
+export const safeJson = async (res: Response): Promise<any> => {
+    try {
+        const text = await res.text()
+        if (!text) return null
+        return JSON.parse(text)
+    } catch {
+        return null
+    }
+};
+
 export const getAuthHeaders = () => {
     const userStr = localStorage.getItem('user');
     let token = '';

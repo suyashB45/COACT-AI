@@ -8,7 +8,7 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } fro
 import { useQuery } from "@tanstack/react-query"
 
 import Navigation from "../components/landing/Navigation"
-import { getApiUrl, getAuthHeaders } from "@/lib/api"
+import { getApiUrl, getAuthHeaders, safeJson } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -385,7 +385,7 @@ export default function Report() {
             }
             if (!response.ok) throw new Error("Failed to fetch report data");
             
-            return response.json();
+            return safeJson(response);
         },
         enabled: !!sessionId,
         retry: (failureCount, error) => {

@@ -4,7 +4,7 @@ import { Camera, Mic, CheckCircle2, AlertCircle, Loader2, Server } from "lucide-
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { useQuery } from "@tanstack/react-query"
-import { getApiUrl, getAuthHeaders } from "@/lib/api"
+import { getApiUrl, getAuthHeaders, safeJson } from "@/lib/api"
 
 export default function SystemCheck() {
     const { sessionId } = useParams()
@@ -31,7 +31,7 @@ export default function SystemCheck() {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`)
             }
-            return response.json()
+            return safeJson(response)
         },
         enabled: false,
         retry: false

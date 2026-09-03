@@ -19,7 +19,16 @@ logger = logging.getLogger("coact.database")
 # ---------------------------------------------------------
 # MongoDB Connection with Retry Logic & Connection Pooling
 # ---------------------------------------------------------
-MONGODB_URI = os.environ.get("MONGODB_URI", "")
+# Resolve the MongoDB connection URI. Railway exposes the managed Mongo
+# database as MONGO_URL / MONGO_PUBLIC_URL, while a stand-alone instance
+# typically uses MONGODB_URI. Accept any of them so the backend connects
+# regardless of which variable is injected by the host.
+MONGODB_URI = (
+    os.environ.get("MONGODB_URI")
+    or os.environ.get("MONGO_URL")
+    or os.environ.get("MONGO_PUBLIC_URL")
+    or ""
+).strip()
 
 if not MONGODB_URI:
     logger.critical("FATAL: MONGODB_URI environment variable is not set.")

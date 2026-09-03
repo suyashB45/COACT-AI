@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Mail, Lock, Eye, EyeOff, X } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
-import { getApiUrl, getAuthHeaders, requestForgotPassword, resetPassword } from '../lib/api';
+import { getApiUrl, getAuthHeaders, requestForgotPassword, resetPassword, safeJson } from '../lib/api';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -25,7 +25,7 @@ const Login: React.FC = () => {
                 headers: { ...getAuthHeaders() },
                 body: JSON.stringify({ email: email.trim(), password })
             });
-            const data = await res.json();
+            const data = await safeJson(res) || {};
             if (!res.ok) throw new Error(data.detail || 'Login failed');
             return data;
         },

@@ -16,7 +16,7 @@ import {
 
 import Navigation from "../components/landing/Navigation"
 import AiUsageCard from "@/components/AiUsageCard"
-import { getApiUrl, getAuthHeaders, getUserUsage, UserUsage } from "@/lib/api"
+import { getApiUrl, getAuthHeaders, getUserUsage, UserUsage, safeJson } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // --- TYPES ---
@@ -85,7 +85,7 @@ export default function Dashboard() {
                 headers: { ...getAuthHeaders() }
             })
             if (!res.ok) throw new Error(`Server error (${res.status})`)
-            return res.json()
+            return safeJson(res)
         }
     })
 
@@ -96,7 +96,7 @@ export default function Dashboard() {
                 headers: { ...getAuthHeaders() }
             })
             if (!res.ok) throw new Error("Failed to load sessions")
-            return res.json()
+            return safeJson(res)
         }
     })
 

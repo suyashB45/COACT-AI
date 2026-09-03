@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Mail, Clock, Trophy, Calendar, ArrowRight, LogOut, PlayCircle, Settings } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import Navigation from '../components/landing/Navigation';
-import { getApiUrl, getAuthHeaders } from '../lib/api';
+import { getApiUrl, getAuthHeaders, safeJson } from '../lib/api';
 
 interface Session {
     session_id: string;
@@ -36,7 +36,7 @@ const Profile: React.FC = () => {
             });
 
             if (res.ok) {
-                return res.json();
+                return safeJson(res);
             }
             throw new Error('Failed to fetch history');
         },

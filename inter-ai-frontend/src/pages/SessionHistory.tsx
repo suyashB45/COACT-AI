@@ -6,7 +6,7 @@ import { Clock, User, Bot, Calendar, Trophy, Sparkles, BookOpen } from "lucide-r
 import { motion } from "framer-motion"
 
 import Navigation from "../components/landing/Navigation"
-import { getApiUrl, getAuthHeaders } from "../lib/api"
+import { getApiUrl, getAuthHeaders, safeJson } from "../lib/api"
 import { Skeleton } from "../components/ui/skeleton"
 
 export default function SessionHistory() {
@@ -31,7 +31,7 @@ export default function SessionHistory() {
                 throw new Error(`Server error (${res.status})`)
             }
 
-            const data = await res.json()
+            const data = await safeJson(res)
 
             if (!Array.isArray(data)) {
                 console.error('History API returned non-array:', data)
