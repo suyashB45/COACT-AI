@@ -640,6 +640,174 @@ def normalize_assessment_report(data, fallback_meta):
             overall = int(round(sum(scores) / len(scores)))
             meta["overall_grade"] = f"{overall}/10"
 
+    # -----------------------------------------------------------------
+    # GUARANTEE EVERY SECTION EXISTS SO THE PDF ALWAYS RENDERS ALL 14.
+    # The LLM frequently truncates its single large JSON response and
+    # drops the middle sections (5-13). Fall back to explicit "Insufficient
+    # evidence" placeholders for any missing section rather than silently
+    # omitting the section from the report.
+    # -----------------------------------------------------------------
+    NO_EVIDENCE = "Insufficient evidence from the conversation."
+
+    def _dimension_map():
+        board = data.get("performance_scorecard")
+        names = []
+        if isinstance(board, dict) and isinstance(board.get("dimensions"), list):
+            names = [d.get("dimension") for d in board["dimensions"] if isinstance(d, dict) and d.get("dimension")]
+        return names or (meta.get("scorecard_dimensions", []).split(", ") if meta.get("scorecard_dimensions") else [])
+
+    # 1. Timing
+    if not isinstance(data.get("timing"), dict):
+        data["timing"] = {
+            "duration": data.get("timing") or "0 min 0 sec",
+            "start_time": "",
+            "end_time": "",
+            "conversation_turns": 0,
+            "speaker_distribution": "Participant: -- / Coach: --",
+        }
+
+    # 2. Conversation snapshot
+    if not isinstance(data.get("conversation_snapshot"), dict):
+        data["conversation_snapshot"] = {
+            "primary_topic": NO_EVIDENCE,
+            "key_objectives": [],
+            "main_challenges": [],
+            "summary": NO_EVIDENCE,
+            "key_themes": [],
+        }
+
+    # 3. Executive dashboard (numbers required by the renderer)
+    if not isinstance(data.get("executive_dashboard"), dict):
+        data["executive_dashboard"] = {}
+    ed = data["executive_dashboard"]
+    for k in ("session_duration", "key_themes", "strength_areas", "missed_opportunities",
+              "coaching_opportunities", "recommended_actions"):
+        ed.setdefault(k, 0)
+
+    # 4. Coaching efficacy
+    if not isinstance(data.get("coaching_efficacy"), dict):
+        data["coaching_efficacy"] = {}
+    ce = data["coaching_efficacy"]
+    if not isinstance(ce.get("dimensions"), dict):
+        ce["dimensions"] = {}
+    standard_dims = [
+        "goal_alignment", "question_quality", "active_listening", "feedback_quality",
+        "depth_of_exploration", "actionability", "participant_engagement",
+    ]
+    for dim in standard_dims:
+        if not isinstance(ce["dimensions"].get(dim), dict):
+            ce["dimensions"][dim] = {"score": 0, "evidence": NO_EVIDENCE,
+                                     "reasoning": NO_EVIDENCE, "improvement": NO_EVIDENCE}
+
+    # 5. Conversation heat map
+    if not isinstance(data.get("heat_map"), dict):
+        data["heat_map"] = {}
+    hm = data["heat_map"]
+    if not isinstance(hm.get("dimensions"), list) or not hm["dimensions"]:
+        hm["dimensions"] = ["Communication", "Behaviour", "Emotional Intelligence",
+                            "Goal Focus", "Engagement", "Leadership", "Conflict Handling"]
+    n_dims = len(hm["dimensions"])
+    if not isinstance(hm.get("segments"), list) or not hm["segments"]:
+        hm["segments"] = [
+            {"label": "Opening", "intensity": [0] * n_dims},
+            {"label": "Mid-session", "intensity": [0] * n_dims},
+            {"label": "Closing", "intensity": [0] * n_dims},
+        ]
+    for seg in hm["segments"]:
+        if not isinstance(seg, dict):
+            continue
+        if not isinstance(seg.get("intensity"), list) or len(seg["intensity"]) < n_dims:
+            seg["intensity"] = ([int(v) for v in (seg.get("intensity") or [])] + [0] * n_dims)[:n_dims]
+
+    # 6. Skill visualization
+    if not isinstance(data.get("skill_visualization"), dict):
+        data["skill_visualization"] = {}
+    sv = data["skill_visualization"]
+    for group in ("communication", "leadership", "interpersonal"):
+        if not isinstance(sv.get(group), dict) or not sv[group]:
+            sv[group] = {}
+
+    # 7. Goal attainment
+    if not isinstance(data.get("goal_attainment"), list) or not data["goal_attainment"]:
+        data["goal_attainment"] = [{
+            "goal": NO_EVIDENCE, "evidence": NO_EVIDENCE,
+            "status": "Needs Attention", "remaining_development": NO_EVIDENCE,
+        }]
+
+    # 8. Performance scorecard
+    if not isinstance(data.get("performance_scorecard"), dict):
+        data["performance_scorecard"] = {}
+    psc = data["performance_scorecard"]
+    if not isinstance(psc.get("dimensions"), list):
+        psc["dimensions"] = []
+    if not psc["dimensions"]:
+        dim_names = _dimension_map()
+        psc["dimensions"] = [
+            {"dimension": n or "Assessment dimension", "score": 0,
+             "evidence": NO_EVIDENCE, "reasoning": NO_EVIDENCE, "improvement": NO_EVIDENCE}
+            for n in (dim_names[:6] or ["Communication", "Active Listening",
+                                        "Emotional Intelligence", "Leadership",
+                                        "Goal Orientation", "Coaching Engagement"])
+        ]
+    psc.setdefault("overall_performance", meta.get("overall_grade", "0/10"))
+    psc.setdefault("scoring_methodology", NO_EVIDENCE)
+
+    # 9. Deep-dive analysis
+    if not isinstance(data.get("deep_dive_analysis"), dict):
+        data["deep_dive_analysis"] = {}
+    dda = data["deep_dive_analysis"]
+    if not isinstance(dda.get("communication_style"), dict):
+        dda["communication_style"] = {"observed_style": NO_EVIDENCE}
+    for f in ("behaviour_analysis", "emotional_intelligence"):
+        if not isinstance(dda.get(f), dict):
+            dda[f] = {}
+
+    # 10. Strengths & missed opportunities
+    if not isinstance(data.get("strengths_and_opportunities"), dict):
+        data["strengths_and_opportunities"] = {}
+    soc = data["strengths_and_opportunities"]
+    if not isinstance(soc.get("strengths"), list) or not soc["strengths"]:
+        soc["strengths"] = [NO_EVIDENCE]
+    if not isinstance(soc.get("missed_opportunities"), list) or not soc["missed_opportunities"]:
+        soc["missed_opportunities"] = [NO_EVIDENCE]
+
+    # 11. Ideal coaching questions
+    if not isinstance(data.get("ideal_coaching_questions"), list) or not data["ideal_coaching_questions"]:
+        data["ideal_coaching_questions"] = [{
+            "question": NO_EVIDENCE, "definition": NO_EVIDENCE,
+            "impact": NO_EVIDENCE, "impact_score": 0,
+        }]
+
+    # 12. Action plan
+    if not isinstance(data.get("action_plan"), list) or not data["action_plan"]:
+        data["action_plan"] = [{
+            "action": NO_EVIDENCE, "why_it_matters": NO_EVIDENCE,
+            "success_indicator": NO_EVIDENCE, "priority": "Medium",
+        }]
+
+    # 13. Recommended next steps
+    if not isinstance(data.get("recommended_next_steps"), list) or not data["recommended_next_steps"]:
+        data["recommended_next_steps"] = [NO_EVIDENCE]
+
+    # 14. Conversation analysis
+    if not isinstance(data.get("conversation_analysis"), dict):
+        data["conversation_analysis"] = {
+            "phase_breakdown": [
+                {"phase": "Opening", "time_range": "0-1 min",
+                 "summary": NO_EVIDENCE, "participant_technique": NO_EVIDENCE,
+                 "impact": NO_EVIDENCE}
+            ],
+            "key_turning_points": [],
+            "dialogue_dynamics": [
+                {"dimension": "Balance of Talk Time", "observation": NO_EVIDENCE, "assessment": "0/10"}
+            ],
+            "notable_moments": [],
+        }
+    ca = data["conversation_analysis"]
+    for k in ("phase_breakdown", "key_turning_points", "dialogue_dynamics", "notable_moments"):
+        if not isinstance(ca.get(k), list):
+            ca[k] = []
+
     data.setdefault("type", "assessment_report")
     return data
 
@@ -733,8 +901,12 @@ def analyze_full_report_data(transcript, role, ai_role, scenario, framework=None
     # =====================================================================
     # MENTORSHIP MODE: Using standard assessment format as requested
     # =====================================================================
-    
-    unified_instruction = f"""
+
+    # Shared preamble injected at the top of every scorecard sub-prompt.
+    # The report JSON is generated by SEVERAL SMALLER LLM CALLS (each covering
+    # a handful of sections) instead of one huge call. This avoids the LLM
+    # truncating its output and dropping the mid-report sections (5-13).
+    shared_preamble = f"""
 === CRITICAL EVALUATION TARGET ===
 You MUST evaluate ONLY the [HUMAN LEARNER]'s performance (the person playing "{role}").
 Do NOT evaluate the [AI CHARACTER]'s performance (the AI playing "{ai_role}").
@@ -770,11 +942,12 @@ KEY PRINCIPLES:
 - Do NOT be generous to "encourage" the learner. Honest, evidence-based feedback helps them grow.
 ===
 
-Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise reasoning (1-2 sentences) explaining WHY that specific score was given.
-
 **Scorecard**: Evaluate the [HUMAN LEARNER]'s performance on these 6 dimensions (1-10): {scorecard_dimensions}
 
-**JSON Schema** — return ALL fields exactly as shown:
+The full report is assembled from THREE smaller responses. Return ONLY the JSON for the sections listed in YOUR schema below — do not invent other top-level keys.
+
+=== PART 1 OF 3 — REPORT OVERVIEW ===
+**JSON Schema** — return exactly these fields:
 {{
   "meta": {{
     "scenario_id": "{scenario_type}",
@@ -796,6 +969,14 @@ Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise r
     "main_challenges": ["Challenge identified"],
     "summary": "2-3 sentence overall conversation summary",
     "key_themes": ["Theme 1", "Theme 2", "Theme 3", "Theme 4"]
+  }},
+  "executive_dashboard": {{
+    "session_duration": "Xm Xs",
+    "key_themes": 0,
+    "strength_areas": 0,
+    "missed_opportunities": 0,
+    "coaching_opportunities": 0,
+    "recommended_actions": 0
   }},
   "conversation_analysis": {{
     "phase_breakdown": [
@@ -825,174 +1006,175 @@ Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise r
       "A concrete, high-impact moment or exchange worth flagging",
       "Another notable moment"
     ]
-  }},
-  "executive_dashboard": {{
-    "session_duration": "Xm Xs",
-    "key_themes": 0,
-    "strength_areas": 0,
-    "missed_opportunities": 0,
-    "coaching_opportunities": 0,
-    "recommended_actions": 0
-  }},
-  "coaching_efficacy": {{
-    "dimensions": {{
-      "goal_alignment": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences explaining the score", "improvement": "Specific improvement advice" }},
-      "question_quality": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      "active_listening": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      "feedback_quality": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      "depth_of_exploration": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      "actionability": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      "participant_engagement": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }}
-    }}
-  }},
-  "heat_map": {{
-    "dimensions": ["Communication", "Behaviour", "Emotional Intelligence", "Goal Focus", "Engagement", "Leadership", "Conflict Handling"],
-    "segments": [
-      {{ "label": "Opening", "intensity": [0, 0, 0, 0, 0, 0, 0] }},
-      {{ "label": "Mid-session", "intensity": [0, 0, 0, 0, 0, 0, 0] }},
-      {{ "label": "Closing", "intensity": [0, 0, 0, 0, 0, 0, 0] }}
-    ]
-  }},
-  "skill_visualization": {{
-    "communication": {{ "clarity": 0, "active_listening": 0, "articulation": 0, "questioning": 0 }},
-    "leadership": {{ "decision_making": 0, "accountability": 0, "delegation": 0, "conflict_management": 0 }},
-    "interpersonal": {{ "empathy": 0, "collaboration": 0, "emotional_awareness": 0 }}
-  }},
-  "goal_attainment": [
-    {{
-      "goal": "Improve communication",
-      "evidence": "Discussed communication gaps with specific examples",
-      "status": "Partially Achieved",
-      "remaining_development": "What still needs to happen to fully achieve this goal"
-    }},
-    {{
-      "goal": "Handle conflict better",
-      "evidence": "Explored conflict scenario in depth",
-      "status": "Achieved",
-      "remaining_development": "What still needs to happen (or 'None — goal met')"
-    }}
-  ],
-  "performance_scorecard": {{
-    "dimensions": [
-      {{ "dimension": "Communication", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote showing this behaviour", "reasoning": "1-2 sentences explaining how the score was derived from that evidence", "improvement": "Specific, actionable recommendation to raise this score — include an example phrase" }},
-      {{ "dimension": "Active Listening", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      {{ "dimension": "Emotional Intelligence", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      {{ "dimension": "Leadership", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      {{ "dimension": "Goal Orientation", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
-      {{ "dimension": "Coaching Engagement", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }}
-    ],
-    "overall_performance": "X/10 - Strong Performance",
-    "scoring_methodology": "2-3 sentences explaining how the scores were derived from transcript evidence."
-  }},
-  "deep_dive_analysis": {{
-    "communication_style": {{
-      "observed_style": "Collaborative and explanatory",
-      "clarity": "Observation about clarity",
-      "directness": "Observation about directness",
-      "conciseness": "Observation about conciseness",
-      "assertiveness": "Observation about assertiveness",
-      "listening": "Observation about listening",
-      "questioning": "Observation about questioning",
-      "adaptability": "Observation about adaptability",
-      "strength": "Key strength observed",
-      "development_area": "Key development area observed"
-    }},
-    "behaviour_analysis": {{
-      "initiative": {{ "score": 0, "evidence": "Observed behaviour" }},
-      "accountability": {{ "score": 0, "evidence": "Observed behaviour" }},
-      "collaboration": {{ "score": 0, "evidence": "Observed behaviour" }},
-      "decision_making": {{ "score": 0, "evidence": "Observed behaviour" }},
-      "adaptability": {{ "score": 0, "evidence": "Observed behaviour" }},
-      "conflict_response": {{ "score": 0, "evidence": "Observed behaviour" }},
-      "problem_solving": {{ "score": 0, "evidence": "Observed behaviour" }},
-      "ownership": {{ "score": 0, "evidence": "Observed behaviour" }}
-    }},
-    "emotional_intelligence": {{
-      "self_awareness": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }},
-      "self_regulation": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }},
-      "empathy": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }},
-      "social_awareness": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }},
-      "relationship_management": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }}
-    }}
-  }},
-  "strengths_and_opportunities": {{
-    "strengths": [
-      "Strength 1 — specific and evidence-based",
-      "Strength 2",
-      "Strength 3"
-    ],
-    "missed_opportunities": [
-      "Missed opportunity 1 — specific behavior that was not addressed",
-      "Missed opportunity 2",
-      "Missed opportunity 3"
-    ]
-  }},
-  "ideal_coaching_questions": [
-    {{
-      "question": "What do you think is the underlying reason this keeps happening?",
-      "definition": "A root-cause exploration question designed to move the conversation beyond the immediate problem.",
-      "impact": "Encourages deeper reflection and identifies underlying behavioural or process issues.",
-      "impact_score": 0
-    }},
-    {{
-      "question": "How do you think your approach affected the other person?",
-      "definition": "A perspective-taking question that encourages the participant to evaluate the effect of their behaviour on others.",
-      "impact": "Develops empathy and emotional awareness.",
-      "impact_score": 0
-    }}
-  ],
-  "action_plan": [
-    {{
-      "action": "Practice concise communication",
-      "why_it_matters": "Improve clarity in high-pressure discussions",
-      "success_indicator": "Responses become more structured and focused",
-      "priority": "High"
-    }},
-    {{
-      "action": "Use root-cause questioning",
-      "why_it_matters": "Improve problem exploration",
-      "success_indicator": "Deeper discussions",
-      "priority": "High"
-    }}
-  ],
-  "participant_performance": [
-    {{
-      "dimension": "Dimension name from scorecard",
-      "score": "X/10",
-      "reasoning": "1-2 sentences explaining exactly why this score was given, tied to specific behavior.",
-      "quote": "EXACT verbatim quote from [HUMAN LEARNER] only — the most relevant line",
-      "suggestion": "Specific, actionable recommendation for how to improve — include an example phrase if possible."
-    }}
-  ],
-  "recommended_next_steps": [
-    "Priority 1 — the single most important development focus, stated as a concise action",
-    "Priority 2 — next most important development focus",
-    "Priority 3 — last, still valuable development focus"
-  ],
-  "radar_chart_data": [
-    {{ "dimension": "Dimension name", "score": 0 }}
-  ]
+  }}
 }}
 
-RULES:
-- ALL quotes MUST come from [HUMAN LEARNER] lines only. NEVER quote [AI CHARACTER] lines as evidence.
-- TONE: Balanced, objective, and constructive. No dramatic phrasing. Use professional coaching language.
-- SCORING INTEGRITY: Use the full 1-10 scale for performance_scorecard dimensions. A mediocre performance gets 4-6, not 8. Evidence must justify every score. coaching_efficacy dimensions are 1-10. behaviour_analysis and emotional_intelligence scores are 1-10. ideal_coaching_questions impact_score is 1-10. skill_visualization scores are 1-10. heat_map intensity values are 1-10.
-- PROOF FOR EVERY MARK: Every dimension in performance_scorecard and coaching_efficacy MUST include: (a) "evidence" = an exact verbatim [HUMAN LEARNER] quote for the behaviour, (b) "reasoning" = why the score was given based on that evidence, and (c) "improvement" = a specific, actionable way to raise that score. Never leave these blank.
-- ZERO-PLACEHOLDER WARNING: The schema above uses "0", "X", and descriptive phrases ONLY as PLACEHOLDERS to define the JSON shape. You MUST evaluate the actual [HUMAN LEARNER] conversation and replace EVERY placeholder with a genuine value (scores, timing, counts, labels) derived from transcript evidence. NEVER return 0, "X", or the placeholder phrases as final values.
-- radar_chart_data scores MUST be integers 1-10 and MUST have exactly 6 dimensions matching performance_scorecard.dimensions.
-- meta.overall_grade MUST be an integer X/10 and MUST equal the average of performance_scorecard.dimensions scores.
-- goal_attainment statuses MUST be one of exactly: "Achieved", "Partially Achieved", "Needs Attention", "Not Addressed".
-- action_plan priority MUST be one of exactly: "High", "Medium", "Low".
-- recommended_next_steps MUST list 2-4 concise, actionable development priorities drawn from evidence. Each step is NEW content — do not repeat the exact wording of action_plan. Prioritize by impact.
-- CONTENT INTELLIGENCE: Analyze the actual conversation. Do not invent behaviours, emotions, goals, skills, challenges, or outcomes. Attribute every claim to what was discussed. If evidence is insufficient, use exactly: "Insufficient evidence from the conversation."
-- NO REPETITION: Never repeat the same observation verbatim across sections. Each section delivers a different layer: Context → Evaluation → Evidence → Development Gaps → Coaching Recommendations → Actions.
-- PROFESSIONAL LANGUAGE: Use framing such as "The conversation indicates...", "A recurring theme was...", "An opportunity for development is...", "The discussion demonstrated evidence of...". Avoid "The AI thinks", "The model believes", "You did a great job", "This was amazing".
-- heat_map.segments MUST have exactly 3 segments (label + intensity). Each intensity array MUST have exactly 7 integers (1-10) matching heat_map.dimensions order.
-- assessment is about coaching insights and measurable behavior — NOT generic transcript analysis.
-- conversation_analysis MUST provide a granular, phase-by-phase walkthrough of the actual dialogue (opening, middle, closing). phase_breakdown MUST have 2-4 phases; each must name the technique the participant used and its impact on the conversation. key_turning_points MUST identify the 1-3 pivotal exchanges and why they mattered. dialogue_dynamics MUST evaluate 2-4 dimensions such as talk-time balance, questioning quality, active listening, and tone. notable_moments MUST list 1-3 concrete exchanges. This section traces the ARC of the conversation and must NOT merely restate scores from other sections.
-- dialogue_dynamics.assessment: if the report is an ASSESSMENT (session_mode is coaching/assessment), use an integer X/10. If REPORT IS MENTORSHIP (session_mode is mentorship), use a QUALITATIVE label ONLY — one of: "High", "Moderate", "Developing", or a short qualitative phrase. NEVER include a number or "/10" in mentorship mode.
+conversation_analysis MUST provide a granular, phase-by-phase walkthrough of the actual dialogue (opening, middle, closing). phase_breakdown MUST have 2-4 phases; each must name the technique the participant used and its impact. key_turning_points MUST identify the 1-3 pivotal exchanges and why they mattered. dialogue_dynamics MUST evaluate 2-4 dimensions such as talk-time balance, questioning quality, active listening, and tone, using an integer X/10 for the assessment in this scoring mode. notable_moments MUST list 1-3 concrete exchanges. This section traces the ARC of the conversation and must NOT merely restate scores from other parts.
 """
+
+    schemas = [f"""
+    {shared_preamble}
+    
+    Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise reasoning (1-2 sentences) explaining WHY that specific score was given.
+    
+    **Scorecard**: Evaluate the [HUMAN LEARNER]'s performance on these 6 dimensions (1-10): {scorecard_dimensions}
+    
+    The full report is assembled from THREE smaller responses. Return ONLY the JSON for the sections listed in YOUR schema below — do not invent other top-level keys.
+    
+    === PART 2 OF 3 — QUANTITATIVE SCORING ===
+    **JSON Schema** — return exactly these fields:
+    {{
+      "coaching_efficacy": {{
+        "dimensions": {{
+          "goal_alignment": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences explaining the score", "improvement": "Specific improvement advice" }},
+          "question_quality": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          "active_listening": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          "feedback_quality": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          "depth_of_exploration": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          "actionability": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          "participant_engagement": {{ "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }}
+        }}
+      }},
+      "heat_map": {{
+        "dimensions": ["Communication", "Behaviour", "Emotional Intelligence", "Goal Focus", "Engagement", "Leadership", "Conflict Handling"],
+        "segments": [
+          {{ "label": "Opening", "intensity": [0, 0, 0, 0, 0, 0, 0] }},
+          {{ "label": "Mid-session", "intensity": [0, 0, 0, 0, 0, 0, 0] }},
+          {{ "label": "Closing", "intensity": [0, 0, 0, 0, 0, 0, 0] }}
+        ]
+      }},
+      "skill_visualization": {{
+        "communication": {{ "clarity": 0, "active_listening": 0, "articulation": 0, "questioning": 0 }},
+        "leadership": {{ "decision_making": 0, "accountability": 0, "delegation": 0, "conflict_management": 0 }},
+        "interpersonal": {{ "empathy": 0, "collaboration": 0, "emotional_awareness": 0 }}
+      }},
+      "performance_scorecard": {{
+        "dimensions": [
+          {{ "dimension": "Communication", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote showing this behaviour", "reasoning": "1-2 sentences explaining how the score was derived from that evidence", "improvement": "Specific, actionable recommendation to raise this score — include an example phrase" }},
+          {{ "dimension": "Active Listening", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          {{ "dimension": "Emotional Intelligence", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          {{ "dimension": "Leadership", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          {{ "dimension": "Goal Orientation", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }},
+          {{ "dimension": "Coaching Engagement", "score": 0, "evidence": "Exact verbatim [HUMAN LEARNER] quote", "reasoning": "1-2 sentences", "improvement": "Specific improvement advice" }}
+        ],
+        "overall_performance": "X/10 - Strong Performance",
+        "scoring_methodology": "2-3 sentences explaining how the scores were derived from transcript evidence."
+      }},
+      "participant_performance": [
+        {{
+          "dimension": "Dimension name from scorecard",
+          "score": "X/10",
+          "reasoning": "1-2 sentences explaining exactly why this score was given, tied to specific behavior.",
+          "quote": "EXACT verbatim quote from [HUMAN LEARNER] only — the most relevant line",
+          "suggestion": "Specific, actionable recommendation for how to improve — include an example phrase if possible."
+        }}
+      ],
+      "radar_chart_data": [
+        {{ "dimension": "Dimension name", "score": 0 }}
+      ],
+      "recommended_next_steps": [
+        "Priority 1 — the single most important development focus, stated as a concise action",
+        "Priority 2 — next most important development focus",
+        "Priority 3 — last, still valuable development focus"
+      ]
+    }}
+    
+    Use the full 1-10 scale and never inflate. Every dimension in performance_scorecard and coaching_efficacy MUST include (a) "evidence" = an exact verbatim [HUMAN LEARNER] quote, (b) "reasoning", and (c) "improvement". radar_chart_data scores MUST be integers 1-10 and MUST have exactly 6 dimensions matching performance_scorecard.dimensions. meta.overall_grade MUST be an integer X/10 and MUST equal the average of performance_scorecard.dimensions scores (set it in Part 1). heat_map.segments MUST have exactly 3 segments; each intensity array MUST have exactly 7 integers matching heat_map.dimensions order. recommended_next_steps MUST list 2-4 concise, actionable development priorities drawn from evidence, each NEW content (do not repeat action_plan wording).
+    """]
+    
+    schemas.append(f"""
+    {shared_preamble}
+    
+    Every score needs transcript evidence from [HUMAN LEARNER] lines ONLY. Concise reasoning (1-2 sentences) explaining WHY that specific score was given.
+    
+    The full report is assembled from THREE smaller responses. Return ONLY the JSON for the sections listed in YOUR schema below — do not invent other top-level keys.
+    
+    === PART 3 OF 3 — DEVELOPMENT INSIGHTS ===
+    **JSON Schema** — return exactly these fields:
+    {{
+      "goal_attainment": [
+        {{
+          "goal": "Improve communication",
+          "evidence": "Discussed communication gaps with specific examples",
+          "status": "Partially Achieved",
+          "remaining_development": "What still needs to happen to fully achieve this goal"
+        }},
+        {{
+          "goal": "Handle conflict better",
+          "evidence": "Explored conflict scenario in depth",
+          "status": "Achieved",
+          "remaining_development": "What still needs to happen (or 'None — goal met')"
+        }}
+      ],
+      "deep_dive_analysis": {{
+        "communication_style": {{
+          "observed_style": "Collaborative and explanatory",
+          "clarity": "Observation about clarity",
+          "directness": "Observation about directness",
+          "conciseness": "Observation about conciseness",
+          "assertiveness": "Observation about assertiveness",
+          "listening": "Observation about listening",
+          "questioning": "Observation about questioning",
+          "adaptability": "Observation about adaptability",
+          "strength": "Key strength observed",
+          "development_area": "Key development area observed"
+        }},
+        "behaviour_analysis": {{
+          "initiative": {{ "score": 0, "evidence": "Observed behaviour" }},
+          "accountability": {{ "score": 0, "evidence": "Observed behaviour" }},
+          "collaboration": {{ "score": 0, "evidence": "Observed behaviour" }},
+          "decision_making": {{ "score": 0, "evidence": "Observed behaviour" }},
+          "adaptability": {{ "score": 0, "evidence": "Observed behaviour" }},
+          "conflict_response": {{ "score": 0, "evidence": "Observed behaviour" }},
+          "problem_solving": {{ "score": 0, "evidence": "Observed behaviour" }},
+          "ownership": {{ "score": 0, "evidence": "Observed behaviour" }}
+        }},
+        "emotional_intelligence": {{
+          "self_awareness": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }},
+          "self_regulation": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }},
+          "empathy": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }},
+          "social_awareness": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }},
+          "relationship_management": {{ "score": 0, "evidence": "Evidence", "improvement": "Recommendation" }}
+        }}
+      }},
+      "strengths_and_opportunities": {{
+        "strengths": [
+          "Strength 1 — specific and evidence-based",
+          "Strength 2",
+          "Strength 3"
+        ],
+        "missed_opportunities": [
+          "Missed opportunity 1 — specific behavior that was not addressed",
+          "Missed opportunity 2",
+          "Missed opportunity 3"
+        ]
+      }},
+      "ideal_coaching_questions": [
+        {{
+          "question": "What do you think is the underlying reason this keeps happening?",
+          "definition": "A root-cause exploration question designed to move the conversation beyond the immediate problem.",
+          "impact": "Encourages deeper reflection and identifies underlying behavioural or process issues.",
+          "impact_score": 0
+        }}
+      ],
+      "action_plan": [
+        {{
+          "action": "Practice concise communication",
+          "why_it_matters": "Improve clarity in high-pressure discussions",
+          "success_indicator": "Responses become more structured and focused",
+          "priority": "High"
+        }},
+        {{
+          "action": "Use root-cause questioning",
+          "why_it_matters": "Improve problem exploration",
+          "success_indicator": "Deeper discussions",
+          "priority": "High"
+        }}
+      ]
+    }}
+    
+    goal_attainment statuses MUST be one of exactly: "Achieved", "Partially Achieved", "Needs Attention", "Not Addressed". action_plan priority MUST be one of exactly: "High", "Medium", "Low". behaviour_analysis and emotional_intelligence scores are 1-10. ideal_coaching_questions impact_score is 1-10. Contribute 2-3 ideal coaching questions even if the participant never asked questions.
+    """)
 
     # ANALYST PERSONA (compressed)
     analyst_persona = ""
@@ -1002,22 +1184,6 @@ RULES:
         analyst_persona = "STYLE: Warm, encouraging, high-EQ. Focus on psychological safety and growth mindset. Quote exact words."
     else:
         analyst_persona = "STYLE: Professional, direct, analytical. Back every score with verbatim quote. High-impact tactical advice."
-
-    # Unified System Prompt — explicitly identifies who to evaluate
-    system_prompt = (
-        f"You are a professional performance analyst assessing a roleplay session.\n"
-        f"\n"
-        f"=== WHO TO EVALUATE ===\n"
-        f"[HUMAN LEARNER] = The real human user, playing the role of \"{role}\". EVALUATE THIS PERSON ONLY.\n"
-        f"[AI CHARACTER] = The AI system, playing the role of \"{ai_role}\". Do NOT evaluate this. Use only as context.\n"
-        f"===\n"
-        f"\n"
-        f"{analyst_persona}\n"
-        f"{unified_instruction}\n"
-        f"\n"
-        f"Use the transcript below as your SOLE source of truth. ALL verbatim quotes MUST come from [HUMAN LEARNER] lines.\n"
-        f"Return a single JSON object. Do NOT include any text before or after the JSON.\n"
-    )
 
     try:
         # Create conversation text for analysis — explicit labels to prevent role confusion
@@ -1045,11 +1211,26 @@ RULES:
         import concurrent.futures
         t1 = dt.datetime.now()
         
-        def run_main_report():
+        def run_report_part(schema):
+            """Run one of the three smaller report sub-calls (overview / scoring / insights)."""
+            part_system = (
+                f"You are a professional performance analyst assessing a roleplay session.\n"
+                f"\n"
+                f"=== WHO TO EVALUATE ===\n"
+                f"[HUMAN LEARNER] = The real human user, playing the role of \"{role}\". EVALUATE THIS PERSON ONLY.\n"
+                f"[AI CHARACTER] = The AI system, playing the role of \"{ai_role}\". Do NOT evaluate this. Use only as context.\n"
+                f"===\n"
+                f"\n"
+                f"{analyst_persona}\n"
+                f"{schema}\n"
+                f"\n"
+                f"Use the transcript below as your SOLE source of truth. ALL verbatim quotes MUST come from [HUMAN LEARNER] lines.\n"
+                f"Return a single JSON object. Do NOT include any text before or after the JSON.\n"
+            )
             try:
                 raw_response = chain_raw.invoke(
                     {
-                        "system_prompt": system_prompt,
+                        "system_prompt": part_system,
                         "conversation": full_conversation
                     },
                     config={
@@ -1057,41 +1238,53 @@ RULES:
                         "tags": ["report", scenario_type or "unknown"]
                     }
                 )
-                
+
                 from services.usage import record_chain_usage
                 record_chain_usage(
                     raw_response,
                     REPORT_MODEL_NAME,
-                    messages=system_prompt + "\n" + full_conversation,
+                    messages=part_system + "\n" + full_conversation,
                     output_text=str(getattr(raw_response, "content", "")),
                 )
-                
+
                 content = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
                 json_text = "".join(str(x) for x in content).strip() if isinstance(content, list) else content.strip()
-                data = parse_json_robustly(json_text)
-                
-                if data is None:
-                    data = parser.parse(json_text)
-                return data
-            except Exception as e:
-                print(f" [ERROR] Main report LLM call failed: {e}", flush=True)
-                return None
+                part_data = parse_json_robustly(json_text)
 
-        # Execute all 3 in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            future_main = executor.submit(run_main_report)
+                if part_data is None:
+                    part_data = parser.parse(json_text)
+                return part_data if isinstance(part_data, dict) else {}
+            except Exception as e:
+                print(f" [ERROR] Report part LLM call failed: {e}", flush=True)
+                return {}
+
+        def merge_parts(parts):
+            merged = {}
+            for part in parts:
+                if not isinstance(part, dict):
+                    continue
+                for k, v in part.items():
+                    merged[k] = v
+            return merged
+
+        # Execute all 5 in parallel (3 report parts + character + questions)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            future_p1 = executor.submit(run_report_part, shared_preamble)
+            future_p2 = executor.submit(run_report_part, schemas[0])
+            future_p3 = executor.submit(run_report_part, schemas[1])
             future_character = executor.submit(analyze_character_traits, transcript, role, ai_role, scenario, scenario_type)
             future_questions = executor.submit(analyze_questions_missed, transcript, role, ai_role, scenario, scenario_type)
-            
-            data = future_main.result()
+
+            parts = [future_p1.result(), future_p2.result(), future_p3.result()]
+            data = merge_parts(parts)
             character_data = future_character.result()
             questions_data = future_questions.result()
 
         t2 = dt.datetime.now()
         print(f" [SUCCESS] Parallel report completed in {(t2-t1).total_seconds():.2f}s", flush=True)
         
-        # Handle potential timeout/None response
-        if data is None:
+        # Handle total failure (all three parts returned nothing)
+        if not data or not isinstance(data, dict):
             print(" [ERROR] Main report generation failed", flush=True)
             return {
                 "meta": {
@@ -3564,7 +3757,20 @@ def generate_report(transcript, role, ai_role, scenario, framework=None, filenam
     else:
         print("Generating new report data...")
         data = analyze_full_report_data(transcript, role, ai_role, scenario, framework, mode, scenario_type)
-    
+
+    # Guarantee every section exists so the PDF always renders all 14 sections,
+    # even when the LLM truncated its single JSON response. This is idempotent:
+    # sections the model did return are left untouched.
+    session_mode = session_mode or (data if isinstance(data, dict) else {}).get('meta', {}).get('session_mode', mode)
+    data = normalize_assessment_report(data, {
+        "scenario_id": scenario_type,
+        "outcome_status": "Completed",
+        "overall_grade": "N/A",
+        "summary": "Session analysis.",
+        "scenario_type": scenario_type,
+        "session_mode": session_mode or "skill_assessment",
+    }) if session_mode != "mentorship" else data
+
     # Sanitize data for PDF
     def sanitize_data_recursive(obj):
         if isinstance(obj, str):
